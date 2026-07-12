@@ -45,6 +45,7 @@ export default function App() {
                   />
 
                   <Route path="settings" element={<OpenSettingsRoute />} />
+                  <Route path="company" element={<OpenSettingsRoute tab="company" />} />
                   <Route path="users" element={<OpenSettingsRoute tab="users" />} />
                 </Route>
               </Route>

@@ -6,10 +6,14 @@ alwaysApply: false
 
 # Form conventions
 
-- Use `FormPanel`, `FormField`, `FormInput`, `FormSelect` from `frontend/src/components/form/FormPanel.jsx`.
+- Use `FormPanel`, `FormField`, `FormInput`, `FormSelect`, `FormTextarea` from `frontend/src/components/form/FormPanel.jsx`.
 - Forms are **always centered** in their parent (`win-form-host`). Use `wide` for wide panels (tables).
+- Browser autocomplete is **always off** for every form and field. Never enable autofill unless explicitly requested.
 - `FormPanel` must use `autoComplete="off"` and `noValidate`.
-- Inputs/selects default `autoComplete="off"`. Use `required` only as `aria-required` (FormInput strips native HTML required).
+- Field helpers (`FormInput` / `FormSelect` / `FormTextarea` / `FormAutocomplete`) default to `autoComplete="new-password"` (Chrome ignores `"off"` on address/email/password heuristics) plus `data-1p-ignore` / `data-lpignore`.
+- Prefer `type="text"` (+ `inputMode` when needed) over `type="email"` / `type="tel"` unless explicitly required — those types trigger browser autofill.
+- Any raw `<input>`, `<textarea>`, or `<select>` outside those helpers must still set `autoComplete="new-password"`.
+- Use `required` only as `aria-required` (FormInput strips native HTML required).
 - Do not use placeholders — use visible labels only.
 - Do not render inline validation errors inside the form body.
 

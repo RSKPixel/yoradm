@@ -162,7 +162,13 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        autoComplete="off"
+        autoComplete="new-password"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
         disabled={disabled}
         value={displayValue}
         onFocus={onFocus}

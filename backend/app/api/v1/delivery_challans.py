@@ -1,9 +1,15 @@
+from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.core.deps import CurrentUser, DbSession
-from app.schemas.delivery_challan import DeliveryChallanCreate, DeliveryChallanOut
+from app.schemas import PaginatedResponse
+from app.schemas.delivery_challan import (
+    DeliveryChallanCreate,
+    DeliveryChallanListItem,
+    DeliveryChallanOut,
+)
 from app.services import delivery_challan_service
 
 router = APIRouter(prefix="/delivery-challans", tags=["delivery-challans"])
@@ -19,6 +25,38 @@ def list_used_invoices(
         db,
         exclude_challan_id=exclude_challan_id,
     )
+
+
+@router.get("", response_model=PaginatedResponse[DeliveryChallanListItem])
+def list_delivery_challans(
+    _: CurrentUser,
+    db: DbSession,
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+) -> PaginatedResponse[DeliveryChallanListItem]:
+    items, total = delivery_challan_service.list_delivery_challans(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
+    meta = delivery_challan_service.list_page_meta(total, page, page_size)
+    return PaginatedResponse(items=items, **meta)
+
+
+@router.get("/{challan_id}", response_model=DeliveryChallanOut)
+def get_delivery_challan(
+    challan_id: int,
+    _: CurrentUser,
+    db: DbSession,
+) -> DeliveryChallanOut:
+    challan = delivery_challan_service.get_by_id(db, challan_id)
+    if not challan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery challan not found")
+    return challan
 
 
 @router.post("", response_model=DeliveryChallanOut, status_code=status.HTTP_201_CREATED)

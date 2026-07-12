@@ -10,6 +10,7 @@ class DeliveryChallanLineIn(BaseModel):
     ledger_name: Optional[str] = Field(default=None, max_length=255)
     stock_item: Optional[str] = Field(default=None, max_length=255)
     brand: Optional[str] = Field(default=None, max_length=128)
+    packing: Optional[float] = None
     qty: Optional[float] = None
     delivery_location: str = Field(min_length=1, max_length=128)
 
@@ -55,6 +56,7 @@ class DeliveryChallanLineOut(BaseModel):
     ledger_name: Optional[str] = None
     stock_item: Optional[str] = None
     brand: Optional[str] = None
+    packing: Optional[float] = None
     qty: Optional[float] = None
     delivery_location: str
     line_no: int
@@ -75,6 +77,25 @@ class DeliveryChallanOut(BaseModel):
 
     @field_serializer("created_at", "updated_at")
     def serialize_datetimes(self, value: datetime) -> str:
+        if value.tzinfo is None:
+            return value.isoformat() + "Z"
+        return value.isoformat().replace("+00:00", "Z")
+
+
+class DeliveryChallanListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    challan_date: date
+    vehicle_no: str
+    driver_name: str
+    batch_no: Optional[str] = None
+    invoice_count: int = 0
+    total_qty: float = 0
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
         if value.tzinfo is None:
             return value.isoformat() + "Z"
         return value.isoformat().replace("+00:00", "Z")

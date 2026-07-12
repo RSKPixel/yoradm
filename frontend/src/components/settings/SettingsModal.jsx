@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react'
-import { Cog6ToothIcon, KeyIcon, UserCircleIcon, UsersIcon } from '@heroicons/react/24/outline'
+import {
+  BuildingOffice2Icon,
+  Cog6ToothIcon,
+  KeyIcon,
+  UserCircleIcon,
+  UsersIcon,
+} from '@heroicons/react/24/outline'
 import { useAuth } from '../../auth/AuthContext'
 import { Modal } from '../common/Modal'
+import { CompanyProfileTab } from './CompanyProfileTab'
 import { PasswordTab } from './PasswordTab'
 import { ProfileTab } from './ProfileTab'
 import { UsersTab } from './UsersTab'
@@ -13,7 +20,12 @@ export function SettingsModal({ onClose, initialTab = 'general' }) {
       { id: 'general', label: 'General', icon: Cog6ToothIcon },
       { id: 'profile', label: 'Profile', icon: UserCircleIcon },
       { id: 'password', label: 'Password', icon: KeyIcon },
-      ...(isAdmin ? [{ id: 'users', label: 'Users', icon: UsersIcon }] : []),
+      ...(isAdmin
+        ? [
+            { id: 'company', label: 'Company Profile', icon: BuildingOffice2Icon },
+            { id: 'users', label: 'Users', icon: UsersIcon },
+          ]
+        : []),
     ],
     [isAdmin],
   )
@@ -65,6 +77,7 @@ export function SettingsModal({ onClose, initialTab = 'general' }) {
             )}
             {activeTab === 'profile' && <ProfileTab />}
             {activeTab === 'password' && <PasswordTab />}
+            {activeTab === 'company' && isAdmin && <CompanyProfileTab />}
             {activeTab === 'users' && isAdmin && <UsersTab />}
           </div>
         </div>

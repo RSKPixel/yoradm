@@ -1,0 +1,44 @@
+---
+description: Standard company letterhead for PDF exports (YORA design)
+globs: frontend/src/**/*Pdf*.js,frontend/src/utils/pdf*.js
+alwaysApply: false
+---
+
+# PDF company letterhead
+
+When generating PDFs with a company header, use the shared helper in `frontend/src/utils/pdfCompanyLetterhead.js`.
+
+Do not recreate header layout/spacing/font sizes in individual PDF files.
+
+## Required helper
+
+```js
+import {
+  drawCompanyLetterhead,
+  addPdfReportTitle,
+} from '../utils/pdfCompanyLetterhead'
+import {
+  loadPdfCandaraFonts,
+  registerPdfCandaraFonts,
+} from '../utils/pdfCandaraFont'
+
+const fonts = await loadPdfCandaraFonts()
+const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait' })
+registerPdfCandaraFonts(doc, fonts)
+
+const { y, pageWidth, margin } = drawCompanyLetterhead(doc, company)
+let contentY = addPdfReportTitle(doc, pageWidth, 'Delivery Challan', y)
+```
+
+## Exact letterhead spec (match YORA)
+
+- Font: **Candara** (`pdfCandaraFont.js`, files in `frontend/public/fonts/`)
+- Margin **14mm**, start Y **16mm**
+- **Company name**: title case, **19pt bold**, tight bottom gap, then separator
+- **Middle block** (**11mm**): address line + `GSTIN:` bold at **9pt** (compact padding between separators)
+- Separator, **3mm** gap, then Phone/Email contact line at **9pt**
+- Report title: title case, **12pt bold** via `addPdfReportTitle`
+
+## Company data
+
+Fetch via `GET /api/v1/company` before PDF generation. Contact uses `mobile` (or `phone`) + `email`.

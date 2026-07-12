@@ -20,3 +20,25 @@ export async function fetchUsedInvoiceNos(excludeChallanId) {
   })
   return data
 }
+
+export async function searchDeliveryChallans({
+  dateFrom,
+  dateTo,
+  page = 1,
+  pageSize = 50,
+} = {}) {
+  const { data } = await api.get('/delivery-challans', {
+    params: {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+      page,
+      page_size: pageSize,
+    },
+  })
+  return data
+}
+
+export async function fetchDeliveryChallan(challanId) {
+  const { data } = await api.get(`/delivery-challans/${challanId}`)
+  return data
+}

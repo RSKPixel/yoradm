@@ -41,12 +41,26 @@ export function FormField({ label, children, className = '' }) {
   )
 }
 
+/** Chrome ignores autocomplete="off" for address/email/password heuristics; "new-password" blocks it. */
+const AUTOCOMPLETE_OFF = 'new-password'
+
+const autofillBlockProps = {
+  autoComplete: AUTOCOMPLETE_OFF,
+  autoCorrect: 'off',
+  autoCapitalize: 'off',
+  spellCheck: false,
+  'data-1p-ignore': true,
+  'data-lpignore': 'true',
+  'data-form-type': 'other',
+}
+
 export function FormInput(props) {
-  const { className = '', autoComplete = 'off', required, ...rest } = props
+  const { className = '', autoComplete, required, ...rest } = props
   return (
     <input
       className={`win-form__control ${className}`}
-      autoComplete={autoComplete}
+      {...autofillBlockProps}
+      autoComplete={autoComplete ?? AUTOCOMPLETE_OFF}
       aria-required={required ? 'true' : undefined}
       {...rest}
     />
@@ -54,16 +68,30 @@ export function FormInput(props) {
 }
 
 export function FormSelect(props) {
-  const { className = '', children, autoComplete = 'off', required, ...rest } = props
+  const { className = '', children, autoComplete, required, ...rest } = props
   return (
     <select
       className={`win-form__control ${className}`}
-      autoComplete={autoComplete}
+      {...autofillBlockProps}
+      autoComplete={autoComplete ?? AUTOCOMPLETE_OFF}
       aria-required={required ? 'true' : undefined}
       {...rest}
     >
       {children}
     </select>
+  )
+}
+
+export function FormTextarea(props) {
+  const { className = '', autoComplete, required, ...rest } = props
+  return (
+    <textarea
+      className={`win-form__control ${className}`}
+      {...autofillBlockProps}
+      autoComplete={autoComplete ?? AUTOCOMPLETE_OFF}
+      aria-required={required ? 'true' : undefined}
+      {...rest}
+    />
   )
 }
 

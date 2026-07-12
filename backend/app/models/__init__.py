@@ -1,3 +1,4 @@
+from app.models.company import Company
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
 from app.models.refresh_token import RefreshToken
 from app.models.tally import (
@@ -18,6 +19,7 @@ __all__ = [
     "User",
     "UserRole",
     "RefreshToken",
+    "Company",
     "DeliveryChallan",
     "DeliveryChallanDetail",
     "TallyAccountMaster",

@@ -59,6 +59,7 @@ class DeliveryChallanDetail(Base):
     ledger_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     stock_item: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     brand: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    packing: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     delivery_location: Mapped[str] = mapped_column(String(128), nullable=False)
     line_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

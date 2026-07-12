@@ -1,16 +1,23 @@
 import { TrashIcon } from '@heroicons/react/24/outline'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchCompany } from '../api/company'
 import {
   createDeliveryChallan,
   deleteDeliveryChallan,
+  fetchDeliveryChallan,
   fetchUsedInvoiceNos,
   updateDeliveryChallan,
 } from '../api/deliveryChallan'
 import { fetchLocations, fetchSaleInvoiceLines, fetchSaleInvoices } from '../api/tally'
+import { PdfPreviewModal } from '../components/common/PdfPreviewModal'
+import { ConfirmDeleteModal } from '../components/delivery-challan/ConfirmDeleteModal'
+import { DeliveryChallanSearchModal } from '../components/delivery-challan/DeliveryChallanSearchModal'
+import { DeliveryChallanSummaryModal } from '../components/delivery-challan/DeliveryChallanSummaryModal'
 import { FormAutocomplete } from '../components/form/FormAutocomplete'
 import { FormField, FormInput, FormPanel, FormSelect } from '../components/form/FormPanel'
 import { useFormMessage } from '../components/form/FormMessage'
-import { formatDate, todayIsoDate } from '../utils/formatDate'
+import { createDeliveryChallanPdfBlob } from '../utils/deliveryChallanPdf'
+import { formatDate, toIsoDateInput, todayIsoDate } from '../utils/formatDate'
 import { getApiErrorMessage, validateDeliveryChallanForm } from '../utils/formValidation'
 
 function invoiceOptionLabel(inv) {
@@ -86,7 +93,13 @@ export function DeliveryChallanPage() {
   const [highlightedLineIds, setHighlightedLineIds] = useState(() => new Set())
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const [loadingChallan, setLoadingChallan] = useState(false)
+  const [pdfPreview, setPdfPreview] = useState(null)
   const [savedChallanId, setSavedChallanId] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const defaultLocation = locations[0] ?? ''
   const isModifyMode = savedChallanId != null
@@ -188,6 +201,7 @@ export function DeliveryChallanPage() {
         ledger_name: line.ledger_name || null,
         stock_item: line.stock_item || null,
         brand: line.brand || null,
+        packing: line.packing ?? null,
         qty: line.qty ?? null,
         delivery_location: line.deliveryLocation,
       })),
@@ -229,6 +243,7 @@ export function DeliveryChallanPage() {
           ledger_name: line.ledger_name,
           stock_item: line.stock_item,
           brand: line.brand,
+          packing: line.packing ?? null,
           qty: line.qty,
           deliveryLocation: defaultLocation,
         }))
@@ -314,12 +329,17 @@ export function DeliveryChallanPage() {
 
   async function onDelete() {
     if (!isModifyMode) return
-    if (!window.confirm('Delete this delivery challan permanently?')) return
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDelete() {
+    if (!isModifyMode) return
 
     setDeleting(true)
     try {
       await deleteDeliveryChallan(savedChallanId)
       showSuccess('Delivery challan deleted.')
+      setDeleteConfirmOpen(false)
       resetForm()
       await loadUsedInvoices(null)
     } catch (error) {
@@ -329,12 +349,116 @@ export function DeliveryChallanPage() {
     }
   }
 
-  function onPrint() {
-    // Print layout will be implemented next.
+  function applyChallan(challan) {
+    setSavedChallanId(challan.id)
+    setDate(toIsoDateInput(challan.challan_date) || todayIsoDate())
+    setVehicleNo(challan.vehicle_no ?? '')
+    setDriverName(challan.driver_name ?? '')
+    setBatchNo(challan.batch_no ?? '')
+    setSelectedInvoice('')
+    setLines(
+      (challan.details ?? []).map((line) => ({
+        id: nextLineId(),
+        voucher_no: line.voucher_no,
+        voucher_date: formatDate(line.voucher_date) || line.voucher_date || '',
+        ledger_name: line.ledger_name,
+        stock_item: line.stock_item,
+        brand: line.brand,
+        packing: line.packing ?? null,
+        qty: line.qty,
+        deliveryLocation: line.delivery_location,
+      })),
+    )
+    setHighlightedLineIds(new Set())
+  }
+
+  async function onSelectChallan(challanId) {
+    setSearchOpen(false)
+    setLoadingChallan(true)
+    try {
+      const challan = await fetchDeliveryChallan(challanId)
+      applyChallan(challan)
+      await loadUsedInvoices(challan.id)
+      showSuccess(`Loaded delivery challan ${challan.id}.`)
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'Could not load delivery challan'))
+    } finally {
+      setLoadingChallan(false)
+    }
+  }
+
+  function closePdfPreview() {
+    setPdfPreview((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url)
+      return null
+    })
+  }
+
+  async function onPrint() {
+    if (!isModifyMode) return
+    closePdfPreview()
+    setPrinting(true)
+    setPdfPreview({ url: '', fileName: '' })
+    try {
+      const company = await fetchCompany()
+      const { blob, fileName } = await createDeliveryChallanPdfBlob({
+        company,
+        challanNo,
+        date,
+        vehicleNo,
+        driverName,
+        batchNo,
+        lines,
+      })
+      const url = URL.createObjectURL(blob)
+      setPdfPreview({ url, fileName })
+    } catch (error) {
+      closePdfPreview()
+      showError(getApiErrorMessage(error, error?.message || 'Could not generate PDF'))
+    } finally {
+      setPrinting(false)
+    }
+  }
+
+  function onDownloadPdf() {
+    if (!pdfPreview?.url || !pdfPreview?.fileName) return
+    const link = document.createElement('a')
+    link.href = pdfPreview.url
+    link.download = pdfPreview.fileName
+    link.click()
   }
 
   return (
     <div className="flex h-full min-h-0 max-w-full flex-col">
+      {searchOpen ? (
+        <DeliveryChallanSearchModal
+          onClose={() => setSearchOpen(false)}
+          onSelect={(id) => void onSelectChallan(id)}
+        />
+      ) : null}
+      {deleteConfirmOpen ? (
+        <ConfirmDeleteModal
+          confirming={deleting}
+          onCancel={() => {
+            if (!deleting) setDeleteConfirmOpen(false)
+          }}
+          onConfirm={() => void confirmDelete()}
+        />
+      ) : null}
+      {summaryOpen ? (
+        <DeliveryChallanSummaryModal lines={lines} onClose={() => setSummaryOpen(false)} />
+      ) : null}
+      <PdfPreviewModal
+        open={printing || Boolean(pdfPreview)}
+        title="Delivery Challan"
+        fileName={pdfPreview?.fileName}
+        pdfUrl={pdfPreview?.url}
+        loading={printing}
+        onClose={() => {
+          if (!printing) closePdfPreview()
+        }}
+        onDownload={onDownloadPdf}
+      />
       <FormPanel
         title={isModifyMode ? 'Delivery Challan — Modify' : 'Delivery Challan'}
         wide
@@ -342,39 +466,59 @@ export function DeliveryChallanPage() {
         onSubmit={onSave}
         onKeyDown={onFormKeyDown}
         footer={
-          <>
-            <button
-              type="button"
-              className="win-form__button"
-              onClick={onDelete}
-              disabled={!isModifyMode || saving || deleting}
-            >
-              {deleting ? 'Deleting…' : 'Delete'}
-            </button>
-            <button
-              type="button"
-              className="win-form__button"
-              onClick={onPrint}
-              disabled={!isModifyMode || saving || deleting}
-            >
-              Print
-            </button>
-            <button
-              type="button"
-              className="win-form__button"
-              onClick={resetForm}
-              disabled={saving || deleting}
-            >
-              New
-            </button>
-            <button
-              type="submit"
-              className="win-form__button win-form__button--primary"
-              disabled={saving || deleting}
-            >
-              {saving ? 'Saving…' : isModifyMode ? 'Update' : 'Save'}
-            </button>
-          </>
+          <div className="win-form__footer-bar">
+            <div className="win-form__footer-left">
+              <button
+                type="button"
+                className="win-form__button win-form__button--danger"
+                onClick={() => void onDelete()}
+                disabled={!isModifyMode || saving || deleting || loadingChallan}
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                className="win-form__button"
+                onClick={() => void onPrint()}
+                disabled={!isModifyMode || saving || deleting || loadingChallan || printing}
+              >
+                {printing ? 'Preparing…' : 'Print'}
+              </button>
+              <button
+                type="button"
+                className="win-form__button"
+                onClick={() => setSummaryOpen(true)}
+                disabled={saving || deleting || loadingChallan || lines.length === 0}
+              >
+                Summary
+              </button>
+            </div>
+            <div className="win-form__footer-right">
+              <button
+                type="button"
+                className="win-form__button"
+                onClick={() => setSearchOpen(true)}
+                disabled={saving || deleting || loadingChallan}
+              >
+                Search
+              </button>
+              <button
+                type="button"
+                className="win-form__button"
+                onClick={resetForm}
+                disabled={saving || deleting || loadingChallan}
+              >
+                New
+              </button>
+              <button
+                type="submit"
+                className="win-form__button win-form__button--primary"
+                disabled={saving || deleting || loadingChallan}
+              >
+                {saving ? 'Saving…' : isModifyMode ? 'Update' : 'Save'}
+              </button>
+            </div>
+          </div>
         }
       >
         <div className="shrink-0">

@@ -71,6 +71,36 @@ export function validateProfileForm({ fullName, email }) {
   return errors
 }
 
+export function validateCompanyProfileForm({
+  company_name,
+  address,
+  city,
+  state,
+  email,
+}) {
+  const errors = []
+
+  if (!company_name?.trim()) {
+    errors.push('Company name is required.')
+  }
+  if (!address?.trim()) {
+    errors.push('Address is required.')
+  }
+  if (!city?.trim()) {
+    errors.push('City is required.')
+  }
+  if (!state?.trim()) {
+    errors.push('State is required.')
+  }
+
+  const trimmedEmail = email?.trim() ?? ''
+  if (trimmedEmail && !EMAIL_PATTERN.test(trimmedEmail)) {
+    errors.push('Enter a valid email address.')
+  }
+
+  return errors
+}
+
 export function validateChangePasswordForm({ currentPassword, newPassword, confirmPassword }) {
   const errors = []
 

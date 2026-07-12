@@ -42,3 +42,10 @@ export function todayIsoDate() {
   const now = new Date()
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
 }
+
+/** Convert any supported date value to yyyy-mm-dd for <input type="date">. */
+export function toIsoDateInput(value) {
+  const date = parseDisplayDate(value)
+  if (!date) return ''
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+}

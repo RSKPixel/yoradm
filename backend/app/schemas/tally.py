@@ -62,6 +62,7 @@ class SaleInvoiceLineOut(BaseModel):
     ledger_name: Optional[str] = None
     stock_item: Optional[str] = None
     brand: Optional[str] = None
+    packing: Optional[float] = None
     qty: Optional[float] = None
 
 

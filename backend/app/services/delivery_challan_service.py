@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional
+from datetime import date
+from math import ceil
+from typing import Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
-from app.schemas.delivery_challan import DeliveryChallanCreate
+from app.schemas.delivery_challan import DeliveryChallanCreate, DeliveryChallanListItem
 
 
 def get_by_id(db: Session, challan_id: int) -> Optional[DeliveryChallan]:
@@ -16,6 +18,62 @@ def get_by_id(db: Session, challan_id: int) -> Optional[DeliveryChallan]:
         .filter(DeliveryChallan.id == challan_id)
         .first()
     )
+
+
+def list_delivery_challans(
+    db: Session,
+    *,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> Tuple[list[DeliveryChallanListItem], int]:
+    query = db.query(DeliveryChallan)
+    if date_from is not None:
+        query = query.filter(DeliveryChallan.challan_date >= date_from)
+    if date_to is not None:
+        query = query.filter(DeliveryChallan.challan_date <= date_to)
+
+    total = query.count()
+    rows = (
+        query.options(joinedload(DeliveryChallan.details))
+        .order_by(DeliveryChallan.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    items: list[DeliveryChallanListItem] = []
+    for row in rows:
+        invoice_nos: set[str] = set()
+        total_qty = 0.0
+        for detail in row.details:
+            if detail.voucher_no:
+                invoice_nos.add(detail.voucher_no)
+            if detail.qty is not None:
+                total_qty += float(detail.qty)
+        items.append(
+            DeliveryChallanListItem(
+                id=row.id,
+                challan_date=row.challan_date,
+                vehicle_no=row.vehicle_no,
+                driver_name=row.driver_name,
+                batch_no=row.batch_no,
+                invoice_count=len(invoice_nos),
+                total_qty=total_qty,
+                created_at=row.created_at,
+            )
+        )
+    return items, total
+
+
+def list_page_meta(total: int, page: int, page_size: int) -> dict:
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": ceil(total / page_size) if page_size else 0,
+    }
 
 
 def list_used_voucher_nos(
@@ -63,6 +121,7 @@ def _replace_details(db: Session, challan: DeliveryChallan, payload: DeliveryCha
                 ledger_name=line.ledger_name,
                 stock_item=line.stock_item,
                 brand=line.brand,
+                packing=line.packing,
                 qty=line.qty,
                 delivery_location=line.delivery_location,
                 line_no=index,

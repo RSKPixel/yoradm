@@ -260,6 +260,34 @@
   background: var(--form-footer);
 }
 
+.win-form__footer-bar {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.win-form__footer-left,
+.win-form__footer-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.win-form__button--danger {
+  border-color: rgba(185, 28, 28, 0.55);
+  background: rgba(127, 29, 29, 0.55);
+  color: #fecaca;
+}
+
+.win-form__button--danger:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.65);
+  background: rgba(153, 27, 27, 0.75);
+  color: #fff1f2;
+}
+
 .win-form__field {
   display: flex;
   flex-direction: column;
