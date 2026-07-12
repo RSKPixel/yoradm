@@ -1,0 +1,13 @@
+---
+description: Display dates as dd-mm-yyyy across Yoradm
+globs: frontend/src/**/*.{jsx,js}
+alwaysApply: false
+---
+
+# Date display format
+
+- Show **date-only** values as `dd-mm-yyyy` (e.g. `12-07-2026`).
+- Use [`frontend/src/utils/formatDate.js`](frontend/src/utils/formatDate.js) — `formatDate(value)` for display, `todayIsoDate()` for `<input type="date">` values.
+- Keep `<input type="date">` / API wire values as ISO `yyyy-mm-dd` (or full ISO datetime from the API). Convert only at the display boundary.
+- Do not display raw ISO date strings (`2026-07-12`) in UI labels, tables, or autocomplete options.
+- Datetime-with-time (e.g. last login) may include time; still use day-first ordering (`dd-mm-yyyy`) for the date part when custom-formatting.

@@ -1,0 +1,586 @@
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(100% + 1rem));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(calc(100% + 1rem));
+  }
+}
+
+.toast-container {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 110;
+  display: flex;
+  width: min(24rem, calc(100vw - 2rem));
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+}
+
+@media (min-width: 640px) {
+  .toast-container {
+    right: 1.5rem;
+    bottom: 1.5rem;
+  }
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
+  animation: toast-slide-in 0.35s ease-in forwards;
+}
+
+.toast-exiting {
+  animation: toast-slide-out 0.35s ease-out forwards;
+}
+
+.toast-error {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(69, 10, 10, 0.92);
+  color: #fee2e2;
+}
+
+.toast-success {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(2, 44, 34, 0.92);
+  color: #d1fae5;
+}
+
+.toast-info {
+  border-color: rgba(42, 46, 54, 0.9);
+  background: rgba(22, 24, 29, 0.95);
+  color: #ece8e1;
+}
+
+.toast-message {
+  min-width: 0;
+  flex: 1;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.toast-close {
+  margin-right: -0.25rem;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  padding: 0.25rem;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.toast-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+/*
+  Form panel stays dark/modern (app tone).
+  Always centered in parent.
+*/
+.win-form-host {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  justify-content: center;
+  align-items: center;
+}
+
+.win-form-host:has(.win-form--wide) {
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.win-form-host--fill {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.win-form {
+  --form-bg: #16181d;
+  --form-header: #1a1d24;
+  --form-footer: #1a1d24;
+  --form-ink: #ece8e1;
+  --form-muted: #9a958c;
+  --form-line: #2a2e36;
+  --form-accent: #d4a35c;
+  --form-accent-dark: #e0b878;
+  --form-accent-soft: rgba(212, 163, 92, 0.16);
+  --form-hover: rgba(255, 255, 255, 0.05);
+  --form-on-accent: #14110c;
+  --form-input-bg: #1e2128;
+  --form-input-ink: #ece8e1;
+  --form-input-line: #2a2e36;
+
+  width: 100%;
+  max-width: 36rem;
+  min-width: 0;
+  margin-inline: auto;
+  border: 1px solid var(--form-line);
+  border-radius: 0.85rem;
+  background: var(--form-bg);
+  color: var(--form-ink);
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+
+.win-form--fill {
+  height: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.win-form--fill .win-form__header,
+.win-form--fill .win-form__footer {
+  flex-shrink: 0;
+}
+
+.win-form--fill .win-form__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.win-form--fill .win-form__table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.win-form--wide {
+  width: 90%;
+  max-width: 90%;
+  margin-inline: auto;
+  border-radius: 0.65rem;
+  overflow: hidden;
+}
+
+.win-form--wide .win-form__header {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.win-form--wide .win-form__body {
+  padding: 0.65rem 0.7rem;
+}
+
+.win-form--wide .win-form__footer {
+  padding: 0.4rem 0.7rem;
+}
+
+.win-form--wide .win-form__field {
+  gap: 0.2rem;
+  margin-bottom: 0.45rem;
+}
+
+.win-form--wide .win-form__label {
+  font-size: 0.6875rem;
+}
+
+.win-form--wide .win-form__control {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.8125rem;
+  border-radius: 0.4rem;
+}
+
+.win-form--wide .win-form__button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.win-form--wide .win-form__table {
+  font-size: 0.8125rem;
+}
+
+.win-form--wide .win-form__table th,
+.win-form--wide .win-form__table td {
+  padding: 0.4rem 0.5rem;
+}
+
+.win-form__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--form-line);
+  background: var(--form-header);
+  color: var(--form-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.win-form__body {
+  padding: 0.85rem;
+  background: var(--form-bg);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.win-form__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem;
+  border-top: 1px solid var(--form-line);
+  background: var(--form-footer);
+}
+
+.win-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin-bottom: 0.65rem;
+}
+
+.win-form__field:last-child {
+  margin-bottom: 0;
+}
+
+.win-form__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--form-muted);
+}
+
+.win-form__control {
+  width: 100%;
+  border: 1px solid var(--form-input-line);
+  border-radius: 0.5rem;
+  background: var(--form-input-bg);
+  color: var(--form-input-ink);
+  padding: 0.4rem 0.65rem;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.win-form__control:focus {
+  border-color: color-mix(in srgb, var(--form-accent) 55%, var(--form-input-line));
+  box-shadow: 0 0 0 3px var(--form-accent-soft);
+}
+
+.win-form__control:read-only {
+  opacity: 1;
+  cursor: default;
+  color: var(--form-ink);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.win-form__control:read-only:focus {
+  border-color: var(--form-input-line);
+  box-shadow: none;
+}
+
+.win-form__control option {
+  color: var(--form-input-ink);
+  background: var(--form-input-bg);
+}
+
+.win-form__button {
+  border: 1px solid var(--form-line);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--form-ink);
+  padding: 0.38rem 0.8rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.win-form__button:hover:not(:disabled) {
+  background: var(--form-hover);
+}
+
+.win-form__button--primary {
+  border-color: transparent;
+  background: var(--form-accent);
+  color: var(--form-on-accent);
+}
+
+.win-form__button--primary:hover:not(:disabled) {
+  background: var(--form-accent-dark);
+}
+
+.win-form__button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.win-form__link {
+  color: var(--form-accent);
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.win-form__link:hover {
+  text-decoration: underline;
+}
+
+.win-form table {
+  color: var(--form-ink);
+}
+
+.win-form thead tr {
+  color: var(--form-muted);
+  border-color: var(--form-line);
+}
+
+.win-form tbody tr {
+  border-color: color-mix(in srgb, var(--form-line) 80%, transparent);
+}
+
+.win-form__invoice-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+
+.win-form__invoice-field {
+  flex: 1 1 16rem;
+  margin-bottom: 0;
+}
+
+.win-form__section-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--form-muted);
+  margin-bottom: 0.5rem;
+}
+
+.win-form__table-wrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--form-line);
+  border-radius: 0.5rem;
+}
+
+.win-form__table {
+  width: 100%;
+  min-width: 40rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.win-form__table th,
+.win-form__table td {
+  padding: 0.55rem 0.65rem;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.win-form__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--form-header);
+  border-bottom: 1px solid var(--form-line);
+  box-shadow: 0 1px 0 var(--form-line);
+}
+
+.win-form__table th {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.win-form__table tbody tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--form-line) 80%, transparent);
+}
+
+.win-form__table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.win-form__table-row--invoice-start td {
+  border-top: 2px solid var(--form-line);
+}
+
+@keyframes win-form-row-flash {
+  0% {
+    background: color-mix(in srgb, var(--form-accent) 28%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.win-form__table-row--flash {
+  animation: win-form-row-flash 1s ease-out;
+}
+
+.win-form__table-row--flash td {
+  background: inherit;
+}
+
+.win-form__table-empty {
+  padding: 1.25rem 0.65rem !important;
+  text-align: center;
+  color: var(--form-muted);
+  white-space: normal !important;
+}
+
+.win-form__table-select {
+  min-width: 9.5rem;
+  margin: 0;
+}
+
+.win-form__autocomplete {
+  --ac-item-h: 2.35rem;
+  --ac-gap: 0.2rem;
+  --ac-pad: 0.35rem;
+  position: relative;
+  width: 100%;
+}
+
+.win-form__autocomplete-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  /* Exactly 5 visible options */
+  max-height: calc(var(--ac-pad) * 2 + 5 * var(--ac-item-h) + 4 * var(--ac-gap));
+  overflow: auto;
+  margin: 0;
+  padding: var(--ac-pad);
+  list-style: none;
+  border: 1px solid var(--form-line);
+  border-radius: 0.5rem;
+  background: var(--form-input-bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.win-form__autocomplete-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--ac-item-h);
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--form-ink);
+  text-align: left;
+  padding: 0 0.65rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.win-form__autocomplete-list > li + li {
+  margin-top: var(--ac-gap);
+}
+
+.win-form__autocomplete-option:hover,
+.win-form__autocomplete-option.is-active {
+  background: var(--form-hover);
+}
+
+.win-form__autocomplete-option.is-selected {
+  outline: 1px solid color-mix(in srgb, var(--form-accent) 45%, transparent);
+}
+
+.win-form__autocomplete-option-body {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 1.15fr) 6.75rem minmax(8rem, 1.5fr);
+  column-gap: 1rem;
+  align-items: center;
+  width: 100%;
+}
+
+.win-form__autocomplete-v {
+  color: var(--form-ink);
+  font-size: 0.8125rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-form__autocomplete-v--muted {
+  color: var(--form-muted);
+}
+
+.win-form__autocomplete-empty {
+  padding: 0.65rem;
+  color: var(--form-muted);
+  font-size: 0.8125rem;
+}
+
+.win-form__table-action {
+  width: 2.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.win-form__icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--form-muted);
+  cursor: pointer;
+}
+
+.win-form__icon-button:hover {
+  background: var(--form-hover);
+  color: #f87171;
+}
+
+.win-form__icon-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+

@@ -1,0 +1,36 @@
+---
+description: Yoradm form conventions — panels, validation toasts, autocomplete off
+globs: frontend/src/**/*.{jsx,js,css}
+alwaysApply: false
+---
+
+# Form conventions
+
+- Use `FormPanel`, `FormField`, `FormInput`, `FormSelect` from `frontend/src/components/form/FormPanel.jsx`.
+- Forms are **always centered** in their parent (`win-form-host`). Use `wide` for wide panels (tables).
+- `FormPanel` must use `autoComplete="off"` and `noValidate`.
+- Inputs/selects default `autoComplete="off"`. Use `required` only as `aria-required` (FormInput strips native HTML required).
+- Do not use placeholders — use visible labels only.
+- Do not render inline validation errors inside the form body.
+
+## Validation + toasts (match Yorawealth)
+
+1. Add validators in `frontend/src/utils/formValidation.js` — return `string[]` of **all** errors (empty = valid).
+2. On submit, validate first; if errors, `showErrors(errors)` and return — shows **every** error toast at once.
+3. On API failure, `showError(getApiErrorMessage(error, 'Fallback'))`.
+4. Success uses `showSuccess(...)`.
+
+Toast behavior:
+
+- Bottom-right; slide in right→left, out left→right (0.35s)
+- Duration 3s; dismiss with ×
+- Single toasts: max 3 visible
+- Validation batches via `showErrors`: all messages shown together
+
+```jsx
+const validationErrors = validateLoginForm({ username, password })
+if (validationErrors.length) {
+  showErrors(validationErrors)
+  return
+}
+```

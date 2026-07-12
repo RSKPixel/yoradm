@@ -1,0 +1,13 @@
+---
+description: Root font-size and rem density for Yoradm UI
+globs: frontend/src/**/*.{css,jsx,js}
+alwaysApply: false
+---
+
+# Root typography scale
+
+- `html` font-size is **18px** in [`frontend/src/index.css`](frontend/src/index.css). Rem-based layout scales from this.
+- Do **not** lower root `font-size` to fix overflow — that shrinks the whole app. Fix overflow with `min-width: 0`, `max-width: 100%`, and table scroll wraps instead.
+- Prefer `rem` for UI chrome; keep `<input type="date">` wire values as ISO.
+- Avoid `calc(...rem + ...pt)` for text sizing — use rem only.
+- Page content must stay within the shell: parents need `min-width: 0` / `max-width: 100%`; wide tables scroll inside their wrap, not the page.
