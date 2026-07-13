@@ -12,6 +12,8 @@ class DeliveryChallanLineIn(BaseModel):
     brand: Optional[str] = Field(default=None, max_length=128)
     packing: Optional[float] = None
     qty: Optional[float] = None
+    amount: Optional[float] = None
+    discount: Optional[float] = None
     delivery_location: str = Field(min_length=1, max_length=128)
 
     @field_validator("voucher_no", "delivery_location")
@@ -58,6 +60,8 @@ class DeliveryChallanLineOut(BaseModel):
     brand: Optional[str] = None
     packing: Optional[float] = None
     qty: Optional[float] = None
+    amount: Optional[float] = None
+    discount: Optional[float] = None
     delivery_location: str
     line_no: int
 
@@ -99,3 +103,22 @@ class DeliveryChallanListItem(BaseModel):
         if value.tzinfo is None:
             return value.isoformat() + "Z"
         return value.isoformat().replace("+00:00", "Z")
+
+
+class DeliveryQtyByBatchOut(BaseModel):
+    batch_no: str
+    stock_group: str
+    total_qty: float
+    total_amount: float = 0
+
+
+class DeliveryQtyByDateItem(BaseModel):
+    challan_date: date
+    total_qty: float
+
+
+class DeliveryQtyByBatchDatesOut(BaseModel):
+    batch_no: str
+    stock_group: str
+    items: List[DeliveryQtyByDateItem] = []
+    total_qty: float = 0

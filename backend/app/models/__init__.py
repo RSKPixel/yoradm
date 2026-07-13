@@ -1,5 +1,6 @@
 from app.models.company import Company
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
+from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
 from app.models.refresh_token import RefreshToken
 from app.models.tally import (
     TallyAccountMaster,
@@ -22,6 +23,8 @@ __all__ = [
     "Company",
     "DeliveryChallan",
     "DeliveryChallanDetail",
+    "OridDhallProduction",
+    "OridDhallProductionLine",
     "TallyAccountMaster",
     "TallyCostCentre",
     "TallyDaybook",

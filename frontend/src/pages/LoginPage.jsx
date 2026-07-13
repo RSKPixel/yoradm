@@ -40,7 +40,7 @@ export function LoginPage() {
       <SpotlightBackground />
       <div className="relative w-full max-w-md px-6">
         <div className="mb-6">
-          <AppBrandName className="[&>span]:text-[2.25rem]" />
+          <AppBrandName className="[&>span]:text-[calc(2.25rem+2px)]" />
         </div>
         <FormPanel
           title="Sign In"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -88,6 +88,23 @@ def list_sales(
 ) -> PaginatedResponse[SaleOut]:
     items, total = tally_service.paginate(db, TallySale, page, page_size)
     return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
+
+
+@router.get("/purchases/lines", response_model=List[PurchaseOut])
+def list_purchase_lines(
+    _: CurrentUser,
+    db: DbSession,
+    stock_item: Optional[str] = Query(None, min_length=1),
+    stock_group: Optional[str] = Query(None, min_length=1),
+) -> List[PurchaseOut]:
+    item = stock_item.strip() if stock_item else None
+    group = stock_group.strip() if stock_group else None
+    if not item and not group:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide stock_item or stock_group",
+        )
+    return list(tally_service.list_purchase_lines(db, stock_item=item, stock_group=group))
 
 
 @router.get("/purchases", response_model=PaginatedResponse[PurchaseOut])

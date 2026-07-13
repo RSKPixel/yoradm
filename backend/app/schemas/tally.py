@@ -64,6 +64,9 @@ class SaleInvoiceLineOut(BaseModel):
     brand: Optional[str] = None
     packing: Optional[float] = None
     qty: Optional[float] = None
+    rate: Optional[float] = None
+    amount: Optional[float] = None
+    discount: Optional[float] = None
 
 
 class CostCentreOut(BaseModel):

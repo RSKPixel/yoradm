@@ -182,8 +182,8 @@
 }
 
 .win-form--wide {
-  width: 90%;
-  max-width: 90%;
+  width: 100%;
+  max-width: 100%;
   margin-inline: auto;
   border-radius: 0.65rem;
   overflow: hidden;
@@ -491,9 +491,239 @@
   white-space: normal !important;
 }
 
-.win-form__table-select {
-  min-width: 9.5rem;
+.win-form__table--bordered th,
+.win-form__table--bordered td {
+  border: 1px solid var(--form-line);
+}
+
+.win-form__stock-item-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.win-form__stock-item-cell--sub {
+  padding-left: 1.25rem;
+  color: var(--form-muted);
+  font-weight: 400;
+}
+
+.win-form__row-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.win-form__row-toggle:hover {
+  color: var(--form-accent, inherit);
+}
+
+.win-form__row-toggle-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.win-form__row-toggle-icon--closed {
+  transform: rotate(-90deg);
+}
+
+@keyframes odp-row-splash {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.35rem) scale(0.985);
+    filter: blur(1px);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(0.08rem) scale(1.01);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: none;
+  }
+}
+
+.win-form__table-row--splash td {
+  animation: odp-row-splash 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center top;
+}
+
+.win-form__table-row--splash-1 td {
+  animation-delay: 0.02s;
+}
+.win-form__table-row--splash-2 td {
+  animation-delay: 0.07s;
+}
+.win-form__table-row--splash-3 td {
+  animation-delay: 0.12s;
+}
+.win-form__table-row--splash-4 td {
+  animation-delay: 0.17s;
+}
+.win-form__table-row--splash-5 td {
+  animation-delay: 0.22s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .win-form__table-row--splash td {
+    animation: none;
+  }
+}
+
+.win-form__table-row--group td {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--form-header) 80%, transparent);
+}
+
+.win-form__table-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  text-align: right;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.4rem;
+}
+
+.win-form__table--odp {
+  table-layout: fixed;
+}
+
+.win-form__table--odp .odp-col-stock {
+  width: 38%;
+}
+
+.win-form__table--odp .odp-col-bags {
+  width: 6.25rem;
+}
+
+.win-form__table--odp .odp-col-quintal {
+  width: 6.5rem;
+}
+
+.win-form__table--odp .odp-col-pct {
+  width: 5rem;
+}
+
+.win-form__table--odp .odp-col-rate {
+  width: 6.75rem;
+}
+
+.win-form__table--odp .odp-col-value {
+  width: 9.5rem;
+}
+
+.win-form__table--odp th.win-form__table-num,
+.win-form__table--odp td.win-form__table-num {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.win-form__table--odp td.win-form__table-num .win-form__table-input {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+}
+
+.win-form__table--odp .win-form__table-readonly {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  padding: 0.3rem 0.4rem;
+  text-align: right;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.win-form__table--odp .win-form__table-readonly--field {
+  min-height: calc(0.8125rem * 1.35 + 0.6rem);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.win-form__table-shell {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.win-form__table-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.win-form__table-foot {
+  flex-shrink: 0;
+  border-top: 1px solid var(--form-line);
+  background: var(--form-header);
+}
+
+.win-form__table-foot .win-form__table {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+
+.win-form__table-foot .win-form__table td {
+  border-bottom: none;
+  font-weight: 600;
+  background: var(--form-header);
+}
+
+.win-form__table-total-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--form-muted);
+}
+
+.win-form__table-foot .win-form__table-readonly {
+  max-width: none;
+}
+
+.win-form__table--bordered thead th {
+  box-shadow: none;
+}
+
+.win-form__table--bordered tbody tr:last-child {
+  border-bottom: none;
+}
+
+.win-form__table-select {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.8125rem;
+  line-height: 1.25;
 }
 
 .win-form__autocomplete {
@@ -574,6 +804,15 @@
   color: var(--form-muted);
 }
 
+.win-form__autocomplete-v--num {
+  width: 100%;
+  text-align: right;
+  justify-self: stretch;
+  font-family: var(--font-tabular);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
 .win-form__autocomplete-empty {
   padding: 0.65rem;
   color: var(--form-muted);
@@ -584,6 +823,15 @@
   width: 2.5rem;
   text-align: center;
   vertical-align: middle;
+}
+
+.win-form__table-num,
+.win-form__table th.win-form__table-num,
+.win-form__table td.win-form__table-num {
+  text-align: right;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
 }
 
 .win-form__icon-button {
@@ -609,6 +857,46 @@
 .win-form__icon-button svg {
   width: 1rem;
   height: 1rem;
+}
+
+.win-form__hint {
+  margin: 0.15rem 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--form-muted);
+}
+
+.win-form__calc-block {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--form-line);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--form-header) 70%, transparent);
+}
+
+.win-form__calc-block-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.win-form__calc-block-total {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--form-accent);
+}
+
+.win-form__calc-block .win-form__field {
+  margin-bottom: 0.45rem;
+}
+
+.win-form__calc-block .win-form__hint {
+  margin-top: 0.35rem;
+  margin-bottom: 0;
 }
 
 

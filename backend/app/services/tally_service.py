@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Any, List, Sequence, Tuple, Type
+from typing import Any, List, Optional, Sequence, Tuple, Type
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -24,7 +24,7 @@ def paginate(db: Session, model: Type[Any], page: int, page_size: int) -> Tuple[
     return items, total
 
 
-def page_meta(total: int, page: int, page_size: int) -> dict[str, int]:
+def page_meta(total: int, page: int, page_size: int) -> dict:
     return {
         "total": total,
         "page": page,
@@ -85,5 +85,51 @@ def list_locations(db: Session, parent: str = "Locations") -> Sequence[TallyCost
             TallyCostCentre.name != "",
         )
         .order_by(TallyCostCentre.name.asc())
+        .all()
+    )
+
+
+def list_purchase_lines(
+    db: Session,
+    *,
+    stock_item: Optional[str] = None,
+    stock_group: Optional[str] = None,
+) -> Sequence[TallyPurchase]:
+    """Purchase lines by stock_item name, or by inventorymaster stock_group."""
+    item = (stock_item or "").strip()
+    group = (stock_group or "").strip()
+    if not item and not group:
+        return []
+
+    if group:
+        stock_items = [
+            row[0]
+            for row in (
+                db.query(TallyInventoryMaster.stock_item)
+                .filter(
+                    func.lower(TallyInventoryMaster.stock_group) == group.lower(),
+                    TallyInventoryMaster.stock_item.isnot(None),
+                    TallyInventoryMaster.stock_item != "",
+                )
+                .distinct()
+                .all()
+            )
+        ]
+        if not stock_items:
+            return []
+        return (
+            db.query(TallyPurchase)
+            .filter(TallyPurchase.stock_item.in_(stock_items))
+            .order_by(TallyPurchase.voucher_date.desc(), TallyPurchase.id.desc())
+            .all()
+        )
+
+    return (
+        db.query(TallyPurchase)
+        .filter(
+            TallyPurchase.stock_item.isnot(None),
+            func.lower(TallyPurchase.stock_item) == item.lower(),
+        )
+        .order_by(TallyPurchase.voucher_date.desc(), TallyPurchase.id.desc())
         .all()
     )

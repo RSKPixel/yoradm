@@ -9,6 +9,9 @@ from app.schemas.delivery_challan import (
     DeliveryChallanCreate,
     DeliveryChallanListItem,
     DeliveryChallanOut,
+    DeliveryQtyByBatchDatesOut,
+    DeliveryQtyByBatchOut,
+    DeliveryQtyByDateItem,
 )
 from app.services import delivery_challan_service
 
@@ -24,6 +27,54 @@ def list_used_invoices(
     return delivery_challan_service.list_used_voucher_nos(
         db,
         exclude_challan_id=exclude_challan_id,
+    )
+
+
+@router.get("/qty-by-batch", response_model=DeliveryQtyByBatchOut)
+def qty_by_batch(
+    _: CurrentUser,
+    db: DbSession,
+    batch_no: str = Query(..., min_length=1),
+    stock_group: str = Query(default="Orid Dhall", min_length=1),
+) -> DeliveryQtyByBatchOut:
+    batch = batch_no.strip()
+    group = stock_group.strip()
+    total_qty, total_amount = delivery_challan_service.sum_qty_by_batch(
+        db,
+        batch_no=batch,
+        stock_group=group,
+    )
+    return DeliveryQtyByBatchOut(
+        batch_no=batch,
+        stock_group=group,
+        total_qty=total_qty,
+        total_amount=total_amount,
+    )
+
+
+@router.get("/qty-by-batch-dates", response_model=DeliveryQtyByBatchDatesOut)
+def qty_by_batch_dates(
+    _: CurrentUser,
+    db: DbSession,
+    batch_no: str = Query(..., min_length=1),
+    stock_group: str = Query(default="Orid Dhall", min_length=1),
+) -> DeliveryQtyByBatchDatesOut:
+    batch = batch_no.strip()
+    group = stock_group.strip()
+    rows = delivery_challan_service.list_qty_by_batch_date(
+        db,
+        batch_no=batch,
+        stock_group=group,
+    )
+    items = [
+        DeliveryQtyByDateItem(challan_date=row["challan_date"], total_qty=row["total_qty"])
+        for row in rows
+    ]
+    return DeliveryQtyByBatchDatesOut(
+        batch_no=batch,
+        stock_group=group,
+        items=items,
+        total_qty=sum(item.total_qty for item in items),
     )
 
 

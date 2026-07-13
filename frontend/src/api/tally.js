@@ -16,3 +16,11 @@ export async function fetchLocations() {
   const { data } = await api.get('/tally/locations')
   return data
 }
+
+export async function fetchPurchaseLines({ stockItem, stockGroup } = {}) {
+  const params = {}
+  if (stockItem) params.stock_item = stockItem
+  if (stockGroup) params.stock_group = stockGroup
+  const { data } = await api.get('/tally/purchases/lines', { params })
+  return data
+}

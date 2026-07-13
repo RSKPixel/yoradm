@@ -172,3 +172,13 @@ export function validateDeliveryChallanForm({
 
   return errors
 }
+
+export function validateOridDhallProductionForm({ date }) {
+  const errors = []
+
+  if (!date) {
+    errors.push('Production date is required.')
+  }
+
+  return errors
+}

@@ -21,6 +21,32 @@ export async function fetchUsedInvoiceNos(excludeChallanId) {
   return data
 }
 
+export async function fetchDeliveryQtyByBatch({
+  batchNo,
+  stockGroup = 'Orid Dhall',
+} = {}) {
+  const { data } = await api.get('/delivery-challans/qty-by-batch', {
+    params: {
+      batch_no: batchNo,
+      stock_group: stockGroup || undefined,
+    },
+  })
+  return data
+}
+
+export async function fetchDeliveryQtyByBatchDates({
+  batchNo,
+  stockGroup = 'Orid Dhall',
+} = {}) {
+  const { data } = await api.get('/delivery-challans/qty-by-batch-dates', {
+    params: {
+      batch_no: batchNo,
+      stock_group: stockGroup || undefined,
+    },
+  })
+  return data
+}
+
 export async function searchDeliveryChallans({
   dateFrom,
   dateTo,

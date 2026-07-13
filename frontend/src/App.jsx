@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { OpenSettingsRoute } from './pages/OpenSettingsRoute'
 import { DeliveryChallanPage } from './pages/DeliveryChallanPage'
+import { OridDhallProductionPage } from './pages/OridDhallProductionPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
 
@@ -31,7 +32,7 @@ export default function App() {
                   <Route path="transactions/delivery-challan" element={<DeliveryChallanPage />} />
                   <Route
                     path="transactions/orid-dhall-production"
-                    element={<PlaceholderPage title="Orid Dhall Production" />}
+                    element={<OridDhallProductionPage />}
                   />
                   <Route path="transactions/brokerage" element={<PlaceholderPage title="Brokerage" />} />
                   <Route

@@ -1,10 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 @import './styles/forms.css';
 
 :root {
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'DM Sans', sans-serif;
+  --font-tabular: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
   --bg: #0e0f12;
   --panel: #16181d;
   --surface: #1e2128;
@@ -31,7 +32,7 @@
   Contain overflow with min-width: 0 / max-width: 100% — do not shrink the root font to fix layout.
 */
 html {
-  font-size: 18px;
+  font-size: 17px;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -672,9 +673,118 @@ body {
   color: var(--muted);
 }
 
+.odp-purchase-search {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+  /* FormAutocomplete tokens live on .win-form; redefine them for the modal. */
+  --form-bg: var(--panel);
+  --form-header: var(--surface);
+  --form-footer: var(--surface);
+  --form-ink: var(--ink);
+  --form-muted: var(--muted);
+  --form-line: var(--line);
+  --form-accent: var(--accent);
+  --form-accent-dark: var(--accent-dark);
+  --form-accent-soft: var(--accent-soft);
+  --form-hover: rgba(255, 255, 255, 0.05);
+  --form-on-accent: #14110c;
+  --form-input-bg: #16181d;
+  --form-input-ink: var(--ink);
+  --form-input-line: var(--line);
+  position: relative;
+  z-index: 5;
+}
+
+.dc-search-modal .odp-purchase-toolbar {
+  flex-wrap: nowrap;
+  align-items: end;
+  gap: 0.85rem 1rem;
+  overflow: visible;
+  position: relative;
+  z-index: 4;
+}
+
+.dc-search-modal .odp-purchase-toolbar .dc-search-count {
+  flex-shrink: 0;
+  padding-bottom: 0.45rem;
+}
+
+.dc-search-modal .dc-search-layout {
+  overflow: visible;
+}
+
+.dc-search-modal .win-form__autocomplete {
+  --ac-item-h: 2.5rem;
+}
+
+.dc-search-modal .win-form__autocomplete-list {
+  z-index: 40;
+  min-width: 100%;
+  width: 100%;
+  border-color: var(--line);
+  background: var(--panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.dc-search-modal .win-form__autocomplete-option {
+  color: var(--ink);
+}
+
+.dc-search-modal .win-form__autocomplete-option:hover,
+.dc-search-modal .win-form__autocomplete-option.is-active {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.dc-search-modal .win-form__autocomplete-option.is-selected {
+  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.dc-search-modal .win-form__autocomplete-option-body {
+  grid-template-columns:
+    minmax(6.5rem, 0.9fr)
+    6.5rem
+    minmax(8rem, 1.4fr)
+    minmax(7rem, 1.1fr);
+}
+
+.dc-search-modal .win-form__autocomplete-option-body--purchase {
+  grid-template-columns:
+    minmax(5.5rem, 0.8fr)
+    6rem
+    minmax(6.5rem, 1.15fr)
+    minmax(6.5rem, 1fr)
+    minmax(3.75rem, 0.55fr)
+    minmax(5rem, 0.7fr);
+}
+
+.dc-search-modal .win-form__autocomplete-v {
+  color: var(--ink);
+}
+
+.dc-search-modal .win-form__autocomplete-v--num {
+  width: 100%;
+  text-align: right;
+  justify-self: stretch;
+  font-family: var(--font-tabular);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+.dc-search-modal .win-form__autocomplete-empty {
+  color: var(--muted);
+}
+
 .dc-search-field .win-form__control {
   border-color: var(--line);
   background: #16181d;
+  color: var(--ink);
+}
+
+.dc-search-field .win-form__control:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .dc-search-count {
@@ -703,6 +813,17 @@ body {
   padding: 0.9rem 1.1rem 1.1rem;
 }
 
+.dc-search-table-shell {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--panel);
+}
+
 .dc-search-table-wrap {
   min-height: 0;
   flex: 1;
@@ -712,11 +833,49 @@ body {
   background: var(--panel);
 }
 
+.dc-search-table-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.dc-search-table-foot {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  background: #1a1d24;
+}
+
 .dc-search-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8125rem;
+}
+
+.dc-search-table col.col-vno {
+  width: 11%;
+}
+.dc-search-table col.col-party {
+  width: 20%;
+}
+.dc-search-table col.col-stock {
+  width: 18%;
+}
+.dc-search-table col.col-qty {
+  width: 10%;
+}
+.dc-search-table col.col-weight {
+  width: 12%;
+}
+.dc-search-table col.col-rate {
+  width: 12%;
+}
+.dc-search-table col.col-value {
+  width: 12%;
+}
+.dc-search-table col.col-action {
+  width: 5%;
 }
 
 .dc-search-table th,
@@ -724,6 +883,9 @@ body {
   padding: 0.7rem 0.85rem;
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
 }
 
@@ -733,15 +895,38 @@ body {
   z-index: 2;
   border-bottom: 1px solid var(--line);
   background: #1a1d24;
+  box-shadow: 0 1px 0 var(--line);
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  vertical-align: middle;
+  line-height: 1.25;
+  hyphens: manual;
 }
 
-.dc-search-table tbody tr:last-child td {
+.dc-search-table-scroll .dc-search-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.dc-search-table-foot .dc-search-table td {
+  border-bottom: none;
+  background: #1a1d24;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dc-search-total-row td:first-child {
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--muted);
 }
 
 .dc-search-row {
@@ -772,9 +957,44 @@ body {
   color: var(--accent);
 }
 
-.dc-search-num {
+.dc-search-num,
+.dc-search-table th.dc-search-num,
+.dc-search-table td.dc-search-num {
+  text-align: right;
+  font-family: var(--font-tabular);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
   color: var(--ink);
+  vertical-align: middle;
+}
+
+.dc-search-table td.dc-search-num--bottom {
+  vertical-align: middle;
+}
+
+.odp-search-status {
+  min-width: 6.5rem;
+}
+
+.odp-search-status .win-form__control {
+  width: 100%;
+  min-height: 1.85rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.dc-search-action {
+  width: 2.75rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.dc-search-action .win-form__icon-button {
+  color: var(--muted);
+}
+
+.dc-search-action .win-form__icon-button:hover {
+  color: #f87171;
 }
 
 .dc-search-empty {

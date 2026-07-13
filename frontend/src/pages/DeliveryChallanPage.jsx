@@ -203,6 +203,8 @@ export function DeliveryChallanPage() {
         brand: line.brand || null,
         packing: line.packing ?? null,
         qty: line.qty ?? null,
+        amount: line.amount ?? null,
+        discount: line.discount ?? null,
         delivery_location: line.deliveryLocation,
       })),
     }
@@ -245,6 +247,8 @@ export function DeliveryChallanPage() {
           brand: line.brand,
           packing: line.packing ?? null,
           qty: line.qty,
+          amount: line.amount ?? null,
+          discount: line.discount ?? null,
           deliveryLocation: defaultLocation,
         }))
 
@@ -366,6 +370,8 @@ export function DeliveryChallanPage() {
         brand: line.brand,
         packing: line.packing ?? null,
         qty: line.qty,
+        amount: line.amount ?? null,
+        discount: line.discount ?? null,
         deliveryLocation: line.delivery_location,
       })),
     )
