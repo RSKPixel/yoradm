@@ -204,7 +204,8 @@ body {
   font-size: calc(1.25rem + 12pt);
   line-height: 1.15;
   /* Optical nudge for descenders in the short header. */
-  padding-bottom: 2pt;
+  margin-top: -2pt;
+  padding-bottom: 6pt;
   margin-left: -3pt;
 }
 
