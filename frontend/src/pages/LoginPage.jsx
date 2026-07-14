@@ -53,7 +53,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-(--bg)">
+    <div className="relative flex h-full min-h-0 items-center justify-center overflow-hidden bg-(--bg)">
       <SpotlightBackground />
       <div className="absolute top-5 right-5 left-5 z-20 flex items-center justify-between gap-4">
         <AppBrandName />

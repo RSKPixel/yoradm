@@ -241,7 +241,7 @@ export function AppLayout() {
     location.pathname.startsWith('/transactions/delivery-challan')
 
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-(--bg) text-(--ink)">
+    <div className="relative flex h-full flex-col overflow-hidden bg-(--bg) text-(--ink)">
       {/* Blur stars with filter (not backdrop-filter) so it works in production too. */}
       <div className="spotlight-bg-host spotlight-bg-host--soft" aria-hidden="true">
         <SpotlightBackground />

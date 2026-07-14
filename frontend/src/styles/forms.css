@@ -590,9 +590,15 @@
 
 .win-form__table-wrap {
   max-width: 100%;
-  overflow: auto;
+  /* Prefer inner .win-form__table-scroll for scrolling. overflow:auto here
+     doubles scrollbars and shows idle tracks on Windows. */
+  overflow: hidden;
   border: 1px solid var(--form-line);
   border-radius: 0.5rem;
+}
+
+.win-form__table-wrap:not(:has(.win-form__table-scroll)) {
+  overflow: auto;
 }
 
 .win-form__table {
@@ -860,6 +866,7 @@
   min-height: 0;
   flex: 1 1 auto;
   overflow: auto;
+  scrollbar-width: thin;
 }
 
 .win-form__table-foot {
