@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { FormField, FormInput, FormPanel } from '../components/form/FormPanel'
 import { useFormMessage } from '../components/form/FormMessage'
-import { AppBrandName } from '../components/layout/AppBrandName'
+import { AppLogo } from '../components/layout/AppLogo'
 import { SpotlightBackground } from '../components/layout/SpotlightBackground'
 import { getApiErrorMessage, validateLoginForm } from '../utils/formValidation'
 
@@ -38,10 +38,8 @@ export function LoginPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-(--bg)">
       <SpotlightBackground />
-      <div className="relative w-full max-w-md px-6">
-        <div className="mb-6">
-          <AppBrandName className="[&>span]:text-[calc(2.25rem+2px)]" />
-        </div>
+      <AppLogo />
+      <div className="relative z-10 w-full max-w-md px-6">
         <FormPanel
           title="Sign In"
           onSubmit={onSubmit}
