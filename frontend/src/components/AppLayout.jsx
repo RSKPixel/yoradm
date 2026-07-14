@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../auth/AuthContext'
 import {
   readSidebarPinned,
+  SIDEBAR_HOVER_COLLAPSE_DELAY_MS,
   SIDEBAR_HOVER_EXPAND_DELAY_MS,
   writeSidebarPinned,
 } from '../config/sidebarPin'
@@ -87,15 +88,17 @@ function NavSection({ section, open, onToggle, expanded, onExpandRequest }) {
   }
 
   return (
-    <div className="shell-nav-group">
+    <div className={`shell-nav-group${open && expanded ? ' shell-nav-group-open' : ''}`}>
       <button
         type="button"
         onClick={handleToggle}
         title={!expanded ? section.label : undefined}
-        className={`shell-nav-section${hasItems ? '' : ' shell-nav-section-empty'}`}
+        className={`shell-nav-section${hasItems ? '' : ' shell-nav-section-empty'}${open && expanded ? ' shell-nav-section-open' : ''}`}
       >
         <span className="shell-nav-section-main">
-          <SectionIcon className="shell-nav-icon" aria-hidden="true" />
+          <span className="shell-nav-icon-slot">
+            <SectionIcon className="shell-nav-icon" aria-hidden="true" />
+          </span>
           <span className="shell-nav-label">{section.label}</span>
         </span>
         {hasItems && (
@@ -109,7 +112,9 @@ function NavSection({ section, open, onToggle, expanded, onExpandRequest }) {
         <div className="shell-nav-children">
           {section.items.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} className={linkClass} title={label}>
-              <Icon className="shell-nav-icon" aria-hidden="true" />
+              <span className="shell-nav-icon-slot">
+                <Icon className="shell-nav-icon" aria-hidden="true" />
+              </span>
               <span className="shell-nav-label">{label}</span>
             </NavLink>
           ))}
@@ -128,6 +133,7 @@ export function AppLayout() {
   const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned)
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const expandTimeoutRef = useRef(null)
+  const collapseTimeoutRef = useRef(null)
   const displayName = user?.full_name || user?.username || ''
   const visibleSections = useMemo(
     () => navSections.filter((section) => !section.adminOnly || isAdmin),
@@ -143,7 +149,20 @@ export function AppLayout() {
     }
   }
 
-  useEffect(() => () => clearExpandTimeout(), [])
+  function clearCollapseTimeout() {
+    if (collapseTimeoutRef.current != null) {
+      clearTimeout(collapseTimeoutRef.current)
+      collapseTimeoutRef.current = null
+    }
+  }
+
+  useEffect(
+    () => () => {
+      clearExpandTimeout()
+      clearCollapseTimeout()
+    },
+    [],
+  )
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -172,11 +191,13 @@ export function AppLayout() {
 
   function handleExpandRequest() {
     clearExpandTimeout()
+    clearCollapseTimeout()
     setSidebarHovered(true)
   }
 
   function handleZoneMouseEnter() {
     if (sidebarPinned) return
+    clearCollapseTimeout()
     clearExpandTimeout()
     expandTimeoutRef.current = setTimeout(() => {
       setSidebarHovered(true)
@@ -185,7 +206,11 @@ export function AppLayout() {
 
   function handleZoneMouseLeave() {
     clearExpandTimeout()
-    if (!sidebarPinned) setSidebarHovered(false)
+    if (sidebarPinned) return
+    clearCollapseTimeout()
+    collapseTimeoutRef.current = setTimeout(() => {
+      setSidebarHovered(false)
+    }, SIDEBAR_HOVER_COLLAPSE_DELAY_MS)
   }
 
   async function handleLogout() {
@@ -265,7 +290,9 @@ export function AppLayout() {
                   title={!isExpanded ? 'Dashboard' : undefined}
                   onClick={() => setOpenSection(null)}
                 >
-                  <ChartBarSquareIcon className="shell-nav-icon" aria-hidden="true" />
+                  <span className="shell-nav-icon-slot">
+                    <ChartBarSquareIcon className="shell-nav-icon" aria-hidden="true" />
+                  </span>
                   <span className="shell-nav-label">Dashboard</span>
                 </NavLink>
 
@@ -284,14 +311,6 @@ export function AppLayout() {
               </nav>
 
               <div className="shell-sidebar-footer">
-                <div className="shell-sidebar-user-meta">
-                  <span className="shell-sidebar-username" title={displayName}>
-                    {displayName}
-                  </span>
-                  <span className="shell-sidebar-last-login" title={formatLastLogin(user?.last_login_at)}>
-                    Last login: {formatLastLogin(user?.last_login_at)}
-                  </span>
-                </div>
                 <button
                   type="button"
                   className={`shell-sidebar-pin${sidebarPinned ? ' shell-sidebar-pin-active' : ''}`}
@@ -302,6 +321,14 @@ export function AppLayout() {
                 >
                   <PushPinIcon className="size-4" solid={sidebarPinned} />
                 </button>
+                <div className="shell-sidebar-user-meta">
+                  <span className="shell-sidebar-username" title={displayName}>
+                    {displayName}
+                  </span>
+                  <span className="shell-sidebar-last-login" title={formatLastLogin(user?.last_login_at)}>
+                    Last login: {formatLastLogin(user?.last_login_at)}
+                  </span>
+                </div>
               </div>
             </aside>
           </div>

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from math import ceil
 from typing import Optional, Tuple
 
@@ -10,7 +10,17 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
 from app.models.tally import TallyInventoryMaster, TallySale
-from app.schemas.delivery_challan import DeliveryChallanCreate, DeliveryChallanListItem
+from app.schemas.delivery_challan import (
+    DeliveryChallanCreate,
+    DeliveryChallanListItem,
+    PendingDeliveriesOut,
+    PendingDeliveryByStockGroupOut,
+    PendingDeliveryInvoiceOut,
+    PendingDeliveryLineOut,
+)
+
+# Ignore older invoices — project rolled out mid-stream; earlier ones are mostly delivered.
+PENDING_DELIVERY_FROM = date(2026, 7, 12)
 
 
 def get_by_id(db: Session, challan_id: int) -> Optional[DeliveryChallan]:
@@ -87,6 +97,147 @@ def list_used_voucher_nos(
     if exclude_challan_id is not None:
         query = query.filter(DeliveryChallanDetail.challan_id != exclude_challan_id)
     return [row[0] for row in query.all() if row[0]]
+
+
+def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
+    """Pending sale lines (not on a DC), grouped by inventory stock group.
+
+    Bag totals: (qty × packing) / 50 and (qty × packing) / 100.
+    Missing packing is treated as 50kg (same as delivery challan bags).
+    """
+    used_voucher_nos = (
+        db.query(DeliveryChallanDetail.voucher_no)
+        .filter(
+            DeliveryChallanDetail.voucher_no.isnot(None),
+            DeliveryChallanDetail.voucher_no != "",
+        )
+        .distinct()
+    )
+    cutoff = datetime.combine(PENDING_DELIVERY_FROM, datetime.min.time())
+    stock_group_by_item = _stock_group_by_item(db)
+
+    lines = (
+        db.query(
+            TallySale.voucher_no,
+            TallySale.voucher_date,
+            TallySale.ledger_name,
+            TallySale.stock_item,
+            TallySale.brand,
+            TallySale.qty,
+            TallySale.packing,
+        )
+        .filter(
+            TallySale.voucher_no.isnot(None),
+            TallySale.voucher_no != "",
+            TallySale.stock_item.isnot(None),
+            TallySale.stock_item != "",
+            TallySale.voucher_date.isnot(None),
+            TallySale.voucher_date >= cutoff,
+            ~TallySale.voucher_no.in_(used_voucher_nos),
+        )
+        .order_by(TallySale.voucher_date.desc(), TallySale.voucher_no.desc(), TallySale.id.asc())
+        .all()
+    )
+
+    by_group: dict[str, PendingDeliveryByStockGroupOut] = {}
+    # voucher aggregates within each stock group
+    invoice_map: dict[tuple[str, str], PendingDeliveryInvoiceOut] = {}
+    all_voucher_nos: set[str] = set()
+    grand_50 = 0.0
+    grand_100 = 0.0
+
+    for line in lines:
+        voucher_no = (line.voucher_no or "").strip()
+        stock_item = (line.stock_item or "").strip()
+        if not voucher_no or not stock_item:
+            continue
+
+        stock_group = stock_group_by_item.get(stock_item.lower()) or "—"
+        qty = float(line.qty or 0.0)
+        packing_raw = float(line.packing) if line.packing is not None else None
+        packing = packing_raw if packing_raw is not None else 50.0
+        weight = qty * packing
+        bags_50 = weight / 50.0
+        bags_100 = weight / 100.0
+        detail = PendingDeliveryLineOut(
+            stock_item=stock_item,
+            brand=(line.brand or "").strip() or None,
+            packing=packing_raw,
+            qty=qty,
+            bags_50=bags_50,
+            bags_100=bags_100,
+        )
+
+        group = by_group.get(stock_group)
+        if group is None:
+            group = PendingDeliveryByStockGroupOut(stock_group=stock_group)
+            by_group[stock_group] = group
+
+        inv_key = (stock_group, voucher_no)
+        invoice = invoice_map.get(inv_key)
+        if invoice is None:
+            invoice = PendingDeliveryInvoiceOut(
+                voucher_no=voucher_no,
+                voucher_date=line.voucher_date,
+                ledger_name=line.ledger_name,
+            )
+            invoice_map[inv_key] = invoice
+            group.invoices.append(invoice)
+            group.invoice_count += 1
+            all_voucher_nos.add(voucher_no)
+        else:
+            if line.voucher_date and (
+                invoice.voucher_date is None or line.voucher_date < invoice.voucher_date
+            ):
+                invoice.voucher_date = line.voucher_date
+            if not invoice.ledger_name and line.ledger_name:
+                invoice.ledger_name = line.ledger_name
+
+        invoice.lines.append(detail)
+        invoice.bags_50 += bags_50
+        invoice.bags_100 += bags_100
+        group.bags_50 += bags_50
+        group.bags_100 += bags_100
+        grand_50 += bags_50
+        grand_100 += bags_100
+
+    items = sorted(by_group.values(), key=lambda item: (-item.invoice_count, item.stock_group))
+    for item in items:
+        item.invoices.sort(
+            key=lambda inv: (
+                inv.voucher_date is None,
+                -(inv.voucher_date.toordinal() if inv.voucher_date else 0),
+                inv.voucher_no,
+            )
+        )
+
+    return PendingDeliveriesOut(
+        items=items,
+        total_invoices=len(all_voucher_nos),
+        bags_50=grand_50,
+        bags_100=grand_100,
+    )
+
+
+def _stock_group_by_item(db: Session) -> dict[str, str]:
+    """Lowercased stock_item → stock_group from inventory master."""
+    rows = (
+        db.query(TallyInventoryMaster.stock_item, TallyInventoryMaster.stock_group)
+        .filter(
+            TallyInventoryMaster.stock_item.isnot(None),
+            TallyInventoryMaster.stock_item != "",
+            TallyInventoryMaster.stock_group.isnot(None),
+            TallyInventoryMaster.stock_group != "",
+        )
+        .all()
+    )
+    lookup: dict[str, str] = {}
+    for stock_item, stock_group in rows:
+        key = (stock_item or "").strip().lower()
+        group = (stock_group or "").strip()
+        if key and group and key not in lookup:
+            lookup[key] = group
+    return lookup
 
 
 def _stock_items_for_group(db: Session, stock_group: str) -> list:

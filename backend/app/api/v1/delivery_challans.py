@@ -12,6 +12,7 @@ from app.schemas.delivery_challan import (
     DeliveryQtyByBatchDatesOut,
     DeliveryQtyByBatchOut,
     DeliveryQtyByDateItem,
+    PendingDeliveriesOut,
 )
 from app.services import delivery_challan_service
 
@@ -28,6 +29,11 @@ def list_used_invoices(
         db,
         exclude_challan_id=exclude_challan_id,
     )
+
+
+@router.get("/pending-by-stock-group", response_model=PendingDeliveriesOut)
+def pending_by_stock_group(_: CurrentUser, db: DbSession) -> PendingDeliveriesOut:
+    return delivery_challan_service.pending_deliveries_by_stock_group(db)
 
 
 @router.get("/qty-by-batch", response_model=DeliveryQtyByBatchOut)

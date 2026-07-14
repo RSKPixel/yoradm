@@ -21,6 +21,11 @@ export async function fetchUsedInvoiceNos(excludeChallanId) {
   return data
 }
 
+export async function fetchPendingDeliveriesByStockGroup() {
+  const { data } = await api.get('/delivery-challans/pending-by-stock-group')
+  return data
+}
+
 export async function fetchDeliveryQtyByBatch({
   batchNo,
   stockGroup = 'Orid Dhall',

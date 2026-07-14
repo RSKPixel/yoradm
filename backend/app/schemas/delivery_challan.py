@@ -122,3 +122,36 @@ class DeliveryQtyByBatchDatesOut(BaseModel):
     stock_group: str
     items: List[DeliveryQtyByDateItem] = []
     total_qty: float = 0
+
+
+class PendingDeliveryLineOut(BaseModel):
+    stock_item: Optional[str] = None
+    brand: Optional[str] = None
+    packing: Optional[float] = None
+    qty: float = 0
+    bags_50: float = 0
+    bags_100: float = 0
+
+
+class PendingDeliveryInvoiceOut(BaseModel):
+    voucher_no: str
+    voucher_date: Optional[datetime] = None
+    ledger_name: Optional[str] = None
+    bags_50: float = 0
+    bags_100: float = 0
+    lines: List[PendingDeliveryLineOut] = []
+
+
+class PendingDeliveryByStockGroupOut(BaseModel):
+    stock_group: str
+    invoice_count: int = 0
+    bags_50: float = 0
+    bags_100: float = 0
+    invoices: List[PendingDeliveryInvoiceOut] = []
+
+
+class PendingDeliveriesOut(BaseModel):
+    items: List[PendingDeliveryByStockGroupOut] = []
+    total_invoices: int = 0
+    bags_50: float = 0
+    bags_100: float = 0

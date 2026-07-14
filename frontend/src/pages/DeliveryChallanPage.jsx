@@ -8,6 +8,7 @@ import {
   fetchUsedInvoiceNos,
   updateDeliveryChallan,
 } from '../api/deliveryChallan'
+import { fetchOpenOridDhallBatches } from '../api/oridDhallProduction'
 import { fetchLocations, fetchSaleInvoiceLines, fetchSaleInvoices } from '../api/tally'
 import { PdfPreviewModal } from '../components/common/PdfPreviewModal'
 import { ConfirmDeleteModal } from '../components/delivery-challan/ConfirmDeleteModal'
@@ -17,8 +18,34 @@ import { FormAutocomplete } from '../components/form/FormAutocomplete'
 import { FormField, FormInput, FormPanel, FormSelect } from '../components/form/FormPanel'
 import { useFormMessage } from '../components/form/FormMessage'
 import { createDeliveryChallanPdfBlob } from '../utils/deliveryChallanPdf'
-import { formatDate, toIsoDateInput, todayIsoDate } from '../utils/formatDate'
+import { formatDate, parseDisplayDate, toIsoDateInput, todayIsoDate } from '../utils/formatDate'
 import { getApiErrorMessage, validateDeliveryChallanForm } from '../utils/formValidation'
+
+/** Invoices older than this many days before delivery date are hidden from autocomplete. */
+const INVOICE_LOOKBACK_DAYS = 15
+
+function invoiceDateIso(value) {
+  const date = parseDisplayDate(value)
+  if (!date) return ''
+  return toIsoDateInput(date)
+}
+
+function isInvoiceWithinDeliveryWindow(inv, deliveryDateIso) {
+  const deliveryIso = invoiceDateIso(deliveryDateIso)
+  const voucherIso = invoiceDateIso(inv?.voucher_date)
+  if (!deliveryIso || !voucherIso) return false
+
+  const delivery = parseDisplayDate(deliveryIso)
+  const voucher = parseDisplayDate(voucherIso)
+  if (!delivery || !voucher) return false
+
+  const earliest = new Date(
+    delivery.getFullYear(),
+    delivery.getMonth(),
+    delivery.getDate() - INVOICE_LOOKBACK_DAYS,
+  )
+  return voucher >= earliest && voucher <= delivery
+}
 
 function invoiceOptionLabel(inv) {
   return `${inv.voucher_no} — ${inv.ledger_name ?? ''} — ${formatDate(inv.voucher_date)}`
@@ -71,6 +98,22 @@ function nextLineId() {
   return `dc-line-${lineIdSeq}`
 }
 
+/** Empty value = Not Applicable (stored as null). */
+const BATCH_NA = ''
+
+function batchOptionValue(row) {
+  return String(row.lot_no || row.id)
+}
+
+function sortOpenBatches(rows) {
+  return [...(rows ?? [])].sort((a, b) => Number(b.id) - Number(a.id))
+}
+
+function defaultBatchNo(batches) {
+  if (!batches.length) return BATCH_NA
+  return batchOptionValue(batches[0])
+}
+
 export function DeliveryChallanPage() {
   const { showErrors, showSuccess, showError } = useFormMessage()
   const invoiceInputRef = useRef(null)
@@ -79,6 +122,7 @@ export function DeliveryChallanPage() {
 
   const [invoiceOptions, setInvoiceOptions] = useState([])
   const [usedInvoiceNos, setUsedInvoiceNos] = useState([])
+  const [openBatches, setOpenBatches] = useState([])
   const [locations, setLocations] = useState([])
   const [loadingLookups, setLoadingLookups] = useState(true)
   const [addingInvoice, setAddingInvoice] = useState(false)
@@ -87,7 +131,7 @@ export function DeliveryChallanPage() {
   const [date, setDate] = useState(todayIsoDate)
   const [vehicleNo, setVehicleNo] = useState('')
   const [driverName, setDriverName] = useState('')
-  const [batchNo, setBatchNo] = useState('')
+  const [batchNo, setBatchNo] = useState(BATCH_NA)
   const [selectedInvoice, setSelectedInvoice] = useState('')
   const [lines, setLines] = useState([])
   const [highlightedLineIds, setHighlightedLineIds] = useState(() => new Set())
@@ -109,8 +153,35 @@ export function DeliveryChallanPage() {
     for (const line of lines) {
       if (line.voucher_no) blocked.add(line.voucher_no)
     }
-    return invoiceOptions.filter((inv) => !blocked.has(inv.voucher_no))
-  }, [invoiceOptions, usedInvoiceNos, lines])
+    return invoiceOptions.filter(
+      (inv) =>
+        !blocked.has(inv.voucher_no) && isInvoiceWithinDeliveryWindow(inv, date),
+    )
+  }, [invoiceOptions, usedInvoiceNos, lines, date])
+
+  useEffect(() => {
+    if (!selectedInvoice) return
+    const stillAvailable = availableInvoiceOptions.some(
+      (inv) => inv.voucher_no === selectedInvoice,
+    )
+    if (!stillAvailable) setSelectedInvoice('')
+  }, [availableInvoiceOptions, selectedInvoice])
+
+  const batchSelectOptions = useMemo(() => {
+    const opts = openBatches.map((row) => ({
+      value: batchOptionValue(row),
+      label: batchOptionValue(row),
+    }))
+    const current = String(batchNo ?? '').trim()
+    if (
+      current &&
+      current !== BATCH_NA &&
+      !opts.some((opt) => opt.value === current)
+    ) {
+      opts.push({ value: current, label: current })
+    }
+    return opts
+  }, [openBatches, batchNo])
 
   async function loadUsedInvoices(excludeChallanId = savedChallanId) {
     const used = await fetchUsedInvoiceNos(excludeChallanId || undefined)
@@ -124,15 +195,19 @@ export function DeliveryChallanPage() {
     async function loadLookups() {
       setLoadingLookups(true)
       try {
-        const [invoices, locationRows, used] = await Promise.all([
+        const [invoices, locationRows, used, openBatchRows] = await Promise.all([
           fetchSaleInvoices(),
           fetchLocations(),
           fetchUsedInvoiceNos(),
+          fetchOpenOridDhallBatches(),
         ])
         if (cancelled) return
         setInvoiceOptions(invoices)
         setLocations(locationRows.map((row) => row.name).filter(Boolean))
         setUsedInvoiceNos(used)
+        const batches = sortOpenBatches(openBatchRows)
+        setOpenBatches(batches)
+        setBatchNo(defaultBatchNo(batches))
       } catch (error) {
         if (!cancelled) {
           showError(getApiErrorMessage(error, 'Failed to load invoice and location data'))
@@ -181,7 +256,7 @@ export function DeliveryChallanPage() {
     setDate(todayIsoDate())
     setVehicleNo('')
     setDriverName('')
-    setBatchNo('')
+    setBatchNo(defaultBatchNo(openBatches))
     setSelectedInvoice('')
     setLines([])
     setHighlightedLineIds(new Set())
@@ -190,11 +265,12 @@ export function DeliveryChallanPage() {
   }
 
   function buildPayload() {
+    const batch = String(batchNo ?? '').trim()
     return {
       challan_date: date,
       vehicle_no: vehicleNo.trim(),
       driver_name: driverName.trim(),
-      batch_no: batchNo.trim() || null,
+      batch_no: batch || null,
       lines: lines.map((line) => ({
         voucher_no: line.voucher_no,
         voucher_date: line.voucher_date || null,
@@ -358,7 +434,7 @@ export function DeliveryChallanPage() {
     setDate(toIsoDateInput(challan.challan_date) || todayIsoDate())
     setVehicleNo(challan.vehicle_no ?? '')
     setDriverName(challan.driver_name ?? '')
-    setBatchNo(challan.batch_no ?? '')
+    setBatchNo(challan.batch_no ?? BATCH_NA)
     setSelectedInvoice('')
     setLines(
       (challan.details ?? []).map((line) => ({
@@ -576,11 +652,18 @@ export function DeliveryChallanPage() {
               />
             </FormField>
             <FormField label="Batch No.">
-              <FormInput
-                required
+              <FormSelect
                 value={batchNo}
                 onChange={(e) => setBatchNo(e.target.value)}
-              />
+                disabled={loadingLookups}
+              >
+                <option value={BATCH_NA}>Not Applicable</option>
+                {batchSelectOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </FormSelect>
             </FormField>
           </div>
 
