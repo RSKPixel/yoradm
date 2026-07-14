@@ -744,6 +744,10 @@ body {
   gap: 0.75rem 1rem;
 }
 
+.dc-search-period--3 {
+  grid-template-columns: repeat(3, minmax(10rem, 13rem));
+}
+
 .dc-search-field {
   margin: 0;
 }

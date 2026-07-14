@@ -37,6 +37,7 @@ def list_delivery_challans(
     *,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    batch_no: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
 ) -> Tuple[list[DeliveryChallanListItem], int]:
@@ -45,6 +46,9 @@ def list_delivery_challans(
         query = query.filter(DeliveryChallan.challan_date >= date_from)
     if date_to is not None:
         query = query.filter(DeliveryChallan.challan_date <= date_to)
+    batch = (batch_no or "").strip()
+    if batch:
+        query = query.filter(func.trim(DeliveryChallan.batch_no).like(f"%{batch}%"))
 
     total = query.count()
     rows = (

@@ -21,6 +21,7 @@ function formatQty(value) {
 export function DeliveryChallanSearchModal({ onClose, onSelect }) {
   const [dateFrom, setDateFrom] = useState(monthStartIsoDate)
   const [dateTo, setDateTo] = useState(todayIsoDate)
+  const [batchNo, setBatchNo] = useState('')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -35,6 +36,7 @@ export function DeliveryChallanSearchModal({ onClose, onSelect }) {
         const data = await searchDeliveryChallans({
           dateFrom,
           dateTo,
+          batchNo: batchNo.trim() || undefined,
           pageSize: 100,
         })
         if (!cancelled) setItems(data.items ?? [])
@@ -52,7 +54,7 @@ export function DeliveryChallanSearchModal({ onClose, onSelect }) {
     return () => {
       cancelled = true
     }
-  }, [dateFrom, dateTo])
+  }, [dateFrom, dateTo, batchNo])
 
   return (
     <Modal
@@ -64,12 +66,20 @@ export function DeliveryChallanSearchModal({ onClose, onSelect }) {
     >
       <div className="dc-search-layout">
         <div className="dc-search-toolbar">
-          <div className="dc-search-period">
+          <div className="dc-search-period dc-search-period--3">
             <FormField label="From" className="dc-search-field">
               <FormInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </FormField>
             <FormField label="To" className="dc-search-field">
               <FormInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </FormField>
+            <FormField label="Batch No." className="dc-search-field">
+              <FormInput
+                type="text"
+                value={batchNo}
+                onChange={(e) => setBatchNo(e.target.value)}
+                placeholder="Lot / batch"
+              />
             </FormField>
           </div>
           <p className="dc-search-count">
@@ -86,22 +96,23 @@ export function DeliveryChallanSearchModal({ onClose, onSelect }) {
                 <tr>
                   <th>DC No.</th>
                   <th>Date</th>
+                  <th>Lot No.</th>
                   <th>Vehicle</th>
                   <th>Driver</th>
-                  <th>Invoices</th>
-                  <th>Total Qty</th>
+                  <th className="dc-search-num">Invoices</th>
+                  <th className="dc-search-num">Total Qty</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="dc-search-empty">
+                    <td colSpan={7} className="dc-search-empty">
                       Loading…
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="dc-search-empty">
+                    <td colSpan={7} className="dc-search-empty">
                       No delivery challans found for this period.
                     </td>
                   </tr>
@@ -123,6 +134,7 @@ export function DeliveryChallanSearchModal({ onClose, onSelect }) {
                         <span className="dc-search-id">{row.id}</span>
                       </td>
                       <td>{formatDate(row.challan_date)}</td>
+                      <td>{row.batch_no || '—'}</td>
                       <td>{row.vehicle_no}</td>
                       <td>{row.driver_name}</td>
                       <td className="dc-search-num">{row.invoice_count ?? 0}</td>

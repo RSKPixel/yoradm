@@ -90,6 +90,7 @@ def list_delivery_challans(
     db: DbSession,
     date_from: Optional[date] = Query(default=None),
     date_to: Optional[date] = Query(default=None),
+    batch_no: Optional[str] = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
 ) -> PaginatedResponse[DeliveryChallanListItem]:
@@ -97,6 +98,7 @@ def list_delivery_challans(
         db,
         date_from=date_from,
         date_to=date_to,
+        batch_no=batch_no,
         page=page,
         page_size=page_size,
     )

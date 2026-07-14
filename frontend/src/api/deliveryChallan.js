@@ -55,6 +55,7 @@ export async function fetchDeliveryQtyByBatchDates({
 export async function searchDeliveryChallans({
   dateFrom,
   dateTo,
+  batchNo,
   page = 1,
   pageSize = 50,
 } = {}) {
@@ -62,6 +63,7 @@ export async function searchDeliveryChallans({
     params: {
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
+      batch_no: batchNo || undefined,
       page,
       page_size: pageSize,
     },
