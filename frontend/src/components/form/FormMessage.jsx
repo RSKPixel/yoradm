@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 const TOAST_EXIT_MS = 350
 export const TOAST_DEFAULT_DURATION_MS = 3000
@@ -8,29 +16,57 @@ const FormMessageContext = createContext(undefined)
 
 export function FormMessageProvider({ children }) {
   const [toasts, setToasts] = useState([])
+  const [inlineHostCount, setInlineHostCount] = useState(0)
   const toastsRef = useRef(toasts)
   const timersRef = useRef(new Map())
+  const inlineHostCountRef = useRef(0)
 
   toastsRef.current = toasts
+  inlineHostCountRef.current = inlineHostCount
 
-  const dismissToast = useCallback((id) => {
-    const toast = toastsRef.current.find((entry) => entry.id === id)
-    if (!toast || toast.exiting) return
-
-    const timers = timersRef.current.get(id)
-    if (timers?.auto) window.clearTimeout(timers.auto)
-
-    setToasts((current) =>
-      current.map((entry) => (entry.id === id ? { ...entry, exiting: true } : entry)),
-    )
-
-    timersRef.current.set(id, {
-      remove: window.setTimeout(() => {
-        setToasts((current) => current.filter((entry) => entry.id !== id))
-        timersRef.current.delete(id)
-      }, TOAST_EXIT_MS),
-    })
+  const registerInlineHost = useCallback(() => {
+    setInlineHostCount((count) => count + 1)
+    return () => setInlineHostCount((count) => Math.max(0, count - 1))
   }, [])
+
+  const clearTimers = useCallback((id) => {
+    const timers = timersRef.current.get(id)
+    if (!timers) return
+    if (timers.auto) window.clearTimeout(timers.auto)
+    if (timers.remove) window.clearTimeout(timers.remove)
+    timersRef.current.delete(id)
+  }, [])
+
+  const removeToast = useCallback((id) => {
+    clearTimers(id)
+    setToasts((current) => current.filter((entry) => entry.id !== id))
+  }, [clearTimers])
+
+  const dismissToast = useCallback(
+    (id) => {
+      const toast = toastsRef.current.find((entry) => entry.id === id)
+      if (!toast || toast.exiting) return
+
+      clearTimers(id)
+
+      // Inline footer messages remove immediately — no sliding card exit.
+      if (inlineHostCountRef.current > 0) {
+        removeToast(id)
+        return
+      }
+
+      setToasts((current) =>
+        current.map((entry) => (entry.id === id ? { ...entry, exiting: true } : entry)),
+      )
+
+      timersRef.current.set(id, {
+        remove: window.setTimeout(() => {
+          removeToast(id)
+        }, TOAST_EXIT_MS),
+      })
+    },
+    [clearTimers, removeToast],
+  )
 
   const enqueueToast = useCallback(
     (message, options = {}) => {
@@ -89,20 +125,36 @@ export function FormMessageProvider({ children }) {
     [showToast],
   )
 
-  const value = {
-    showToast,
-    showErrors,
-    dismissToast,
-    showMessage,
-    showSuccess: (text, duration) => showToast(text, { type: 'success', duration }),
-    showError: (text, duration) => showToast(text, { type: 'error', duration }),
-    showInfo: (text, duration) => showToast(text, { type: 'info', duration }),
-  }
+  const value = useMemo(
+    () => ({
+      toasts,
+      inlineHostActive: inlineHostCount > 0,
+      registerInlineHost,
+      showToast,
+      showErrors,
+      dismissToast,
+      showMessage,
+      showSuccess: (text, duration) => showToast(text, { type: 'success', duration }),
+      showError: (text, duration) => showToast(text, { type: 'error', duration }),
+      showInfo: (text, duration) => showToast(text, { type: 'info', duration }),
+    }),
+    [
+      toasts,
+      inlineHostCount,
+      registerInlineHost,
+      showToast,
+      showErrors,
+      dismissToast,
+      showMessage,
+    ],
+  )
+
+  const showFloatingToasts = inlineHostCount === 0 && toasts.length > 0
 
   return (
     <FormMessageContext.Provider value={value}>
       {children}
-      {toasts.length > 0 ? (
+      {showFloatingToasts ? (
         <div className="toast-container" aria-live="polite" aria-relevant="additions">
           {toasts.map((toast) => (
             <div
@@ -124,6 +176,40 @@ export function FormMessageProvider({ children }) {
         </div>
       ) : null}
     </FormMessageContext.Provider>
+  )
+}
+
+/** Compact footer status line — used by PrimaryContentLayout bottom-left. */
+export function FormMessageInline({ className = '' }) {
+  const { toasts, dismissToast, registerInlineHost } = useFormMessage()
+
+  useEffect(() => registerInlineHost(), [registerInlineHost])
+
+  const active = toasts.filter((toast) => !toast.exiting)
+  const latest = active.length ? active[active.length - 1] : null
+
+  if (!latest) {
+    return <div className={`win-form__footer-message ${className}`.trim()} aria-live="polite" />
+  }
+
+  return (
+    <div
+      className={`win-form__footer-message win-form__footer-message--${latest.type} ${className}`.trim()}
+      role="alert"
+      aria-live="polite"
+    >
+      <p className="win-form__footer-message-text" title={latest.message}>
+        {latest.message}
+      </p>
+      <button
+        type="button"
+        className="win-form__footer-message-dismiss"
+        onClick={() => dismissToast(latest.id)}
+        aria-label="Dismiss message"
+      >
+        ×
+      </button>
+    </div>
   )
 }
 

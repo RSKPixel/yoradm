@@ -15,8 +15,9 @@ import { ConfirmDeleteModal } from '../components/delivery-challan/ConfirmDelete
 import { DeliveryChallanSearchModal } from '../components/delivery-challan/DeliveryChallanSearchModal'
 import { DeliveryChallanSummaryModal } from '../components/delivery-challan/DeliveryChallanSummaryModal'
 import { FormAutocomplete } from '../components/form/FormAutocomplete'
-import { FormField, FormInput, FormPanel, FormSelect } from '../components/form/FormPanel'
+import { FormField, FormInput, FormSelect } from '../components/form/FormPanel'
 import { useFormMessage } from '../components/form/FormMessage'
+import { PrimaryContentLayout } from '../components/layout/PrimaryContentLayout'
 import { createDeliveryChallanPdfBlob } from '../utils/deliveryChallanPdf'
 import { formatDate, parseDisplayDate, toIsoDateInput, todayIsoDate } from '../utils/formatDate'
 import { getApiErrorMessage, validateDeliveryChallanForm } from '../utils/formValidation'
@@ -541,15 +542,25 @@ export function DeliveryChallanPage() {
         }}
         onDownload={onDownloadPdf}
       />
-      <FormPanel
+      <PrimaryContentLayout
         title={isModifyMode ? 'Delivery Challan — Modify' : 'Delivery Challan'}
-        wide
-        fill
+        breadcrumb={[
+          { label: 'Transactions' },
+          { label: 'Delivery Challan' },
+        ]}
         onSubmit={onSave}
         onKeyDown={onFormKeyDown}
         footer={
-          <div className="win-form__footer-bar">
-            <div className="win-form__footer-left">
+          <>
+              <button
+                type="button"
+                className="win-form__button"
+                onClick={() => setSearchOpen(true)}
+                disabled={saving || deleting || loadingChallan}
+              >
+                Search
+              </button>
+              <span className="win-form__footer-divider" aria-hidden="true" />
               <button
                 type="button"
                 className="win-form__button win-form__button--danger"
@@ -574,16 +585,6 @@ export function DeliveryChallanPage() {
               >
                 Summary
               </button>
-            </div>
-            <div className="win-form__footer-right">
-              <button
-                type="button"
-                className="win-form__button"
-                onClick={() => setSearchOpen(true)}
-                disabled={saving || deleting || loadingChallan}
-              >
-                Search
-              </button>
               <button
                 type="button"
                 className="win-form__button"
@@ -599,8 +600,7 @@ export function DeliveryChallanPage() {
               >
                 {saving ? 'Saving…' : isModifyMode ? 'Update' : 'Save'}
               </button>
-            </div>
-          </div>
+          </>
         }
       >
         <div className="shrink-0">
@@ -667,82 +667,84 @@ export function DeliveryChallanPage() {
             </FormField>
           </div>
 
-          <div className="win-form__section-label mt-4">Delivery Items</div>
+          <div className="win-form__section-label mt-2">Delivery Items</div>
         </div>
 
-        <div className="win-form__table-wrap" ref={tableWrapRef}>
-          <table className="win-form__table w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th>Invoice No.</th>
-                <th>Invoice Date</th>
-                <th>Party</th>
-                <th>Stock Item</th>
-                <th>Brand</th>
-                <th>Qty</th>
-                <th>Delivery Location</th>
-                <th aria-label="Actions" className="win-form__table-action" />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.length === 0 ? (
+        <div className="win-form__table-wrap win-form__table-shell mt-1" ref={tableWrapRef}>
+          <div className="win-form__table-scroll">
+            <table className="win-form__table w-full text-left text-sm">
+              <thead>
                 <tr>
-                  <td colSpan={8} className="win-form__table-empty">
-                    Search an invoice and press Enter to include stock items.
-                  </td>
+                  <th>Invoice No.</th>
+                  <th>Invoice Date</th>
+                  <th>Party</th>
+                  <th>Stock Item</th>
+                  <th>Brand</th>
+                  <th>Qty</th>
+                  <th>Delivery Location</th>
+                  <th aria-label="Actions" className="win-form__table-action" />
                 </tr>
-              ) : (
-                lines.map((line, index) => {
-                  const showInvoiceMeta =
-                    index === 0 || lines[index - 1].voucher_no !== line.voucher_no
-                  const rowSpan = showInvoiceMeta ? invoiceGroupSpan(lines, index) : 0
-                  const rowClass = [
-                    showInvoiceMeta && index > 0 ? 'win-form__table-row--invoice-start' : '',
-                    highlightedLineIds.has(line.id) ? 'win-form__table-row--flash' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')
-                  return (
-                    <tr key={line.id} className={rowClass || undefined}>
-                      <td>{showInvoiceMeta ? line.voucher_no : ''}</td>
-                      <td>{showInvoiceMeta ? line.voucher_date : ''}</td>
-                      <td>{showInvoiceMeta ? line.ledger_name : ''}</td>
-                      <td>{line.stock_item}</td>
-                      <td>{line.brand}</td>
-                      <td>{line.qty ?? ''}</td>
-                      <td>
-                        <FormSelect
-                          className="win-form__table-select"
-                          value={line.deliveryLocation}
-                          onChange={(e) => onLocationChange(line.id, e.target.value)}
-                        >
-                          {locations.map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </FormSelect>
-                      </td>
-                      {showInvoiceMeta ? (
-                        <td rowSpan={rowSpan} className="win-form__table-action">
-                          <button
-                            type="button"
-                            className="win-form__icon-button"
-                            aria-label={`Remove invoice ${line.voucher_no}`}
-                            onClick={() => onRemoveInvoice(line.voucher_no)}
+              </thead>
+              <tbody>
+                {lines.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="win-form__table-empty">
+                      Search an invoice and press Enter to include stock items.
+                    </td>
+                  </tr>
+                ) : (
+                  lines.map((line, index) => {
+                    const showInvoiceMeta =
+                      index === 0 || lines[index - 1].voucher_no !== line.voucher_no
+                    const rowSpan = showInvoiceMeta ? invoiceGroupSpan(lines, index) : 0
+                    const rowClass = [
+                      showInvoiceMeta && index > 0 ? 'win-form__table-row--invoice-start' : '',
+                      highlightedLineIds.has(line.id) ? 'win-form__table-row--flash' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+                    return (
+                      <tr key={line.id} className={rowClass || undefined}>
+                        <td>{showInvoiceMeta ? line.voucher_no : ''}</td>
+                        <td>{showInvoiceMeta ? line.voucher_date : ''}</td>
+                        <td>{showInvoiceMeta ? line.ledger_name : ''}</td>
+                        <td>{line.stock_item}</td>
+                        <td>{line.brand}</td>
+                        <td>{line.qty ?? ''}</td>
+                        <td>
+                          <FormSelect
+                            className="win-form__table-select"
+                            value={line.deliveryLocation}
+                            onChange={(e) => onLocationChange(line.id, e.target.value)}
                           >
-                            <TrashIcon />
-                          </button>
+                            {locations.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </FormSelect>
                         </td>
-                      ) : null}
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                        {showInvoiceMeta ? (
+                          <td rowSpan={rowSpan} className="win-form__table-action">
+                            <button
+                              type="button"
+                              className="win-form__icon-button"
+                              aria-label={`Remove invoice ${line.voucher_no}`}
+                              onClick={() => onRemoveInvoice(line.voucher_no)}
+                            >
+                              <TrashIcon />
+                            </button>
+                          </td>
+                        ) : null}
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </FormPanel>
+      </PrimaryContentLayout>
     </div>
   )
 }

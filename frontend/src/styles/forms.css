@@ -126,6 +126,11 @@
   justify-content: center;
 }
 
+.win-form-host--flat {
+  align-items: stretch;
+  justify-content: stretch;
+}
+
 .win-form {
   --form-bg: #16181d;
   --form-header: #1a1d24;
@@ -189,6 +194,74 @@
   overflow: hidden;
 }
 
+/* Content sits directly in the page — no panel chrome. */
+.win-form--flat {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.win-form--flat.win-form--fill {
+  overflow: hidden;
+}
+
+.win-form--flat .win-form__body {
+  padding: 0.75rem 2rem 1rem;
+  background: transparent;
+}
+
+.win-form--flat.win-form--wide .win-form__body {
+  padding: 0.75rem 2rem 1rem;
+}
+
+/* Table fills remaining height: header + total stay put, body scrolls. */
+.win-form--flat.win-form--fill .win-form__table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.win-form--flat.win-form--fill .win-form__table-wrap.win-form__table-shell {
+  overflow: hidden;
+}
+
+.win-form--flat .win-form__table-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.win-form--flat .win-form__table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.win-form--flat .win-form__table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.win-form--flat .win-form__footer {
+  box-sizing: border-box;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  min-height: var(--shell-bottom-bar-height);
+  height: var(--shell-bottom-bar-height);
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--line);
+  background: var(--form-footer);
+  border-radius: 0;
+}
+
+.win-form--flat.win-form--wide .win-form__footer {
+  padding: 0.4rem 0.75rem;
+}
+
 .win-form--wide .win-form__header {
   padding: 0.4rem 0.7rem;
   font-size: 0.75rem;
@@ -231,10 +304,22 @@
   padding: 0.4rem 0.5rem;
 }
 
+/* Keep flat page gutters after --wide densify so padding does not collapse. */
+.win-form--flat .win-form__body,
+.win-form--flat.win-form--wide .win-form__body {
+  padding: 1rem 2rem 1.25rem;
+}
+
+.win-form--flat .win-form__footer,
+.win-form--flat.win-form--wide .win-form__footer {
+  padding-inline: 2rem;
+}
+
 .win-form__header {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
   padding: 0.55rem 0.85rem;
   border-bottom: 1px solid var(--form-line);
   background: var(--form-header);
@@ -242,6 +327,17 @@
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+
+.win-form__title {
+  min-width: 0;
+}
+
+.win-form__subtitle {
+  min-width: 0;
+  font-weight: 500;
+  color: var(--muted, #64748b);
+  letter-spacing: 0;
 }
 
 .win-form__body {
@@ -274,6 +370,78 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
+}
+
+.win-form__footer-left {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.win-form__footer-right {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.win-form__footer-message {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.35rem;
+}
+
+.win-form__footer-message-text {
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.win-form__footer-message--error .win-form__footer-message-text {
+  color: #fca5a5;
+}
+
+.win-form__footer-message--success .win-form__footer-message-text {
+  color: #6ee7b7;
+}
+
+.win-form__footer-message--info .win-form__footer-message-text {
+  color: var(--form-muted, var(--muted));
+}
+
+.win-form__footer-message-dismiss {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.05rem 0.3rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.win-form__footer-message-dismiss:hover {
+  opacity: 1;
+  background: var(--form-hover, var(--hover));
+}
+
+.win-form__footer-divider {
+  display: inline-block;
+  width: 1px;
+  height: 1.35rem;
+  margin-inline: 0.25rem;
+  background: var(--form-line);
+  flex-shrink: 0;
 }
 
 .win-form__button--danger {
@@ -417,7 +585,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--form-muted);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
 }
 
 .win-form__table-wrap {
@@ -635,6 +803,7 @@
 .win-form__table--odp td.win-form__table-num {
   white-space: normal;
   line-height: 1.25;
+  padding-right: 0.75rem;
 }
 
 .win-form__table--odp td.win-form__table-num .win-form__table-input {
@@ -643,13 +812,27 @@
   margin-left: 0;
 }
 
+/* Same right padding on inputs, readonly, and plain values. */
+.win-form--wide .win-form__table--odp td.win-form__table-num .win-form__control,
+.win-form__table--odp td.win-form__table-num .win-form__table-input,
+.win-form__table--odp .win-form__table-readonly {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  padding-left: 0.35rem;
+  padding-right: 0.45rem;
+}
+
+/* Plain text cells need the same inner inset as inputs/readonly. */
+.win-form__table--odp td.win-form__table-num:not(:has(.win-form__table-input)):not(:has(.win-form__table-readonly)) {
+  padding-right: calc(0.75rem + 0.45rem);
+}
+
 .win-form__table--odp .win-form__table-readonly {
   display: block;
   box-sizing: border-box;
   width: 100%;
   max-width: none;
   margin-left: 0;
-  padding: 0.3rem 0.4rem;
   text-align: right;
   font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
   font-variant-numeric: tabular-nums;
@@ -659,7 +842,7 @@
 }
 
 .win-form__table--odp .win-form__table-readonly--field {
-  min-height: calc(0.8125rem * 1.35 + 0.6rem);
+  min-height: calc(0.8125rem * 1.35 + 0.5rem);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -683,6 +866,8 @@
   flex-shrink: 0;
   border-top: 1px solid var(--form-line);
   background: var(--form-header);
+  border-radius: 0 0 0.5rem 0.5rem;
+  overflow: hidden;
 }
 
 .win-form__table-foot .win-form__table {
@@ -734,13 +919,52 @@
   width: 100%;
 }
 
+.win-form__dropdown {
+  --ac-item-h: 2.35rem;
+  --ac-gap: 0.2rem;
+  --ac-pad: 0.35rem;
+  position: relative;
+  width: 100%;
+}
+
+.win-form__dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.win-form__dropdown-trigger:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.win-form__dropdown-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-form__dropdown-chevron {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--form-muted);
+  transition: transform 150ms ease;
+}
+
+.win-form__dropdown-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.win-form__dropdown-list,
 .win-form__autocomplete-list {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  right: 0;
-  /* Exactly 5 visible options */
+  /* Exactly 5 visible options for in-place lists; dropdown overrides via inline style. */
   max-height: calc(var(--ac-pad) * 2 + 5 * var(--ac-item-h) + 4 * var(--ac-gap));
   overflow: auto;
   margin: 0;
@@ -750,6 +974,34 @@
   border-radius: 0.5rem;
   background: var(--form-input-bg);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --ac-item-h: 2.35rem;
+  --ac-gap: 0.2rem;
+  --ac-pad: 0.35rem;
+}
+
+.win-form__autocomplete-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+}
+
+.win-form__dropdown-list {
+  z-index: 120;
+  /* Portaled to body — mirror form tokens via app :root vars. */
+  --form-line: var(--line);
+  --form-input-bg: var(--surface);
+  --form-ink: var(--ink);
+  --form-hover: var(--hover);
+  --form-accent: var(--accent);
+  --form-muted: var(--muted);
+  --form-accent-soft: var(--accent-soft);
+}
+
+.win-form__dropdown-list > li + li,
+.win-form__autocomplete-list > li + li {
+  margin-top: var(--ac-gap);
 }
 
 .win-form__autocomplete-option {
@@ -768,10 +1020,6 @@
   font-size: 0.8125rem;
   line-height: 1.35;
   cursor: pointer;
-}
-
-.win-form__autocomplete-list > li + li {
-  margin-top: var(--ac-gap);
 }
 
 .win-form__autocomplete-option:hover,

@@ -1,5 +1,6 @@
 export function FormPanel({
   title,
+  subtitle,
   children,
   footer,
   className = '',
@@ -7,6 +8,7 @@ export function FormPanel({
   onKeyDown,
   wide = false,
   fill = false,
+  flat = false,
 }) {
   const Tag = onSubmit ? 'form' : 'div'
   const formProps = onSubmit
@@ -17,14 +19,29 @@ export function FormPanel({
     'win-form',
     wide ? 'win-form--wide' : '',
     fill ? 'win-form--fill' : '',
+    flat ? 'win-form--flat' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const hostClass = [
+    'win-form-host',
+    fill ? 'win-form-host--fill' : '',
+    flat ? 'win-form-host--flat' : '',
+    className,
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <div className={`win-form-host${fill ? ' win-form-host--fill' : ''} ${className}`.trim()}>
+    <div className={hostClass}>
       <Tag className={formClass} {...formProps}>
-        <div className="win-form__header">{title}</div>
+        {!flat && title ? (
+          <div className="win-form__header">
+            <span className="win-form__title">{title}</span>
+            {subtitle ? <span className="win-form__subtitle">{subtitle}</span> : null}
+          </div>
+        ) : null}
         <div className="win-form__body">{children}</div>
         {footer ? <div className="win-form__footer">{footer}</div> : null}
       </Tag>

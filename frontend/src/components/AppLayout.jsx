@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArchiveBoxIcon,
@@ -20,6 +20,7 @@ import {
   ScaleIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../auth/AuthContext'
+import { fetchCompany } from '../api/company'
 import {
   readSidebarPinned,
   SIDEBAR_HOVER_COLLAPSE_DELAY_MS,
@@ -30,10 +31,9 @@ import { PushPinIcon } from './icons/PushPinIcon'
 import { useSettings } from './settings/SettingsContext'
 import { AppBrandName } from './layout/AppBrandName'
 import { SpotlightBackground } from './layout/SpotlightBackground'
-import { UserAvatar } from './layout/UserAvatar'
 import { formatLastLogin } from '../utils/formatLastLogin'
 
-const HEADER_HEIGHT = '3.75rem'
+const HEADER_HEIGHT = 'var(--shell-header-height)'
 
 const linkClass = ({ isActive }) =>
   `shell-nav-link${isActive ? ' shell-nav-link-active' : ''}`
@@ -126,12 +126,13 @@ function NavSection({ section, open, onToggle, expanded, onExpandRequest }) {
 
 export function AppLayout() {
   const { user, logout, isAdmin } = useAuth()
-  const { openSettings } = useSettings()
+  const { openSettings, isOpen: settingsOpen } = useSettings()
   const location = useLocation()
   const navigate = useNavigate()
   const [openSection, setOpenSection] = useState(null)
   const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned)
   const [sidebarHovered, setSidebarHovered] = useState(false)
+  const [companyName, setCompanyName] = useState('')
   const expandTimeoutRef = useRef(null)
   const collapseTimeoutRef = useRef(null)
   const displayName = user?.full_name || user?.username || ''
@@ -141,6 +142,23 @@ export function AppLayout() {
   )
 
   const isExpanded = sidebarPinned || sidebarHovered
+
+  const loadCompanyName = useCallback(async () => {
+    try {
+      const company = await fetchCompany()
+      setCompanyName(String(company?.company_name || '').trim())
+    } catch {
+      setCompanyName('')
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadCompanyName()
+  }, [loadCompanyName])
+
+  useEffect(() => {
+    if (!settingsOpen) void loadCompanyName()
+  }, [settingsOpen, loadCompanyName])
 
   function clearExpandTimeout() {
     if (expandTimeoutRef.current != null) {
@@ -218,52 +236,33 @@ export function AppLayout() {
     navigate('/login', { replace: true })
   }
 
+  const isPrimaryContentPage =
+    location.pathname.startsWith('/transactions/orid-dhall-production') ||
+    location.pathname.startsWith('/transactions/delivery-challan')
+
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-(--bg) text-(--ink)">
       <SpotlightBackground />
       <header
-        className="relative z-40 flex shrink-0 items-center justify-between gap-4 border-b border-(--line) bg-(--panel)/90 px-6 backdrop-blur-md"
+        className="shell-header relative z-40 flex shrink-0 items-center justify-between gap-4 border-b border-(--line) bg-(--panel)/90 px-6 backdrop-blur-md"
         style={{ height: HEADER_HEIGHT }}
       >
-        <Link to="/" className="transition-opacity hover:opacity-90">
-          <AppBrandName />
-        </Link>
+        <div className="shell-header-start flex min-w-0 items-center">
+          <Link to="/" className="shell-brand">
+            <AppBrandName />
+          </Link>
+        </div>
 
-        <div className="shell-user-menu">
+        {companyName ? (
           <button
             type="button"
-            className="shell-user-trigger"
-            title={displayName}
-            aria-label={`${displayName} account menu`}
-            aria-haspopup="menu"
+            className="shell-header-company"
+            title={companyName}
+            onClick={() => openSettings('company')}
           >
-            <UserAvatar name={displayName} profilePic={user?.profile_pic} />
+            <span className="shell-header-company-name">{companyName}</span>
           </button>
-
-          <div className="shell-user-dropdown" role="menu">
-            <div className="shell-user-dropdown-header">
-              <p className="shell-user-dropdown-name">{displayName}</p>
-            </div>
-            <button
-              type="button"
-              className="shell-user-dropdown-item"
-              role="menuitem"
-              onClick={() => openSettings()}
-            >
-              <Cog6ToothIcon className="shell-user-dropdown-icon" aria-hidden="true" />
-              Settings
-            </button>
-            <button
-              type="button"
-              className="shell-user-dropdown-item shell-user-dropdown-item-danger"
-              role="menuitem"
-              onClick={() => void handleLogout()}
-            >
-              <ArrowRightStartOnRectangleIcon className="shell-user-dropdown-icon" aria-hidden="true" />
-              Logout
-            </button>
-          </div>
-        </div>
+        ) : null}
       </header>
 
       <div className="relative z-10 flex min-h-0 flex-1">
@@ -310,6 +309,31 @@ export function AppLayout() {
                 ))}
               </nav>
 
+              <div className="shell-nav-actions">
+                <button
+                  type="button"
+                  className="shell-nav-link"
+                  title={!isExpanded ? 'Settings' : undefined}
+                  onClick={() => openSettings()}
+                >
+                  <span className="shell-nav-icon-slot">
+                    <Cog6ToothIcon className="shell-nav-icon" aria-hidden="true" />
+                  </span>
+                  <span className="shell-nav-label">Settings</span>
+                </button>
+                <button
+                  type="button"
+                  className="shell-nav-link shell-nav-link-danger"
+                  title={!isExpanded ? 'Logout' : undefined}
+                  onClick={() => void handleLogout()}
+                >
+                  <span className="shell-nav-icon-slot">
+                    <ArrowRightStartOnRectangleIcon className="shell-nav-icon" aria-hidden="true" />
+                  </span>
+                  <span className="shell-nav-label">Logout</span>
+                </button>
+              </div>
+
               <div className="shell-sidebar-footer">
                 <button
                   type="button"
@@ -334,7 +358,11 @@ export function AppLayout() {
           </div>
         </div>
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-8">
+        <main
+          className={`shell-main relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden${
+            isPrimaryContentPage ? ' overflow-hidden p-0' : ' overflow-y-auto p-8'
+          }`}
+        >
           <Outlet />
         </main>
       </div>

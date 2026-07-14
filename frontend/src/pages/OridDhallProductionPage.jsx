@@ -12,7 +12,9 @@ import {
 import { DeliveryBagsByDateModal } from '../components/orid-dhall-production/DeliveryBagsByDateModal'
 import { OridDhallProductionSearchModal } from '../components/orid-dhall-production/OridDhallProductionSearchModal'
 import { PurchaseLinePickerModal } from '../components/orid-dhall-production/PurchaseLinePickerModal'
-import { FormField, FormInput, FormPanel, FormSelect } from '../components/form/FormPanel'
+import { FormField, FormInput, FormSelect } from '../components/form/FormPanel'
+import { FormDropdown } from '../components/form/FormDropdown'
+import { PrimaryContentLayout } from '../components/layout/PrimaryContentLayout'
 import { FormattedNumberInput } from '../components/form/FormattedNumberInput'
 import { useFormMessage } from '../components/form/FormMessage'
 import { toIsoDateInput, todayIsoDate } from '../utils/formatDate'
@@ -170,6 +172,17 @@ export function OridDhallProductionPage() {
     () =>
       [...openBatches].sort((a, b) => Number(b.id) - Number(a.id)),
     [openBatches],
+  )
+
+  const batchDropdownOptions = useMemo(
+    () => [
+      { value: BATCH_NEW, label: 'New' },
+      ...batchOptions.map((row) => ({
+        value: String(row.id),
+        label: row.lot_no || String(row.id),
+      })),
+    ],
+    [batchOptions],
   )
 
   async function refreshOpenBatches() {
@@ -648,16 +661,16 @@ export function OridDhallProductionPage() {
           onClose={onCloseAvgPicker}
         />
       ) : null}
-      <FormPanel
+      <PrimaryContentLayout
         title="Orid Dhall Production"
-        wide
-        fill
+        breadcrumb={[
+          { label: 'Transactions' },
+          { label: 'Orid Dhall Production' },
+        ]}
         onSubmit={onSave}
         onKeyDown={onFormKeyDown}
         footer={
-          <div className="win-form__footer-bar">
-            <div className="win-form__footer-left" />
-            <div className="win-form__footer-right">
+          <>
               <button
                 type="button"
                 className="win-form__button"
@@ -682,8 +695,7 @@ export function OridDhallProductionPage() {
               >
                 {saving ? 'Saving…' : isModifyMode ? 'Update' : 'Save'}
               </button>
-            </div>
-          </div>
+          </>
         }
       >
         <div className="shrink-0">
@@ -692,21 +704,12 @@ export function OridDhallProductionPage() {
               {isClosedLocked ? (
                 <FormInput readOnly value={lotNo} title={lotNo} />
               ) : (
-                <FormSelect
+                <FormDropdown
                   value={batchSelectValue}
+                  options={batchDropdownOptions}
                   disabled={busy}
-                  onChange={(e) => void onBatchSelectChange(e)}
-                >
-                  <option value={BATCH_NEW}>New</option>
-                  {batchOptions.map((row) => {
-                    const label = row.lot_no || String(row.id)
-                    return (
-                      <option key={row.id} value={String(row.id)}>
-                        {label}
-                      </option>
-                    )
-                  })}
-                </FormSelect>
+                  onChange={(next) => void onBatchSelectChange({ target: { value: next } })}
+                />
               )}
             </FormField>
             <FormField label="Production Date">
@@ -1243,7 +1246,7 @@ export function OridDhallProductionPage() {
             </table>
           </div>
         </div>
-      </FormPanel>
+      </PrimaryContentLayout>
     </div>
   )
 }

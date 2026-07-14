@@ -57,6 +57,12 @@ class CompanyUpdate(BaseModel):
         return value.upper()
 
 
+class CompanyPublicOut(BaseModel):
+    """Minimal company branding available without authentication (e.g. sign-in)."""
+
+    company_name: str = ""
+
+
 class CompanyOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
