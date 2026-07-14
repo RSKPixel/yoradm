@@ -60,6 +60,29 @@ body {
 }
 
 /* Top nav user menu (yorawealth-style) */
+.spotlight-bg-host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/*
+  Soften stars with filter:blur — more reliable than backdrop-filter in
+  production (header/sidebar backdrop-filter create backdrop roots that
+  often hide the content-area blur).
+*/
+.spotlight-bg-host--soft > .spotlight-bg {
+  inset: -12px;
+  filter: blur(5px);
+}
+
+.spotlight-bg {
+  position: absolute;
+  inset: 0;
+}
+
 .spotlight-bg__glow {
   position: absolute;
   inset: 0;
@@ -682,10 +705,8 @@ body {
 }
 
 .shell-main {
-  /* Soft veil — keep spotlight/stars visible, gently blurred through. */
-  background: color-mix(in srgb, var(--bg) 16%, transparent);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  /* Light veil only — star softness comes from .spotlight-bg-host--soft filter. */
+  background: color-mix(in srgb, var(--bg) 22%, transparent);
 }
 
 /* Modal */

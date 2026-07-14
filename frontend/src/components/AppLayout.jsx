@@ -242,7 +242,10 @@ export function AppLayout() {
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-(--bg) text-(--ink)">
-      <SpotlightBackground />
+      {/* Blur stars with filter (not backdrop-filter) so it works in production too. */}
+      <div className="spotlight-bg-host spotlight-bg-host--soft" aria-hidden="true">
+        <SpotlightBackground />
+      </div>
       <header
         className="shell-header relative z-40 flex shrink-0 items-center justify-between gap-4 border-b border-(--line) bg-(--panel)/90 px-6 backdrop-blur-md"
         style={{ height: HEADER_HEIGHT }}
