@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { generateStars } from '../../utils/generateStars'
 
 const STAR_COUNT = 110
-const STAR_BRIGHTNESS = 38
+const STAR_BRIGHTNESS = 46
 
 export function SpotlightBackground({ className = '' }) {
   const stars = useMemo(() => generateStars(STAR_COUNT, STAR_BRIGHTNESS), [])

@@ -35,14 +35,14 @@ function PendingDeliveriesSection({ pending, error, onOpen }) {
         </button>
       </div>
 
-      {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
-      {!pending && !error ? <p className="mt-3 text-sm text-(--muted)">Loading…</p> : null}
+      {error ? <p className="mt-2 text-sm text-red-400">{error}</p> : null}
+      {!pending && !error ? <p className="mt-2 text-sm text-(--muted)">Loading…</p> : null}
       {pending && items.length === 0 ? (
-        <p className="mt-3 text-sm text-(--muted)">No pending invoices.</p>
+        <p className="mt-2 text-sm text-(--muted)">No pending invoices.</p>
       ) : null}
 
       {items.length > 0 ? (
-        <div className="mt-3">
+        <div className="mt-1.5">
           <div className="dashboard-section__cols" aria-hidden="true">
             <span>Stock group</span>
             <span>/50kgs</span>

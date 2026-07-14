@@ -17,9 +17,9 @@
   --accent-soft: rgba(212, 163, 92, 0.12);
   --hover: rgba(255, 255, 255, 0.05);
   --on-accent: #14110c;
-  --glow-a: rgba(212, 163, 92, 0.08);
-  --glow-b: rgba(120, 130, 160, 0.06);
-  --stars-brightness: 0.38;
+  --glow-a: rgba(212, 163, 92, 0.097);
+  --glow-b: rgba(120, 130, 160, 0.073);
+  --stars-brightness: 0.46;
   --shell-sidebar-rail-width: 3rem;
   --shell-sidebar-width: 14rem;
   --shell-header-height: var(--shell-sidebar-rail-width);
@@ -176,7 +176,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--muted);
   transition: color 150ms;
@@ -201,12 +201,13 @@ body {
   overflow: visible;
   font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
     'Segoe UI Symbol', 'Noto Color Emoji';
-  font-size: calc(1.25rem + 12pt);
+  font-size: calc(1.25rem + 6pt);
   line-height: 1.15;
   /* Optical nudge for descenders in the short header. */
   margin-top: -2pt;
+  padding-top: 2pt;
   padding-bottom: 6pt;
-  margin-left: -3pt;
+  margin-left: -5pt;
 }
 
 .app-brand-name__primary,
@@ -1586,10 +1587,11 @@ body {
 .dashboard-section {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: 0.55rem;
   background: var(--panel);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-  padding: 0.85rem 1rem 0.65rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+  padding: 0.55rem 0.7rem 0.4rem;
+  font-size: 0.875rem;
 }
 
 .dashboard-section__head {
@@ -1597,8 +1599,8 @@ body {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.35rem 1rem;
-  margin-bottom: 0.15rem;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.1rem;
 }
 
 .dashboard-section__title-btn {
@@ -1608,9 +1610,9 @@ body {
   padding: 0;
   cursor: pointer;
   font-family: var(--font-display);
-  font-size: 1.125rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--ink);
   text-align: left;
 }
@@ -1628,11 +1630,11 @@ body {
 
 .dashboard-section__cols {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 4.5rem 5.25rem;
-  gap: 0.5rem;
-  padding: 0.35rem 0;
+  grid-template-columns: minmax(0, 1fr) 3.75rem 4.25rem;
+  gap: 0.35rem;
+  padding: 0.2rem 0;
   border-bottom: 1px solid var(--line);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -1653,15 +1655,16 @@ body {
 .dashboard-section__row {
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(0, 1fr) 4.5rem 5.25rem;
-  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) 3.75rem 4.25rem;
+  gap: 0.35rem;
   align-items: center;
   border: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
   background: transparent;
-  padding: 0.55rem 0;
+  padding: 0.3rem 0;
   cursor: pointer;
   color: inherit;
+  font-size: 0.875rem;
   text-align: left;
 }
 
@@ -1680,12 +1683,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
 }
 
 .dashboard-section__num {
   font-family: var(--font-tabular);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
   color: var(--accent);
@@ -1701,11 +1704,11 @@ body {
 }
 
 .pending-deliveries-modal .app-modal-header {
-  padding: 0.55rem 0.95rem;
+  padding: 0.4rem 0.75rem;
 }
 
 .pending-deliveries-modal .app-modal-title {
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
 }
 
 .pending-deliveries-body {
@@ -1713,8 +1716,9 @@ body {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem 1rem;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+  font-size: 0.875rem;
 }
 
 .pending-deliveries-toolbar {
@@ -1723,7 +1727,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem 1rem;
+  gap: 0.5rem 0.75rem;
 }
 
 .pending-deliveries-segments {
@@ -1732,7 +1736,7 @@ body {
   flex-wrap: wrap;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 0.55rem;
+  border-radius: 0.45rem;
   background: var(--surface);
 }
 
@@ -1741,10 +1745,10 @@ body {
   border: 0;
   border-right: 1px solid var(--line);
   background: transparent;
-  padding: 0.35rem 0.7rem;
+  padding: 0.25rem 0.55rem;
   cursor: pointer;
   font-family: var(--font-body);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--muted);
   white-space: nowrap;
@@ -1773,7 +1777,7 @@ body {
 
 .pending-deliveries-meta {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
@@ -1821,7 +1825,7 @@ body {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .pending-deliveries-table .pd-col-invoice {
@@ -1851,7 +1855,7 @@ body {
 
 .pending-deliveries-table th,
 .pending-deliveries-table td {
-  padding: 0.6rem 0.75rem;
+  padding: 0.4rem 0.55rem;
   text-align: left;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
   white-space: nowrap;
@@ -1861,7 +1865,7 @@ body {
 
 .pending-deliveries-table thead th {
   background: #1a1d24;
-  font-size: 0.7rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;

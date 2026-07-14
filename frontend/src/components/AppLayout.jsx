@@ -4,16 +4,11 @@ import {
   ArchiveBoxIcon,
   ArrowsRightLeftIcon,
   ArrowRightStartOnRectangleIcon,
-  BuildingOffice2Icon,
   ChartBarSquareIcon,
   ChevronDownIcon,
-  CircleStackIcon,
   Cog6ToothIcon,
-  CubeIcon,
   BanknotesIcon,
   DocumentChartBarIcon,
-  ShoppingCartIcon,
-  TruckIcon,
   UserGroupIcon,
   ClipboardDocumentListIcon,
   CubeTransparentIcon,
@@ -39,18 +34,6 @@ const linkClass = ({ isActive }) =>
   `shell-nav-link${isActive ? ' shell-nav-link-active' : ''}`
 
 const navSections = [
-  {
-    id: 'tally',
-    label: 'Tally Data',
-    icon: CircleStackIcon,
-    adminOnly: true,
-    items: [
-      { to: '/tally/accounts', label: 'Accounts', icon: BuildingOffice2Icon },
-      { to: '/tally/inventory', label: 'Inventory', icon: CubeIcon },
-      { to: '/tally/sales', label: 'Sales', icon: ShoppingCartIcon },
-      { to: '/tally/purchases', label: 'Purchase', icon: TruckIcon },
-    ],
-  },
   {
     id: 'transactions',
     label: 'Transactions',
