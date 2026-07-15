@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -118,3 +118,44 @@ class ReceivableOut(BaseModel):
     ledger_name: Optional[str] = None
     representative: Optional[str] = None
     amount: Optional[float] = None
+
+
+class ReceivableRepresentativeOut(BaseModel):
+    name: str
+    invoice_count: int
+    total_amount: float
+
+
+class ReceivableAgeingBuckets(BaseModel):
+    bucket_0_30: float = 0.0
+    bucket_31_60: float = 0.0
+    bucket_61_90: float = 0.0
+    bucket_91_120: float = 0.0
+    bucket_above_120: float = 0.0
+    bucket_undated: float = 0.0
+    total: float = 0.0
+    invoice_count: int = 0
+
+
+class ReceivablePartyAgeingOut(ReceivableAgeingBuckets):
+    ledger_name: str
+    representative: Optional[str] = None
+
+
+class ReceivableInvoiceAgeingOut(BaseModel):
+    id: int
+    invoice_no: Optional[str] = None
+    invoice_date: Optional[datetime] = None
+    ledger_name: Optional[str] = None
+    representative: Optional[str] = None
+    amount: float = 0.0
+    days: Optional[int] = None
+    age_bucket: str
+
+
+class ReceivableAnalysisOut(BaseModel):
+    as_of: str
+    representative: Optional[str] = None
+    totals: ReceivableAgeingBuckets
+    parties: List[ReceivablePartyAgeingOut]
+    invoices: List[ReceivableInvoiceAgeingOut]

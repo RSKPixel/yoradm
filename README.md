@@ -69,6 +69,8 @@ App: http://localhost:5175
 | CRUD | `/api/v1/users` | Admin |
 | GET | `/api/v1/tally/dashboard` | Auth |
 | GET | `/api/v1/tally/{accounts,inventory,sales,purchases,stock-summary,receivables}` | Auth |
+| GET | `/api/v1/tally/receivables/representatives` | Auth |
+| GET | `/api/v1/tally/receivables/analysis` | Auth |
 
 ## Notes
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -19,7 +20,9 @@ from app.schemas.tally import (
     CostCentreOut,
     InventoryMasterOut,
     PurchaseOut,
+    ReceivableAnalysisOut,
     ReceivableOut,
+    ReceivableRepresentativeOut,
     SaleInvoiceLineOut,
     SaleInvoiceOptionOut,
     SaleOut,
@@ -138,3 +141,23 @@ def list_receivables(
 ) -> PaginatedResponse[ReceivableOut]:
     items, total = tally_service.paginate(db, TallyReceivable, page, page_size)
     return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
+
+
+@router.get("/receivables/representatives", response_model=List[ReceivableRepresentativeOut])
+def list_receivable_representatives(
+    _: CurrentUser, db: DbSession
+) -> List[ReceivableRepresentativeOut]:
+    return tally_service.list_receivable_representatives(db)
+
+
+@router.get("/receivables/analysis", response_model=ReceivableAnalysisOut)
+def receivables_analysis(
+    _: CurrentUser,
+    db: DbSession,
+    representative: Optional[str] = Query(None),
+    as_of: Optional[date] = Query(None),
+) -> ReceivableAnalysisOut:
+    rep = representative.strip() if representative else None
+    if rep == "":
+        rep = None
+    return tally_service.receivables_analysis(db, as_of=as_of, representative=rep)

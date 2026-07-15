@@ -1480,7 +1480,7 @@ body {
 .odp-page__heading,
 .primary-content__heading {
   flex-shrink: 0;
-  padding: 1.25rem 2rem 0.15rem;
+  padding: 0.35rem 2rem 0;
 }
 
 .page-breadcrumb__list {
@@ -2197,3 +2197,217 @@ body {
   text-align: center !important;
   white-space: normal !important;
 }
+
+/* Receivables analysis — compact table */
+.win-form__table--recv {
+  table-layout: fixed;
+  min-width: 28rem;
+}
+
+.win-form__table--recv .recv-col-invoice {
+  width: 32%;
+}
+
+.win-form__table--recv .recv-col-date {
+  width: 8rem;
+}
+
+.win-form__table--recv .recv-col-amount {
+  width: 8.5rem;
+}
+
+.win-form__table--recv .recv-col-age {
+  width: 4.5rem;
+}
+
+.win-form__table--recv th,
+.win-form__table--recv td {
+  padding: 0.28rem 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+}
+
+.win-form__table--recv thead th {
+  padding-top: 0.32rem;
+  padding-bottom: 0.32rem;
+  font-size: 0.7rem;
+}
+
+.win-form__table--recv th.win-form__table-num,
+.win-form__table--recv td.win-form__table-num {
+  text-align: right;
+  white-space: nowrap;
+  padding-right: 0.55rem;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+.win-form__table--recv .recv-cell-date,
+.win-form__table--recv .recv-cell-invoice {
+  text-align: left;
+  white-space: nowrap;
+  padding-right: 0.55rem;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+.win-form__table--recv .win-form__table-empty {
+  padding: 0.75rem 0.5rem !important;
+}
+
+.win-form__table--recv .win-form__table-readonly {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  padding: 0;
+  text-align: right;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--form-ink);
+}
+
+.win-form__table-foot .win-form__table--recv th,
+.win-form__table-foot .win-form__table--recv td {
+  padding: 0.32rem 0.5rem;
+}
+
+.recv-party-subtotal td {
+  font-weight: 600;
+}
+
+.recv-party-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.recv-party-head__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recv-party-copy {
+  flex-shrink: 0;
+  color: var(--form-muted, var(--muted));
+}
+
+.recv-party-copy:hover:not(:disabled) {
+  color: var(--form-ink, var(--ink));
+}
+
+.recv-party-copy:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.recv-party-copy__icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.recv-party-copy__icon.is-busy {
+  opacity: 0.55;
+}
+
+.win-form__button--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  padding-inline: 0.65rem;
+}
+
+.recv-pdf-btn__icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.recv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.recv-view-segments {
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin-bottom: 0.1rem;
+}
+
+.win-form__table--recv-ageing {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Fixed to max amount 9,99,99,999.99; leftover width goes to party */
+.win-form__table--recv-ageing .recv-ageing-col-party {
+  width: auto;
+}
+
+.win-form__table--recv-ageing .recv-ageing-col-bucket,
+.win-form__table--recv-ageing .recv-ageing-col-total {
+  width: 7.75rem;
+}
+
+.win-form__table--recv-ageing th,
+.win-form__table--recv-ageing td {
+  padding: 0.28rem 0.45rem;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+}
+
+.win-form__table--recv-ageing thead th {
+  padding-top: 0.32rem;
+  padding-bottom: 0.32rem;
+  font-size: 0.7rem;
+}
+
+.win-form__table--recv-ageing th.win-form__table-num,
+.win-form__table--recv-ageing td.win-form__table-num {
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+.win-form__table--recv-ageing .recv-ageing-party,
+.win-form__table--recv-ageing th.recv-ageing-party {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 0.75rem;
+}
+
+.win-form__table--recv-ageing .win-form__table-readonly {
+  display: block;
+  width: 100%;
+  padding: 0;
+  text-align: right;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--form-ink);
+}
+
+.win-form__table-foot .win-form__table--recv-ageing th,
+.win-form__table-foot .win-form__table--recv-ageing td {
+  padding: 0.32rem 0.45rem;
+}
+

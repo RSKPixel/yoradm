@@ -9,6 +9,7 @@ import { OpenSettingsRoute } from './pages/OpenSettingsRoute'
 import { DeliveryChallanPage } from './pages/DeliveryChallanPage'
 import { OridDhallProductionPage } from './pages/OridDhallProductionPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
 
 export default function App() {
@@ -42,7 +43,7 @@ export default function App() {
 
                   <Route
                     path="reports/receivables-analysis"
-                    element={<PlaceholderPage title="Receivables Analysis" />}
+                    element={<ReceivablesAnalysisPage />}
                   />
 
                   <Route path="settings" element={<OpenSettingsRoute />} />

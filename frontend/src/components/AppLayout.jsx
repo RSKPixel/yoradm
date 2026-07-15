@@ -219,7 +219,8 @@ export function AppLayout() {
 
   const isPrimaryContentPage =
     location.pathname.startsWith('/transactions/orid-dhall-production') ||
-    location.pathname.startsWith('/transactions/delivery-challan')
+    location.pathname.startsWith('/transactions/delivery-challan') ||
+    location.pathname.startsWith('/reports/receivables-analysis')
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-(--bg) text-(--ink)">

@@ -24,3 +24,16 @@ export async function fetchPurchaseLines({ stockItem, stockGroup } = {}) {
   const { data } = await api.get('/tally/purchases/lines', { params })
   return data
 }
+
+export async function fetchReceivableRepresentatives() {
+  const { data } = await api.get('/tally/receivables/representatives')
+  return data
+}
+
+export async function fetchReceivablesAnalysis({ representative, asOf } = {}) {
+  const params = {}
+  if (representative) params.representative = representative
+  if (asOf) params.as_of = asOf
+  const { data } = await api.get('/tally/receivables/analysis', { params })
+  return data
+}
