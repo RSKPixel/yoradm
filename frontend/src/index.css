@@ -129,14 +129,14 @@ body {
 }
 
 /*
- * Tables: always reserve the scrollbar column (scrollbar-gutter: stable) and
- * keep a fixed thin bar — never change width on hover (that caused left/right jump).
+ * Tables: thin scrollbar only when content overflows (no idle gutter column).
+ * Width stays fixed while scrolling — never reveal/hide on hover.
  */
 .win-form__table-scroll,
 .win-form__table-wrap:not(:has(.win-form__table-scroll)),
 .dc-search-table-scroll,
 .pending-deliveries-table-scroll {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
 }
