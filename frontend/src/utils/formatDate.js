@@ -37,6 +37,13 @@ export function formatDate(value) {
   return `${pad2(date.getDate())}-${pad2(date.getMonth() + 1)}-${date.getFullYear()}`
 }
 
+/** Format a Date as HH:mm:ss (local, 24-hour). */
+export function formatClockTime(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+}
+
 /** Today's date as yyyy-mm-dd for <input type="date">. */
 export function todayIsoDate() {
   const now = new Date()

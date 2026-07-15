@@ -163,6 +163,7 @@ class OridDhallProductionListItem(BaseModel):
     orid_dhall_pct: Optional[float] = None
     orid_dhall_split_qty: Optional[float] = None
     orid_dhall_split_pct: Optional[float] = None
+    orid_rejection_pct: Optional[float] = None
     orid_husk_qty: Optional[float] = None
     orid_husk_pct: Optional[float] = None
     overall_pct: Optional[float] = None

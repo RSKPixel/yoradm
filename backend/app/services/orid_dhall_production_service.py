@@ -5,6 +5,7 @@ from math import ceil
 from typing import List, Optional, Tuple
 
 from fastapi import HTTPException, status
+from sqlalchemy import cast, Integer
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
@@ -193,6 +194,7 @@ def _list_summary(row: OridDhallProduction) -> dict:
         "orid_dhall_pct": orid_dhall_pct,
         "orid_dhall_split_qty": round(split_bags, 2) if has_split else None,
         "orid_dhall_split_pct": split_pct,
+        "orid_rejection_pct": sortex_pct,
         "orid_husk_qty": round(husk_bags, 2) if has_husk else None,
         "orid_husk_pct": husk_pct,
         "overall_pct": overall_pct,
@@ -217,7 +219,10 @@ def list_productions(
     total = query.count()
     rows = (
         query.options(joinedload(OridDhallProduction.lines))
-        .order_by(OridDhallProduction.id.desc())
+        .order_by(
+            cast(OridDhallProduction.lot_no, Integer).desc(),
+            OridDhallProduction.id.desc(),
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -237,6 +242,7 @@ def list_productions(
                 orid_dhall_pct=summary["orid_dhall_pct"],
                 orid_dhall_split_qty=summary["orid_dhall_split_qty"],
                 orid_dhall_split_pct=summary["orid_dhall_split_pct"],
+                orid_rejection_pct=summary["orid_rejection_pct"],
                 orid_husk_qty=summary["orid_husk_qty"],
                 orid_husk_pct=summary["orid_husk_pct"],
                 overall_pct=summary["overall_pct"],

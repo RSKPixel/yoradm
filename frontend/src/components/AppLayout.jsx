@@ -27,6 +27,7 @@ import { useSettings } from './settings/SettingsContext'
 import { AppBrandName } from './layout/AppBrandName'
 import { SpotlightBackground } from './layout/SpotlightBackground'
 import { formatLastLogin } from '../utils/formatLastLogin'
+import { formatClockTime, formatDate } from '../utils/formatDate'
 
 const HEADER_HEIGHT = 'var(--shell-header-height)'
 
@@ -116,6 +117,7 @@ export function AppLayout() {
   const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned)
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const [companyName, setCompanyName] = useState('')
+  const [now, setNow] = useState(() => new Date())
   const expandTimeoutRef = useRef(null)
   const collapseTimeoutRef = useRef(null)
   const displayName = user?.full_name || user?.username || ''
@@ -125,6 +127,8 @@ export function AppLayout() {
   )
 
   const isExpanded = sidebarPinned || sidebarHovered
+  const todayLabel = formatDate(now)
+  const timeLabel = formatClockTime(now)
 
   const loadCompanyName = useCallback(async () => {
     try {
@@ -142,6 +146,11 @@ export function AppLayout() {
   useEffect(() => {
     if (!settingsOpen) void loadCompanyName()
   }, [settingsOpen, loadCompanyName])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   function clearExpandTimeout() {
     if (expandTimeoutRef.current != null) {
@@ -239,16 +248,23 @@ export function AppLayout() {
           </Link>
         </div>
 
-        {companyName ? (
-          <button
-            type="button"
-            className="shell-header-company"
-            title={companyName}
-            onClick={() => openSettings('company')}
-          >
-            <span className="shell-header-company-name">{companyName}</span>
-          </button>
-        ) : null}
+        <div className="shell-header-end">
+          {companyName ? (
+            <button
+              type="button"
+              className="shell-header-company"
+              title={companyName}
+              onClick={() => openSettings('company')}
+            >
+              <span className="shell-header-company-name">{companyName}</span>
+            </button>
+          ) : null}
+          <p className="shell-header-clock" aria-live="polite">
+            <span>{todayLabel}</span>
+            <span aria-hidden="true"> · </span>
+            <span className="shell-header-clock-time">{timeLabel}</span>
+          </p>
+        </div>
       </header>
 
       <div className="relative z-10 flex min-h-0 flex-1">
