@@ -62,9 +62,8 @@ body {
 }
 
 /*
- * Overlay scrollbars — Windows (and “Always show scrollbars”) paints idle tracks
- * for overflow:auto; macOS only reveals them while scrolling. Keep scroll working
- * but hide chrome until the container is hovered / focused.
+ * Overlay scrollbars — hide chrome until hover/focus, but keep a fixed gutter
+ * width so Windows does not steal a column on hover (table left/right jump).
  */
 .overlay-scroll,
 .shell-nav,
@@ -75,7 +74,15 @@ body {
 .win-form__autocomplete-list,
 .dc-search-table-scroll,
 .pending-deliveries-table-scroll {
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.win-form__table-scroll,
+.win-form__table-wrap:not(:has(.win-form__table-scroll)),
+.dc-search-table-scroll,
+.pending-deliveries-table-scroll {
+  scrollbar-gutter: stable;
 }
 
 .overlay-scroll:hover,
@@ -96,7 +103,6 @@ body {
 .dc-search-table-scroll:focus-within,
 .pending-deliveries-table-scroll:hover,
 .pending-deliveries-table-scroll:focus-within {
-  scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--muted) 55%, transparent) transparent;
 }
 
@@ -109,28 +115,6 @@ body {
 .win-form__autocomplete-list::-webkit-scrollbar,
 .dc-search-table-scroll::-webkit-scrollbar,
 .pending-deliveries-table-scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-.overlay-scroll:hover::-webkit-scrollbar,
-.overlay-scroll:focus-within::-webkit-scrollbar,
-.shell-nav:hover::-webkit-scrollbar,
-.shell-nav:focus-within::-webkit-scrollbar,
-.shell-main.overflow-y-auto:hover::-webkit-scrollbar,
-.shell-main.overflow-y-auto:focus-within::-webkit-scrollbar,
-.settings-panel-body:hover::-webkit-scrollbar,
-.settings-panel-body:focus-within::-webkit-scrollbar,
-.win-form__table-scroll:hover::-webkit-scrollbar,
-.win-form__table-scroll:focus-within::-webkit-scrollbar,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)):hover::-webkit-scrollbar,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)):focus-within::-webkit-scrollbar,
-.win-form__autocomplete-list:hover::-webkit-scrollbar,
-.win-form__autocomplete-list:focus-within::-webkit-scrollbar,
-.dc-search-table-scroll:hover::-webkit-scrollbar,
-.dc-search-table-scroll:focus-within::-webkit-scrollbar,
-.pending-deliveries-table-scroll:hover::-webkit-scrollbar,
-.pending-deliveries-table-scroll:focus-within::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
