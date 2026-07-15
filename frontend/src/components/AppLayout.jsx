@@ -3,10 +3,8 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import {
   ArchiveBoxIcon,
   ArrowsRightLeftIcon,
-  ArrowRightStartOnRectangleIcon,
   ChartBarSquareIcon,
   ChevronDownIcon,
-  Cog6ToothIcon,
   BanknotesIcon,
   DocumentChartBarIcon,
   UserGroupIcon,
@@ -27,7 +25,6 @@ import { useSettings } from './settings/SettingsContext'
 import { AppBrandName } from './layout/AppBrandName'
 import { SpotlightBackground } from './layout/SpotlightBackground'
 import { formatLastLogin } from '../utils/formatLastLogin'
-import { formatClockTime, formatDate } from '../utils/formatDate'
 
 const HEADER_HEIGHT = 'var(--shell-header-height)'
 
@@ -117,7 +114,6 @@ export function AppLayout() {
   const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned)
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const [companyName, setCompanyName] = useState('')
-  const [now, setNow] = useState(() => new Date())
   const expandTimeoutRef = useRef(null)
   const collapseTimeoutRef = useRef(null)
   const displayName = user?.full_name || user?.username || ''
@@ -127,8 +123,6 @@ export function AppLayout() {
   )
 
   const isExpanded = sidebarPinned || sidebarHovered
-  const todayLabel = formatDate(now)
-  const timeLabel = formatClockTime(now)
 
   const loadCompanyName = useCallback(async () => {
     try {
@@ -146,11 +140,6 @@ export function AppLayout() {
   useEffect(() => {
     if (!settingsOpen) void loadCompanyName()
   }, [settingsOpen, loadCompanyName])
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000)
-    return () => window.clearInterval(timer)
-  }, [])
 
   function clearExpandTimeout() {
     if (expandTimeoutRef.current != null) {
@@ -259,11 +248,25 @@ export function AppLayout() {
               <span className="shell-header-company-name">{companyName}</span>
             </button>
           ) : null}
-          <p className="shell-header-clock" aria-live="polite">
-            <span>{todayLabel}</span>
-            <span aria-hidden="true"> · </span>
-            <span className="shell-header-clock-time">{timeLabel}</span>
-          </p>
+          <div className="shell-header-actions">
+            <button
+              type="button"
+              className="shell-header-action"
+              onClick={() => openSettings()}
+            >
+              Settings
+            </button>
+            <span className="shell-header-action-sep" aria-hidden="true">
+              ·
+            </span>
+            <button
+              type="button"
+              className="shell-header-action shell-header-action-danger"
+              onClick={() => void handleLogout()}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -311,31 +314,6 @@ export function AppLayout() {
                 ))}
               </nav>
 
-              <div className="shell-nav-actions">
-                <button
-                  type="button"
-                  className="shell-nav-link"
-                  title={!isExpanded ? 'Settings' : undefined}
-                  onClick={() => openSettings()}
-                >
-                  <span className="shell-nav-icon-slot">
-                    <Cog6ToothIcon className="shell-nav-icon" aria-hidden="true" />
-                  </span>
-                  <span className="shell-nav-label">Settings</span>
-                </button>
-                <button
-                  type="button"
-                  className="shell-nav-link shell-nav-link-danger"
-                  title={!isExpanded ? 'Logout' : undefined}
-                  onClick={() => void handleLogout()}
-                >
-                  <span className="shell-nav-icon-slot">
-                    <ArrowRightStartOnRectangleIcon className="shell-nav-icon" aria-hidden="true" />
-                  </span>
-                  <span className="shell-nav-label">Logout</span>
-                </button>
-              </div>
-
               <div className="shell-sidebar-footer">
                 <button
                   type="button"
@@ -348,9 +326,14 @@ export function AppLayout() {
                   <PushPinIcon className="size-4" solid={sidebarPinned} />
                 </button>
                 <div className="shell-sidebar-user-meta">
-                  <span className="shell-sidebar-username" title={displayName}>
+                  <button
+                    type="button"
+                    className="shell-sidebar-username"
+                    title={displayName}
+                    onClick={() => openSettings('profile')}
+                  >
                     {displayName}
-                  </span>
+                  </button>
                   <span className="shell-sidebar-last-login" title={formatLastLogin(user?.last_login_at)}>
                     Last login: {formatLastLogin(user?.last_login_at)}
                   </span>

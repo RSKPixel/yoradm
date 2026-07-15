@@ -14,6 +14,7 @@ import {
   rateFromValueWeight,
 } from '../../utils/formatNumber'
 import { getApiErrorMessage } from '../../utils/formValidation'
+import { isLegacyBlockedPurchaseVoucher } from '../../config/oridDhallPurchaseVouchers'
 
 function lineWeight(line) {
   const w = Number(line?.weight)
@@ -31,20 +32,27 @@ function purchaseOptionLabel(line) {
     line.stock_item,
     Number.isFinite(qty) ? `Qty ${formatQty(qty)}` : null,
     Number.isFinite(weight) ? `${formatWeight(weight)} kg` : null,
-    formatDate(line.voucher_date) || String(line.voucher_date ?? '').slice(0, 10),
+    formatVoucherDate(line),
   ]
     .filter(Boolean)
     .join(' — ')
 }
 
+function formatVoucherDate(line) {
+  return formatDate(line?.voucher_date) || String(line?.voucher_date ?? '').slice(0, 10)
+}
+
 function renderPurchaseOption(line) {
   const weight = lineWeight(line)
   const qty = Number(line?.qty)
+  const voucherDate = formatVoucherDate(line)
   return (
     <div className="win-form__autocomplete-option-body win-form__autocomplete-option-body--purchase">
-      <span className="win-form__autocomplete-v">{line.voucher_no}</span>
-      <span className="win-form__autocomplete-v win-form__autocomplete-v--muted">
-        {formatDate(line.voucher_date) || String(line.voucher_date ?? '').slice(0, 10)}
+      <span className="win-form__autocomplete-v win-form__autocomplete-v--stack">
+        <span>{line.voucher_no}</span>
+        {voucherDate ? (
+          <span className="win-form__autocomplete-v--muted">{voucherDate}</span>
+        ) : null}
       </span>
       <span className="win-form__autocomplete-v">{line.ledger_name ?? ''}</span>
       <span className="win-form__autocomplete-v win-form__autocomplete-v--muted">
@@ -115,15 +123,47 @@ export function PurchaseLinePickerModal({
     [usedVoucherNos],
   )
 
+  // Vouchers already on this production (present system) are not legacy-blocked.
+  const ownProductionVouchers = useMemo(
+    () =>
+      new Set(
+        (initialLines ?? [])
+          .map((line) => String(line?.voucher_no ?? '').trim())
+          .filter(Boolean),
+      ),
+    [initialLines],
+  )
+
+  const legacyUsedVouchers = useMemo(() => {
+    const nos = new Set()
+    for (const line of options) {
+      const voucherNo = String(line?.voucher_no ?? '').trim()
+      if (!voucherNo) continue
+      if (ownProductionVouchers.has(voucherNo)) continue
+      if (isLegacyBlockedPurchaseVoucher(voucherNo)) nos.add(voucherNo)
+    }
+    return nos
+  }, [options, ownProductionVouchers])
+
+  const usedInModal = useMemo(() => {
+    const nos = new Set(usedElsewhere)
+    for (const voucherNo of legacyUsedVouchers) nos.add(voucherNo)
+    for (const line of addedLines) {
+      const voucherNo = String(line?.voucher_no ?? '').trim()
+      if (voucherNo) nos.add(voucherNo)
+    }
+    return nos
+  }, [usedElsewhere, legacyUsedVouchers, addedLines])
+
   const availableOptions = useMemo(() => {
     const addedIds = new Set(addedLines.map((line) => String(line.id)))
     return options.filter((line) => {
       if (addedIds.has(String(line.id))) return false
       const voucherNo = String(line?.voucher_no ?? '').trim()
-      if (voucherNo && usedElsewhere.has(voucherNo)) return false
+      if (voucherNo && usedInModal.has(voucherNo)) return false
       return true
     })
-  }, [options, addedLines, usedElsewhere])
+  }, [options, addedLines, usedInModal])
 
   const totals = useMemo(() => {
     let totalQty = 0
@@ -152,9 +192,30 @@ export function PurchaseLinePickerModal({
       setError(`Voucher ${voucherNo} is already used in another production.`)
       return
     }
+    if (
+      voucherNo &&
+      !ownProductionVouchers.has(voucherNo) &&
+      isLegacyBlockedPurchaseVoucher(voucherNo)
+    ) {
+      setError(`Voucher ${voucherNo} is already used in the legacy system.`)
+      return
+    }
+    if (
+      voucherNo &&
+      addedLines.some((row) => String(row?.voucher_no ?? '').trim() === voucherNo)
+    ) {
+      setError(`Voucher ${voucherNo} is already added.`)
+      return
+    }
     setError('')
     setAddedLines((prev) => {
       if (prev.some((row) => String(row.id) === String(line.id))) return prev
+      if (
+        voucherNo &&
+        prev.some((row) => String(row?.voucher_no ?? '').trim() === voucherNo)
+      ) {
+        return prev
+      }
       return [...prev, line]
     })
     setSelectedId('')
@@ -243,9 +304,17 @@ export function PurchaseLinePickerModal({
                   ) : (
                     addedLines.map((line) => {
                       const rate = rateFromValueWeight(line)
+                      const voucherDate = formatVoucherDate(line)
                       return (
                         <tr key={line.id}>
-                          <td>{line.voucher_no ?? ''}</td>
+                          <td>
+                            <div className="dc-search-vno-stack">
+                              <span>{line.voucher_no ?? ''}</span>
+                              {voucherDate ? (
+                                <span className="dc-search-vno-date">{voucherDate}</span>
+                              ) : null}
+                            </div>
+                          </td>
                           <td>{line.ledger_name ?? ''}</td>
                           <td>{line.stock_item ?? ''}</td>
                           <td className="dc-search-num">{formatQty(line.qty)}</td>

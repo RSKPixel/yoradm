@@ -3,7 +3,8 @@ import { forwardRef, useEffect, useId, useImperativeHandle, useMemo, useRef, use
 /**
  * Searchable single-select combobox styled like win-form controls.
  * Browser autocomplete is always off; this is in-app filtering only.
- * Dropdown opens on typing (not on focus). Enter confirms (never submits a parent form).
+ * Dropdown opens on focus (shows all options) and filters as you type.
+ * Enter confirms (never submits a parent form).
  */
 export const FormAutocomplete = forwardRef(function FormAutocomplete(
   {
@@ -38,7 +39,7 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
       input.focus()
       setEditing(true)
       setQuery('')
-      setOpen(false)
+      setOpen(true)
       return true
     },
   }))
@@ -53,7 +54,7 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return []
+    if (!q) return options
     return options.filter((opt) =>
       filterOption
         ? filterOption(opt, q)
@@ -109,7 +110,7 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
     if (disabled) return
     setEditing(true)
     setQuery('')
-    setOpen(false)
+    setOpen(true)
   }
 
   function onBlur(event) {
@@ -124,7 +125,12 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      if (!open || !filtered.length) return
+      if (!open) {
+        setEditing(true)
+        setOpen(true)
+        return
+      }
+      if (!filtered.length) return
       setHighlight((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)))
       return
     }
@@ -177,7 +183,7 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
           const next = e.target.value
           setQuery(next)
           setEditing(true)
-          setOpen(next.trim().length > 0)
+          setOpen(true)
           if (value) onChange?.('')
         }}
         onKeyDown={onKeyDown}

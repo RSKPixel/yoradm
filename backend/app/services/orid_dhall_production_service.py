@@ -5,9 +5,10 @@ from math import ceil
 from typing import List, Optional, Tuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import cast, Integer
+from sqlalchemy import cast, func, Integer
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants.orid_dhall_purchase import is_legacy_blocked_purchase_voucher
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
 from app.schemas.orid_dhall_production import (
     OridDhallOpenBatchItem,
@@ -336,28 +337,84 @@ def list_used_voucher_nos(
         query = query.filter(
             OridDhallProductionLine.production_id != exclude_production_id
         )
-    return sorted({row[0] for row in query.distinct().all() if row[0]})
+    return sorted({row[0].strip() for row in query.distinct().all() if row[0] and str(row[0]).strip()})
 
 
 def _assert_vouchers_available(
     db: Session,
     voucher_nos: List[str],
     *,
-    line_kind: str,
     exclude_production_id: Optional[int] = None,
 ) -> None:
-    unique_nos = sorted({no.strip() for no in voucher_nos if no and str(no).strip()})
-    if not unique_nos:
+    """A purchase voucher may be used on only one production, ever (any line kind)."""
+    stripped = [str(no).strip() for no in voucher_nos if no and str(no).strip()]
+    if not stripped:
         return
+
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for no in stripped:
+        if no in seen:
+            duplicates.add(no)
+        else:
+            seen.add(no)
+    if duplicates:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Duplicate purchase voucher(s) in this production: "
+                + ", ".join(sorted(duplicates))
+            ),
+        )
+
+    unique_nos = sorted(seen)
+
+    # Present-system vouchers already on this production are exempt from the
+    # legacy allowlist — they are governed by live uniqueness checks only.
+    already_on_production: set[str] = set()
+    if exclude_production_id is not None:
+        already_on_production = {
+            str(row[0]).strip()
+            for row in (
+                db.query(OridDhallProductionLine.voucher_no)
+                .filter(
+                    OridDhallProductionLine.production_id == exclude_production_id,
+                    OridDhallProductionLine.voucher_no.isnot(None),
+                    OridDhallProductionLine.voucher_no != "",
+                )
+                .all()
+            )
+            if row[0] and str(row[0]).strip()
+        }
+
+    legacy_blocked = sorted(
+        no
+        for no in unique_nos
+        if is_legacy_blocked_purchase_voucher(no) and no not in already_on_production
+    )
+    if legacy_blocked:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Purchase voucher(s) already used in legacy system: "
+                + ", ".join(legacy_blocked)
+            ),
+        )
+
     query = db.query(OridDhallProductionLine.voucher_no).filter(
-        OridDhallProductionLine.voucher_no.in_(unique_nos),
-        OridDhallProductionLine.line_kind == line_kind,
+        func.trim(OridDhallProductionLine.voucher_no).in_(unique_nos),
     )
     if exclude_production_id is not None:
         query = query.filter(
             OridDhallProductionLine.production_id != exclude_production_id
         )
-    used = sorted({row[0] for row in query.distinct().all() if row[0]})
+    used = sorted(
+        {
+            str(row[0]).strip()
+            for row in query.distinct().all()
+            if row[0] and str(row[0]).strip()
+        }
+    )
     if used:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -386,7 +443,7 @@ def _add_lines(
                 production_id=production.id,
                 line_kind=line_kind,
                 purchase_id=line.purchase_id,
-                voucher_no=line.voucher_no,
+                voucher_no=(line.voucher_no or "").strip() or None,
                 voucher_date=_voucher_date_str(line.voucher_date),
                 ledger_name=line.ledger_name,
                 broker=line.broker,
@@ -514,13 +571,8 @@ def create_production(
 ) -> OridDhallProductionOut:
     _assert_vouchers_available(
         db,
-        [line.voucher_no or "" for line in payload.raw_purchases],
-        line_kind="raw",
-    )
-    _assert_vouchers_available(
-        db,
-        [line.voucher_no or "" for line in payload.avg_purchases],
-        line_kind="avg",
+        [line.voucher_no or "" for line in payload.raw_purchases]
+        + [line.voucher_no or "" for line in payload.avg_purchases],
     )
     row = OridDhallProduction(created_by=created_by)
     _apply_header(row, payload)
@@ -552,14 +604,8 @@ def update_production(
         )
     _assert_vouchers_available(
         db,
-        [line.voucher_no or "" for line in payload.raw_purchases],
-        line_kind="raw",
-        exclude_production_id=production_id,
-    )
-    _assert_vouchers_available(
-        db,
-        [line.voucher_no or "" for line in payload.avg_purchases],
-        line_kind="avg",
+        [line.voucher_no or "" for line in payload.raw_purchases]
+        + [line.voucher_no or "" for line in payload.avg_purchases],
         exclude_production_id=production_id,
     )
     _apply_header(row, payload)

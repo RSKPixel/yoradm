@@ -1,5 +1,5 @@
 import { ChevronDownIcon, ListBulletIcon, PlusIcon } from '@heroicons/react/24/outline'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDeliveryQtyByBatch } from '../api/deliveryChallan'
 import {
   createOridDhallProduction,
@@ -123,6 +123,70 @@ function bagsFromQty(qty) {
   return String(rounded)
 }
 
+function normField(value) {
+  if (value == null) return ''
+  return String(value)
+}
+
+function purchaseSnapshot(lines) {
+  return (lines ?? [])
+    .map((line) => ({
+      purchase_id: line?.purchase_id ?? line?.id ?? null,
+      voucher_no: normField(line?.voucher_no),
+      qty: line?.qty ?? null,
+      weight: line?.weight ?? null,
+      rate: line?.rate ?? null,
+      amount: line?.amount ?? null,
+    }))
+    .sort((a, b) => Number(a.purchase_id ?? 0) - Number(b.purchase_id ?? 0))
+}
+
+function buildFormSnapshot({
+  date,
+  status,
+  wetFlourYield,
+  splitPctInput,
+  rawPurchases,
+  avgPurchases,
+  openingBags,
+  openingRate,
+  previousBatchBags,
+  previousBatchRate,
+  deliveryBags,
+  deliveryRate,
+  closingBags,
+  closingRate,
+  splitBags,
+  splitRate,
+  sortexBags,
+  sortexRate,
+  huskBags,
+  huskRate,
+}) {
+  return JSON.stringify({
+    date: normField(date),
+    status: normField(status),
+    wetFlourYield: normField(wetFlourYield),
+    splitPctInput: normField(splitPctInput),
+    rawPurchases: purchaseSnapshot(rawPurchases),
+    avgPurchases: purchaseSnapshot(avgPurchases),
+    openingBags: normField(openingBags),
+    openingRate: normField(openingRate),
+    previousBatchBags: normField(previousBatchBags),
+    previousBatchRate: normField(previousBatchRate),
+    deliveryBags: normField(deliveryBags),
+    deliveryRate: normField(deliveryRate),
+    closingBags: normField(closingBags),
+    closingRate: normField(closingRate),
+    splitBags: normField(splitBags),
+    splitRate: normField(splitRate),
+    sortexBags: normField(sortexBags),
+    sortexRate: normField(sortexRate),
+    huskBags: normField(huskBags),
+    huskRate: normField(huskRate),
+  })
+}
+
 export function OridDhallProductionPage() {
   const { showErrors, showError, showSuccess } = useFormMessage()
 
@@ -140,8 +204,7 @@ export function OridDhallProductionPage() {
   const [avgPickerOpen, setAvgPickerOpen] = useState(false)
   const [deliveryListOpen, setDeliveryListOpen] = useState(false)
   const [dhallExpanded, setDhallExpanded] = useState(true)
-  const [usedRawVouchers, setUsedRawVouchers] = useState([])
-  const [usedAvgVouchers, setUsedAvgVouchers] = useState([])
+  const [usedVouchers, setUsedVouchers] = useState([])
   const [rawPurchases, setRawPurchases] = useState([])
   const [avgPurchases, setAvgPurchases] = useState([])
 
@@ -160,13 +223,67 @@ export function OridDhallProductionPage() {
   const [sortexRate, setSortexRate] = useState('')
   const [huskBags, setHuskBags] = useState('')
   const [huskRate, setHuskRate] = useState('')
+  const [baselineSnapshot, setBaselineSnapshot] = useState(null)
+  const [baselineEpoch, setBaselineEpoch] = useState(0)
 
   const lotNo = savedId != null ? String(savedId) : ''
   const batchSelectValue = savedId != null ? String(savedId) : BATCH_NEW
   const isModifyMode = savedId != null
   const isClosedLocked = persistedStatus === STATUS_CLOSED
   const busy = saving || loadingProduction
-  const saveDisabled = busy || isClosedLocked
+
+  const currentSnapshot = useMemo(
+    () =>
+      buildFormSnapshot({
+        date,
+        status,
+        wetFlourYield,
+        splitPctInput,
+        rawPurchases,
+        avgPurchases,
+        openingBags,
+        openingRate,
+        previousBatchBags,
+        previousBatchRate,
+        deliveryBags,
+        deliveryRate,
+        closingBags,
+        closingRate,
+        splitBags,
+        splitRate,
+        sortexBags,
+        sortexRate,
+        huskBags,
+        huskRate,
+      }),
+    [
+      date,
+      status,
+      wetFlourYield,
+      splitPctInput,
+      rawPurchases,
+      avgPurchases,
+      openingBags,
+      openingRate,
+      previousBatchBags,
+      previousBatchRate,
+      deliveryBags,
+      deliveryRate,
+      closingBags,
+      closingRate,
+      splitBags,
+      splitRate,
+      sortexBags,
+      sortexRate,
+      huskBags,
+      huskRate,
+    ],
+  )
+
+  const isDirty = isModifyMode && baselineSnapshot != null && currentSnapshot !== baselineSnapshot
+  const saveDisabled = busy || isClosedLocked || (isModifyMode && !isDirty)
+  const formSnapshotRef = useRef(currentSnapshot)
+  formSnapshotRef.current = currentSnapshot
 
   const batchOptions = useMemo(
     () =>
@@ -194,40 +311,24 @@ export function OridDhallProductionPage() {
     }
   }
 
+  const refreshUsedVouchers = useCallback(async () => {
+    try {
+      const used = await fetchUsedProductionVouchers({
+        excludeProductionId: savedId || undefined,
+      })
+      setUsedVouchers(used ?? [])
+    } catch {
+      setUsedVouchers([])
+    }
+  }, [savedId])
+
   useEffect(() => {
     void refreshOpenBatches()
   }, [])
 
   useEffect(() => {
-    let cancelled = false
-    async function loadUsedVouchers() {
-      try {
-        const [raw, avg] = await Promise.all([
-          fetchUsedProductionVouchers({
-            lineKind: 'raw',
-            excludeProductionId: savedId || undefined,
-          }),
-          fetchUsedProductionVouchers({
-            lineKind: 'avg',
-            excludeProductionId: savedId || undefined,
-          }),
-        ])
-        if (!cancelled) {
-          setUsedRawVouchers(raw ?? [])
-          setUsedAvgVouchers(avg ?? [])
-        }
-      } catch {
-        if (!cancelled) {
-          setUsedRawVouchers([])
-          setUsedAvgVouchers([])
-        }
-      }
-    }
-    void loadUsedVouchers()
-    return () => {
-      cancelled = true
-    }
-  }, [savedId])
+    void refreshUsedVouchers()
+  }, [refreshUsedVouchers])
 
   useEffect(() => {
     if (savedId == null) {
@@ -267,6 +368,8 @@ export function OridDhallProductionPage() {
           setDeliveryRate('')
           setDeliveryAmount(null)
         }
+      } finally {
+        if (!cancelled) setBaselineEpoch((n) => n + 1)
       }
     }
 
@@ -275,6 +378,11 @@ export function OridDhallProductionPage() {
       cancelled = true
     }
   }, [savedId])
+
+  useEffect(() => {
+    if (baselineEpoch === 0 || savedId == null) return
+    setBaselineSnapshot(formSnapshotRef.current)
+  }, [baselineEpoch, savedId])
 
   const rawTotals = useMemo(
     () => aggregatePurchaseLines(rawPurchases),
@@ -396,6 +504,7 @@ export function OridDhallProductionPage() {
     const next = emptyFormState()
     setSavedId(null)
     setPersistedStatus(null)
+    setBaselineSnapshot(null)
     setDate(next.date)
     setStatus(next.status)
     setWetFlourYield(next.wetFlourYield)
@@ -452,6 +561,7 @@ export function OridDhallProductionPage() {
 
   function applyProduction(row) {
     const nextStatus = row.status === STATUS_CLOSED ? STATUS_CLOSED : STATUS_OPEN
+    setBaselineSnapshot(null)
     setSavedId(row.id)
     setPersistedStatus(nextStatus)
     setDate(toIsoDateInput(row.production_date) || todayIsoDate())
@@ -501,6 +611,7 @@ export function OridDhallProductionPage() {
     try {
       await updateOridDhallProductionStatus(savedId, nextStatus)
       setPersistedStatus(nextStatus)
+      setBaselineEpoch((n) => n + 1)
       await refreshOpenBatches()
       showSuccess(
         nextStatus === STATUS_CLOSED
@@ -540,10 +651,13 @@ export function OridDhallProductionPage() {
       if (savedId) {
         await updateOridDhallProduction(savedId, payload)
         await refreshOpenBatches()
+        await refreshUsedVouchers()
+        setBaselineSnapshot(currentSnapshot)
         showSuccess('Orid dhall production updated.')
       } else {
         const saved = await createOridDhallProduction(payload)
         const nextStatus = saved.status === STATUS_CLOSED ? STATUS_CLOSED : STATUS_OPEN
+        setBaselineSnapshot(null)
         setSavedId(saved.id)
         setStatus(nextStatus)
         setPersistedStatus(nextStatus)
@@ -555,6 +669,32 @@ export function OridDhallProductionPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function voucherNosFromLines(lines) {
+    return (lines ?? [])
+      .map((line) => String(line?.voucher_no ?? '').trim())
+      .filter(Boolean)
+  }
+
+  const usedInRawPicker = useMemo(
+    () => [...new Set([...usedVouchers, ...voucherNosFromLines(avgPurchases)])],
+    [usedVouchers, avgPurchases],
+  )
+
+  const usedInAvgPicker = useMemo(
+    () => [...new Set([...usedVouchers, ...voucherNosFromLines(rawPurchases)])],
+    [usedVouchers, rawPurchases],
+  )
+
+  async function openRawPicker() {
+    await refreshUsedVouchers()
+    setRawPickerOpen(true)
+  }
+
+  async function openAvgPicker() {
+    await refreshUsedVouchers()
+    setAvgPickerOpen(true)
   }
 
   function onCloseRawPicker(lines) {
@@ -648,7 +788,7 @@ export function OridDhallProductionPage() {
           stockGroup={RAW_STOCK_GROUP}
           title="Orid Raw Material"
           initialLines={rawPurchases}
-          usedVoucherNos={usedRawVouchers}
+          usedVoucherNos={usedInRawPicker}
           onClose={onCloseRawPicker}
         />
       ) : null}
@@ -657,7 +797,7 @@ export function OridDhallProductionPage() {
           stockGroup={DHALL_STOCK_GROUP}
           title="Orid Dhall Average"
           initialLines={avgPurchases}
-          usedVoucherNos={usedAvgVouchers}
+          usedVoucherNos={usedInAvgPicker}
           onClose={onCloseAvgPicker}
         />
       ) : null}
@@ -775,7 +915,7 @@ export function OridDhallProductionPage() {
                       type="button"
                       className="win-form__icon-button"
                       aria-label="Add Orid raw material"
-                      onClick={() => setRawPickerOpen(true)}
+                      onClick={() => void openRawPicker()}
                     >
                       <PlusIcon />
                     </button>
@@ -927,7 +1067,7 @@ export function OridDhallProductionPage() {
                       type="button"
                       className="win-form__icon-button"
                       aria-label="Add Orid Dhall average"
-                      onClick={() => setAvgPickerOpen(true)}
+                      onClick={() => void openAvgPicker()}
                     >
                       <PlusIcon />
                     </button>
