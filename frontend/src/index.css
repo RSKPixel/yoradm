@@ -62,27 +62,16 @@ body {
 }
 
 /*
- * Overlay scrollbars — hide chrome until hover/focus, but keep a fixed gutter
- * width so Windows does not steal a column on hover (table left/right jump).
+ * Overlay scrollbars for shell chrome — keep a fixed thin width; only thumb
+ * color changes on hover so layout does not jump.
  */
 .overlay-scroll,
 .shell-nav,
 .shell-main.overflow-y-auto,
 .settings-panel-body,
-.win-form__table-scroll,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)),
-.win-form__autocomplete-list,
-.dc-search-table-scroll,
-.pending-deliveries-table-scroll {
+.win-form__autocomplete-list {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
-}
-
-.win-form__table-scroll,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)),
-.dc-search-table-scroll,
-.pending-deliveries-table-scroll {
-  scrollbar-gutter: stable;
 }
 
 .overlay-scroll:hover,
@@ -93,16 +82,8 @@ body {
 .shell-main.overflow-y-auto:focus-within,
 .settings-panel-body:hover,
 .settings-panel-body:focus-within,
-.win-form__table-scroll:hover,
-.win-form__table-scroll:focus-within,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)):hover,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)):focus-within,
 .win-form__autocomplete-list:hover,
-.win-form__autocomplete-list:focus-within,
-.dc-search-table-scroll:hover,
-.dc-search-table-scroll:focus-within,
-.pending-deliveries-table-scroll:hover,
-.pending-deliveries-table-scroll:focus-within {
+.win-form__autocomplete-list:focus-within {
   scrollbar-color: color-mix(in srgb, var(--muted) 55%, transparent) transparent;
 }
 
@@ -110,11 +91,7 @@ body {
 .shell-nav::-webkit-scrollbar,
 .shell-main.overflow-y-auto::-webkit-scrollbar,
 .settings-panel-body::-webkit-scrollbar,
-.win-form__table-scroll::-webkit-scrollbar,
-.win-form__table-wrap:not(:has(.win-form__table-scroll))::-webkit-scrollbar,
-.win-form__autocomplete-list::-webkit-scrollbar,
-.dc-search-table-scroll::-webkit-scrollbar,
-.pending-deliveries-table-scroll::-webkit-scrollbar {
+.win-form__autocomplete-list::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
@@ -123,11 +100,7 @@ body {
 .shell-nav::-webkit-scrollbar-track,
 .shell-main.overflow-y-auto::-webkit-scrollbar-track,
 .settings-panel-body::-webkit-scrollbar-track,
-.win-form__table-scroll::-webkit-scrollbar-track,
-.win-form__table-wrap:not(:has(.win-form__table-scroll))::-webkit-scrollbar-track,
-.win-form__autocomplete-list::-webkit-scrollbar-track,
-.dc-search-table-scroll::-webkit-scrollbar-track,
-.pending-deliveries-table-scroll::-webkit-scrollbar-track {
+.win-form__autocomplete-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -135,11 +108,7 @@ body {
 .shell-nav::-webkit-scrollbar-thumb,
 .shell-main.overflow-y-auto::-webkit-scrollbar-thumb,
 .settings-panel-body::-webkit-scrollbar-thumb,
-.win-form__table-scroll::-webkit-scrollbar-thumb,
-.win-form__table-wrap:not(:has(.win-form__table-scroll))::-webkit-scrollbar-thumb,
-.win-form__autocomplete-list::-webkit-scrollbar-thumb,
-.dc-search-table-scroll::-webkit-scrollbar-thumb,
-.pending-deliveries-table-scroll::-webkit-scrollbar-thumb {
+.win-form__autocomplete-list::-webkit-scrollbar-thumb {
   background-color: transparent;
   border-radius: 999px;
   border: 2px solid transparent;
@@ -154,17 +123,31 @@ body {
 .shell-main.overflow-y-auto:focus-within::-webkit-scrollbar-thumb,
 .settings-panel-body:hover::-webkit-scrollbar-thumb,
 .settings-panel-body:focus-within::-webkit-scrollbar-thumb,
-.win-form__table-scroll:hover::-webkit-scrollbar-thumb,
-.win-form__table-scroll:focus-within::-webkit-scrollbar-thumb,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)):hover::-webkit-scrollbar-thumb,
-.win-form__table-wrap:not(:has(.win-form__table-scroll)):focus-within::-webkit-scrollbar-thumb,
 .win-form__autocomplete-list:hover::-webkit-scrollbar-thumb,
-.win-form__autocomplete-list:focus-within::-webkit-scrollbar-thumb,
-.dc-search-table-scroll:hover::-webkit-scrollbar-thumb,
-.dc-search-table-scroll:focus-within::-webkit-scrollbar-thumb,
-.pending-deliveries-table-scroll:hover::-webkit-scrollbar-thumb,
-.pending-deliveries-table-scroll:focus-within::-webkit-scrollbar-thumb {
+.win-form__autocomplete-list:focus-within::-webkit-scrollbar-thumb {
   background-color: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+
+/*
+ * Tables: never paint a scrollbar column. Wheel / trackpad still scroll.
+ * Showing/hiding a classic Windows scrollbar here always shifts columns.
+ */
+.win-form__table-scroll,
+.win-form__table-wrap:not(:has(.win-form__table-scroll)),
+.dc-search-table-scroll,
+.pending-deliveries-table-scroll {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+  -ms-overflow-style: none;
+}
+
+.win-form__table-scroll::-webkit-scrollbar,
+.win-form__table-wrap:not(:has(.win-form__table-scroll))::-webkit-scrollbar,
+.dc-search-table-scroll::-webkit-scrollbar,
+.pending-deliveries-table-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 /* Top nav user menu (yorawealth-style) */
