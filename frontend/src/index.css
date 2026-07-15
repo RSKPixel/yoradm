@@ -129,25 +129,48 @@ body {
 }
 
 /*
- * Tables: never paint a scrollbar column. Wheel / trackpad still scroll.
- * Showing/hiding a classic Windows scrollbar here always shifts columns.
+ * Tables: always reserve the scrollbar column (scrollbar-gutter: stable) and
+ * keep a fixed thin bar — never change width on hover (that caused left/right jump).
  */
 .win-form__table-scroll,
 .win-form__table-wrap:not(:has(.win-form__table-scroll)),
 .dc-search-table-scroll,
 .pending-deliveries-table-scroll {
-  scrollbar-width: none;
-  scrollbar-gutter: auto;
-  -ms-overflow-style: none;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
 }
 
 .win-form__table-scroll::-webkit-scrollbar,
 .win-form__table-wrap:not(:has(.win-form__table-scroll))::-webkit-scrollbar,
 .dc-search-table-scroll::-webkit-scrollbar,
 .pending-deliveries-table-scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+  width: 8px;
+  height: 8px;
+}
+
+.win-form__table-scroll::-webkit-scrollbar-track,
+.win-form__table-wrap:not(:has(.win-form__table-scroll))::-webkit-scrollbar-track,
+.dc-search-table-scroll::-webkit-scrollbar-track,
+.pending-deliveries-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.win-form__table-scroll::-webkit-scrollbar-thumb,
+.win-form__table-wrap:not(:has(.win-form__table-scroll))::-webkit-scrollbar-thumb,
+.dc-search-table-scroll::-webkit-scrollbar-thumb,
+.pending-deliveries-table-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.win-form__table-scroll:hover::-webkit-scrollbar-thumb,
+.win-form__table-wrap:not(:has(.win-form__table-scroll)):hover::-webkit-scrollbar-thumb,
+.dc-search-table-scroll:hover::-webkit-scrollbar-thumb,
+.pending-deliveries-table-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted) 65%, transparent);
 }
 
 /* Top nav user menu (yorawealth-style) */
