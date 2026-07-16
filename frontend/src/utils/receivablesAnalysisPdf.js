@@ -67,7 +67,7 @@ function drawPartyWiseTable(doc, { partyGroups, startY, margin }) {
   const body = []
   const rowMeta = []
 
-  for (const group of partyGroups) {
+  for (const [index, group] of partyGroups.entries()) {
     body.push([group.ledgerName, '', '', ''])
     rowMeta.push({ kind: 'party' })
 
@@ -84,6 +84,11 @@ function drawPartyWiseTable(doc, { partyGroups, startY, margin }) {
 
     body.push(['Sub total', '', formatValue(group.total), ''])
     rowMeta.push({ kind: 'subtotal' })
+
+    if (index < partyGroups.length - 1) {
+      body.push(['', '', '', ''])
+      rowMeta.push({ kind: 'spacer' })
+    }
   }
 
   if (body.length === 0) {
@@ -158,8 +163,18 @@ function drawPartyWiseTable(doc, { partyGroups, startY, margin }) {
       } else if (meta.kind === 'subtotal') {
         data.cell.styles.fontStyle = 'bold'
         data.cell.styles.fillColor = SUBTOTAL_FILL
+        data.cell.styles.lineColor = [176, 176, 176]
+        data.cell.styles.lineWidth = { top: 0.2, right: 0.2, bottom: 0.4, left: 0.2 }
         if (data.column.index === 0) data.cell.styles.halign = 'left'
         if (data.column.index === 2) data.cell.styles.halign = 'right'
+      } else if (meta.kind === 'spacer') {
+        data.cell.styles.fillColor = [255, 255, 255]
+        // Keep the horizontal separator thickness/color consistent with the grid,
+        // but remove vertical separators for this blank row.
+        data.cell.styles.lineColor = [176, 176, 176]
+        data.cell.styles.lineWidth = { top: 0.2, right: 0, bottom: 0.2, left: 0 }
+        data.cell.styles.minCellHeight = 4
+        data.cell.text = ['']
       } else if (meta.kind === 'invoice') {
         if (meta.overdue) data.cell.styles.fillColor = OVERDUE_FILL
       } else if (meta.kind === 'empty' && data.column.index === 0) {
