@@ -223,6 +223,144 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
     )
 
 
+def today_deliveries_by_stock_group(
+    db: Session,
+    *,
+    on_date: Optional[date] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> PendingDeliveriesOut:
+    """Delivery challan lines for a day or date range, grouped by stock group.
+
+    Bag totals match pending: (qty × packing) / 50 and / 100.
+    Missing packing is treated as 50kg.
+    """
+    if date_from is not None or date_to is not None:
+        start = date_from or date_to or date.today()
+        end = date_to or date_from or date.today()
+    else:
+        start = end = on_date or date.today()
+    if start > end:
+        start, end = end, start
+
+    stock_group_by_item = _stock_group_by_item(db)
+
+    lines = (
+        db.query(DeliveryChallanDetail)
+        .join(DeliveryChallan, DeliveryChallanDetail.challan_id == DeliveryChallan.id)
+        .filter(
+            DeliveryChallan.challan_date >= start,
+            DeliveryChallan.challan_date <= end,
+        )
+        .order_by(
+            DeliveryChallanDetail.voucher_date.desc(),
+            DeliveryChallanDetail.voucher_no.desc(),
+            DeliveryChallanDetail.id.asc(),
+        )
+        .all()
+    )
+
+    by_group: dict[str, PendingDeliveryByStockGroupOut] = {}
+    invoice_map: dict[tuple[str, str], PendingDeliveryInvoiceOut] = {}
+    all_voucher_nos: set[str] = set()
+    grand_50 = 0.0
+    grand_100 = 0.0
+
+    for line in lines:
+        voucher_no = (line.voucher_no or "").strip()
+        stock_item = (line.stock_item or "").strip()
+        if not voucher_no or not stock_item:
+            continue
+
+        stock_group = stock_group_by_item.get(stock_item.lower()) or "—"
+        qty = float(line.qty or 0.0)
+        packing_raw = float(line.packing) if line.packing is not None else None
+        packing = packing_raw if packing_raw is not None else 50.0
+        weight = qty * packing
+        bags_50 = weight / 50.0
+        bags_100 = weight / 100.0
+        detail = PendingDeliveryLineOut(
+            stock_item=stock_item,
+            brand=(line.brand or "").strip() or None,
+            packing=packing_raw,
+            qty=qty,
+            bags_50=bags_50,
+            bags_100=bags_100,
+        )
+
+        group = by_group.get(stock_group)
+        if group is None:
+            group = PendingDeliveryByStockGroupOut(stock_group=stock_group)
+            by_group[stock_group] = group
+
+        inv_key = (stock_group, voucher_no)
+        invoice = invoice_map.get(inv_key)
+        voucher_dt = _parse_optional_datetime(line.voucher_date)
+        if invoice is None:
+            invoice = PendingDeliveryInvoiceOut(
+                voucher_no=voucher_no,
+                voucher_date=voucher_dt,
+                ledger_name=line.ledger_name,
+            )
+            invoice_map[inv_key] = invoice
+            group.invoices.append(invoice)
+            group.invoice_count += 1
+            all_voucher_nos.add(voucher_no)
+        else:
+            if voucher_dt and (
+                invoice.voucher_date is None or voucher_dt < invoice.voucher_date
+            ):
+                invoice.voucher_date = voucher_dt
+            if not invoice.ledger_name and line.ledger_name:
+                invoice.ledger_name = line.ledger_name
+
+        invoice.lines.append(detail)
+        invoice.bags_50 += bags_50
+        invoice.bags_100 += bags_100
+        group.bags_50 += bags_50
+        group.bags_100 += bags_100
+        grand_50 += bags_50
+        grand_100 += bags_100
+
+    items = sorted(by_group.values(), key=lambda item: (-item.invoice_count, item.stock_group))
+    for item in items:
+        item.invoices.sort(
+            key=lambda inv: (
+                inv.voucher_date is None,
+                -(inv.voucher_date.toordinal() if inv.voucher_date else 0),
+                inv.voucher_no,
+            )
+        )
+
+    return PendingDeliveriesOut(
+        items=items,
+        total_invoices=len(all_voucher_nos),
+        bags_50=grand_50,
+        bags_100=grand_100,
+    )
+
+
+def _parse_optional_datetime(value: Optional[str | datetime | date]) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text[:10], fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
 def _stock_group_by_item(db: Session) -> dict[str, str]:
     """Lowercased stock_item → stock_group from inventory master."""
     rows = (

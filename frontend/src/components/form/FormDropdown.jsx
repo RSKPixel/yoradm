@@ -14,6 +14,7 @@ export function FormDropdown({
   placeholder = 'Select…',
   emptyMessage = 'No options',
   className = '',
+  listClassName = '',
 }) {
   const listId = useId()
   const rootRef = useRef(null)
@@ -148,7 +149,7 @@ export function FormDropdown({
           <ul
             id={listId}
             ref={listRef}
-            className="win-form__dropdown-list"
+            className={`win-form__dropdown-list ${listClassName}`.trim()}
             role="listbox"
             style={menuStyle}
           >

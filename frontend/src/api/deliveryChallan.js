@@ -26,6 +26,21 @@ export async function fetchPendingDeliveriesByStockGroup() {
   return data
 }
 
+export async function fetchTodayDeliveriesByStockGroup({
+  onDate,
+  dateFrom,
+  dateTo,
+} = {}) {
+  const { data } = await api.get('/delivery-challans/today-by-stock-group', {
+    params: {
+      on_date: onDate || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    },
+  })
+  return data
+}
+
 export async function fetchDeliveryQtyByBatch({
   batchNo,
   stockGroup = 'Orid Dhall',

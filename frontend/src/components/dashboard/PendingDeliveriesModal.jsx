@@ -128,7 +128,12 @@ function TotalRow({ packings, columnTotals, grandTotal }) {
   )
 }
 
-export function PendingDeliveriesModal({ items, onClose }) {
+export function PendingDeliveriesModal({
+  items,
+  onClose,
+  title = 'Pending deliveries',
+  emptyMessage = 'No pending invoices.',
+}) {
   const groupOptions = useMemo(
     () =>
       [...new Set((items ?? []).map((item) => item.stock_group).filter(Boolean))].sort((a, b) =>
@@ -187,7 +192,7 @@ export function PendingDeliveriesModal({ items, onClose }) {
 
   return (
     <Modal
-      title="Pending deliveries"
+      title={title}
       titleIcon={TruckIcon}
       onClose={onClose}
       ariaLabelledBy="pending-deliveries-modal-title"
@@ -255,7 +260,7 @@ export function PendingDeliveriesModal({ items, onClose }) {
                 <tbody>
                   <tr>
                     <td colSpan={Math.max(colSpan, 3)} className="pending-deliveries-empty">
-                      No pending invoices.
+                      {emptyMessage}
                     </td>
                   </tr>
                 </tbody>

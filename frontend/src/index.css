@@ -1874,12 +1874,13 @@ body {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
   padding: 0.55rem 0.7rem 0.4rem;
   font-size: 0.875rem;
+  overflow: visible;
 }
 
 .dashboard-section__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.25rem 0.75rem;
   margin-bottom: 0.1rem;
@@ -1908,6 +1909,52 @@ body {
 .dashboard-section__title-btn:disabled {
   cursor: default;
   opacity: 1;
+}
+
+.dashboard-section__period {
+  --form-ink: var(--ink);
+  --form-muted: var(--muted);
+  --form-line: var(--line);
+  --form-accent: var(--accent);
+  --form-accent-soft: var(--accent-soft);
+  --form-hover: var(--hover);
+  --form-input-bg: var(--surface);
+  --form-input-ink: var(--ink);
+  --form-input-line: var(--line);
+  width: 9.75rem;
+  flex-shrink: 0;
+}
+
+.dashboard-section__period .win-form__control {
+  min-height: 1.45rem;
+  height: 1.45rem;
+  padding: 0 0.35rem 0 0.4rem;
+  border-radius: 0.35rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  gap: 0.25rem;
+}
+
+.dashboard-section__period .win-form__dropdown-chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.dashboard-section__period-list {
+  --ac-item-h: 1.55rem;
+  --ac-gap: 0.1rem;
+  --ac-pad: 0.25rem;
+  border-radius: 0.4rem;
+  padding: var(--ac-pad);
+  font-size: 0.6875rem;
+}
+
+.dashboard-section__period-list .win-form__autocomplete-option {
+  min-height: var(--ac-item-h);
+  padding: 0 0.45rem;
+  border-radius: 0.3rem;
+  font-size: 0.6875rem;
+  line-height: 1.2;
 }
 
 .dashboard-section__cols {

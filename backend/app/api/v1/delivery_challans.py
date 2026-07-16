@@ -36,6 +36,22 @@ def pending_by_stock_group(_: CurrentUser, db: DbSession) -> PendingDeliveriesOu
     return delivery_challan_service.pending_deliveries_by_stock_group(db)
 
 
+@router.get("/today-by-stock-group", response_model=PendingDeliveriesOut)
+def today_by_stock_group(
+    _: CurrentUser,
+    db: DbSession,
+    on_date: Optional[date] = Query(default=None),
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+) -> PendingDeliveriesOut:
+    return delivery_challan_service.today_deliveries_by_stock_group(
+        db,
+        on_date=on_date,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
 @router.get("/qty-by-batch", response_model=DeliveryQtyByBatchOut)
 def qty_by_batch(
     _: CurrentUser,
