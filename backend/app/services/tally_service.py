@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.tally import (
     TallyAccountMaster,
     TallyCostCentre,
+    TallyDaybook2,
     TallyInventoryMaster,
     TallyPurchase,
     TallyReceivable,
@@ -17,6 +18,10 @@ from app.models.tally import (
 )
 from app.schemas import DashboardStats
 from app.schemas.tally import (
+    CollectionAgeBucketOut,
+    CollectionPerformanceOut,
+    DaybookTradeOut,
+    DaybookTradePointOut,
     ReceivableAgeingBuckets,
     ReceivableAnalysisOut,
     ReceivableInvoiceAgeingOut,
@@ -24,6 +29,13 @@ from app.schemas.tally import (
     ReceivableRepresentativeOut,
     SaleInvoiceOptionOut,
 )
+
+SALES_VTYPE = "SIVENDHI BILLING"
+PURCHASE_VTYPE = "Purchase"
+RECEIPT_VTYPE = "Receipt"
+PAYMENT_VTYPE = "Payment"
+PARTY_BILL_TYPE_NEW = "New Ref"
+PARTY_BILL_TYPE_AGST = "Agst Ref"
 
 # Sentinel query value for invoices with blank / null representative.
 RECEIVABLE_REP_BLANK = "__blank__"
@@ -152,6 +164,33 @@ def list_purchase_lines(
         .order_by(TallyPurchase.voucher_date.desc(), TallyPurchase.id.desc())
         .all()
     )
+
+
+def list_sale_representatives(db: Session) -> List[ReceivableRepresentativeOut]:
+    """Distinct sales brokers (used as representatives for collections)."""
+    rows = (
+        db.query(
+            TallySale.broker,
+            func.count(func.distinct(TallySale.voucher_no)).label("invoice_count"),
+            func.coalesce(func.sum(TallySale.amount), 0.0).label("total_amount"),
+        )
+        .group_by(TallySale.broker)
+        .order_by(func.count(func.distinct(TallySale.voucher_no)).desc())
+        .all()
+    )
+    items: List[ReceivableRepresentativeOut] = []
+    for row in rows:
+        raw = (row.broker or "").strip()
+        if raw.lower() == "no representative":
+            raw = ""
+        items.append(
+            ReceivableRepresentativeOut(
+                name=raw if raw else RECEIVABLE_REP_BLANK,
+                invoice_count=int(row.invoice_count or 0),
+                total_amount=float(row.total_amount or 0.0),
+            )
+        )
+    return items
 
 
 def list_receivable_representatives(db: Session) -> List[ReceivableRepresentativeOut]:
@@ -322,4 +361,309 @@ def receivables_analysis(
         ),
         parties=parties,
         invoices=invoices,
+    )
+
+
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
+def _add_months(value: date, months: int) -> date:
+    year = value.year + (value.month - 1 + months) // 12
+    month = (value.month - 1 + months) % 12 + 1
+    return date(year, month, 1)
+
+
+def _daybook_series_by_month(
+    db: Session,
+    *,
+    vtype: str,
+    bill_type: str,
+    date_from: date,
+    date_to: date,
+) -> Dict[date, Tuple[float, int]]:
+    """Party bill-line totals by calendar month for a voucher type."""
+    month_col = func.date_format(TallyDaybook2.vdt, "%Y-%m-01")
+    start = datetime.combine(date_from, datetime.min.time())
+    end = datetime.combine(date_to, datetime.max.time())
+    rows = (
+        db.query(
+            month_col.label("month_start"),
+            func.coalesce(func.sum(TallyDaybook2.ledger_amount), 0.0),
+            func.count(func.distinct(TallyDaybook2.vno)),
+        )
+        .filter(
+            TallyDaybook2.vtype == vtype,
+            TallyDaybook2.bill_type == bill_type,
+            TallyDaybook2.vdt.isnot(None),
+            TallyDaybook2.vdt >= start,
+            TallyDaybook2.vdt <= end,
+        )
+        .group_by(month_col)
+        .all()
+    )
+    out: Dict[date, Tuple[float, int]] = {}
+    for month_value, amount, voucher_count in rows:
+        if month_value is None:
+            continue
+        if isinstance(month_value, datetime):
+            month_key = month_value.date()
+        elif isinstance(month_value, date):
+            month_key = month_value
+        else:
+            text = str(month_value)[:10]
+            try:
+                month_key = datetime.strptime(text, "%Y-%m-%d").date()
+            except ValueError:
+                continue
+        out[_month_start(month_key)] = (float(amount or 0.0), int(voucher_count or 0))
+    return out
+
+
+def sales_purchase_trend(
+    db: Session,
+    *,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> DaybookTradeOut:
+    """Monthly trade + cash from daybook2.
+
+    Sales/Purchase = New Ref on SIVENDHI BILLING / Purchase.
+    Receipt/Payment = Agst Ref on Receipt / Payment.
+    """
+    end = date_to or date.today()
+    start = date_from or _month_start(_add_months(end, -5))
+    if start > end:
+        start, end = end, start
+
+    sales_by_month = _daybook_series_by_month(
+        db,
+        vtype=SALES_VTYPE,
+        bill_type=PARTY_BILL_TYPE_NEW,
+        date_from=start,
+        date_to=end,
+    )
+    purchase_by_month = _daybook_series_by_month(
+        db,
+        vtype=PURCHASE_VTYPE,
+        bill_type=PARTY_BILL_TYPE_NEW,
+        date_from=start,
+        date_to=end,
+    )
+    receipt_by_month = _daybook_series_by_month(
+        db,
+        vtype=RECEIPT_VTYPE,
+        bill_type=PARTY_BILL_TYPE_AGST,
+        date_from=start,
+        date_to=end,
+    )
+    payment_by_month = _daybook_series_by_month(
+        db,
+        vtype=PAYMENT_VTYPE,
+        bill_type=PARTY_BILL_TYPE_AGST,
+        date_from=start,
+        date_to=end,
+    )
+
+    points: List[DaybookTradePointOut] = []
+    sales_total = 0.0
+    purchase_total = 0.0
+    receipt_total = 0.0
+    payment_total = 0.0
+    sales_vouchers = 0
+    purchase_vouchers = 0
+    receipt_vouchers = 0
+    payment_vouchers = 0
+
+    cursor = _month_start(start)
+    last_month = _month_start(end)
+    while cursor <= last_month:
+        s_amt, s_cnt = sales_by_month.get(cursor, (0.0, 0))
+        p_amt, p_cnt = purchase_by_month.get(cursor, (0.0, 0))
+        r_amt, r_cnt = receipt_by_month.get(cursor, (0.0, 0))
+        pay_amt, pay_cnt = payment_by_month.get(cursor, (0.0, 0))
+        sales_total += s_amt
+        purchase_total += p_amt
+        receipt_total += r_amt
+        payment_total += pay_amt
+        sales_vouchers += s_cnt
+        purchase_vouchers += p_cnt
+        receipt_vouchers += r_cnt
+        payment_vouchers += pay_cnt
+        points.append(
+            DaybookTradePointOut(
+                date=cursor.isoformat(),
+                label=cursor.strftime("%b %y"),
+                sales=s_amt,
+                purchase=p_amt,
+                receipt=r_amt,
+                payment=pay_amt,
+                sales_vouchers=s_cnt,
+                purchase_vouchers=p_cnt,
+                receipt_vouchers=r_cnt,
+                payment_vouchers=pay_cnt,
+            )
+        )
+        cursor = _add_months(cursor, 1)
+
+    coverage = (sales_total / purchase_total * 100.0) if purchase_total else None
+    collection = (receipt_total / sales_total * 100.0) if sales_total else None
+
+    return DaybookTradeOut(
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+        sales_total=sales_total,
+        purchase_total=purchase_total,
+        receipt_total=receipt_total,
+        payment_total=payment_total,
+        net_trade=sales_total - purchase_total,
+        net_cash=receipt_total - payment_total,
+        coverage_pct=coverage,
+        collection_pct=collection,
+        sales_vouchers=sales_vouchers,
+        purchase_vouchers=purchase_vouchers,
+        receipt_vouchers=receipt_vouchers,
+        payment_vouchers=payment_vouchers,
+        points=points,
+    )
+
+
+COLLECTION_BUCKETS = (
+    ("0-30", "0-30", 0, 30),
+    ("31-60", "31-60", 31, 60),
+    ("61-90", "61-90", 61, 90),
+    ("gt-90", ">90", 91, None),
+)
+
+
+def _collection_bucket_key(days: int) -> str:
+    if days <= 30:
+        return "0-30"
+    if days <= 60:
+        return "31-60"
+    if days <= 90:
+        return "61-90"
+    return "gt-90"
+
+
+def collection_performance(
+    db: Session,
+    *,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    representative: Optional[str] = None,
+) -> CollectionPerformanceOut:
+    """Age Receipt Agst Ref collections by linked sales invoice date.
+
+    Days = receipt date − invoice date (from tallydata_sales via BILL_NO).
+    Representative filter uses sales.broker on the linked invoice.
+    """
+    end = date_to or date.today()
+    start = date_from or _month_start(_add_months(end, -5))
+    if start > end:
+        start, end = end, start
+
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.max.time())
+
+    invoice_meta = (
+        db.query(
+            TallySale.voucher_no.label("voucher_no"),
+            func.min(TallySale.voucher_date).label("invoice_date"),
+            func.min(TallySale.broker).label("broker"),
+        )
+        .filter(
+            TallySale.voucher_no.isnot(None),
+            TallySale.voucher_no != "",
+            TallySale.voucher_date.isnot(None),
+        )
+        .group_by(TallySale.voucher_no)
+        .subquery()
+    )
+
+    query = (
+        db.query(
+            TallyDaybook2.ledger_amount,
+            TallyDaybook2.vdt,
+            invoice_meta.c.invoice_date,
+            invoice_meta.c.broker,
+        )
+        .outerjoin(
+            invoice_meta,
+            invoice_meta.c.voucher_no == TallyDaybook2.bill_no,
+        )
+        .filter(
+            TallyDaybook2.vtype == RECEIPT_VTYPE,
+            TallyDaybook2.bill_type == PARTY_BILL_TYPE_AGST,
+            TallyDaybook2.vdt.isnot(None),
+            TallyDaybook2.vdt >= start_dt,
+            TallyDaybook2.vdt <= end_dt,
+        )
+    )
+
+    if representative == RECEIVABLE_REP_BLANK:
+        query = query.filter(
+            or_(
+                invoice_meta.c.broker.is_(None),
+                invoice_meta.c.broker == "",
+                func.lower(invoice_meta.c.broker) == "no representative",
+            )
+        )
+    elif representative:
+        query = query.filter(invoice_meta.c.broker == representative)
+
+    rows = query.all()
+
+    bucket_amounts = {key: 0.0 for key, _, _, _ in COLLECTION_BUCKETS}
+    bucket_counts = {key: 0 for key, _, _, _ in COLLECTION_BUCKETS}
+    matched_amount = 0.0
+    unmatched_amount = 0.0
+    matched_count = 0
+    unmatched_count = 0
+    weighted_days = 0.0
+
+    for amount_raw, receipt_dt, invoice_dt, _broker in rows:
+        amount = float(amount_raw or 0.0)
+        if receipt_dt is None or invoice_dt is None:
+            unmatched_amount += amount
+            unmatched_count += 1
+            continue
+
+        receipt_day = receipt_dt.date() if isinstance(receipt_dt, datetime) else receipt_dt
+        invoice_day = invoice_dt.date() if isinstance(invoice_dt, datetime) else invoice_dt
+        days = (receipt_day - invoice_day).days
+        if days < 0:
+            days = 0
+
+        key = _collection_bucket_key(days)
+        bucket_amounts[key] += amount
+        bucket_counts[key] += 1
+        matched_amount += amount
+        matched_count += 1
+        weighted_days += days * amount
+
+    total_amount = matched_amount + unmatched_amount
+    denom = matched_amount if matched_amount else 0.0
+    buckets = [
+        CollectionAgeBucketOut(
+            key=key,
+            label=label,
+            amount=bucket_amounts[key],
+            count=bucket_counts[key],
+            pct=(bucket_amounts[key] / denom * 100.0) if denom else 0.0,
+        )
+        for key, label, _, _ in COLLECTION_BUCKETS
+    ]
+    avg_days = (weighted_days / matched_amount) if matched_amount else None
+
+    return CollectionPerformanceOut(
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+        total_amount=total_amount,
+        matched_amount=matched_amount,
+        unmatched_amount=unmatched_amount,
+        matched_count=matched_count,
+        unmatched_count=unmatched_count,
+        avg_days=avg_days,
+        buckets=buckets,
     )

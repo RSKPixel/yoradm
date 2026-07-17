@@ -10,6 +10,7 @@ import {
   UserGroupIcon,
   ClipboardDocumentListIcon,
   CubeTransparentIcon,
+  RectangleStackIcon,
   ScaleIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../auth/AuthContext'
@@ -39,6 +40,11 @@ const navSections = [
     items: [
       { to: '/transactions/delivery-challan', label: 'Delivery Challan', icon: ClipboardDocumentListIcon },
       { to: '/transactions/orid-dhall-production', label: 'Orid Dhall Production', icon: CubeTransparentIcon },
+      {
+        to: '/transactions/packing-material',
+        label: 'Packing Material',
+        icon: RectangleStackIcon,
+      },
       { to: '/transactions/brokerage', label: 'Brokerage', icon: BanknotesIcon },
       { to: '/transactions/fixed-asset-register', label: 'Fixed Asset Register', icon: ArchiveBoxIcon },
     ],
@@ -217,10 +223,13 @@ export function AppLayout() {
     navigate('/login', { replace: true })
   }
 
+  const isDashboardPage = location.pathname === '/'
   const isPrimaryContentPage =
     location.pathname.startsWith('/transactions/orid-dhall-production') ||
     location.pathname.startsWith('/transactions/delivery-challan') ||
+    location.pathname.startsWith('/transactions/packing-material') ||
     location.pathname.startsWith('/reports/receivables-analysis')
+  const isFillMain = isPrimaryContentPage || isDashboardPage
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-(--bg) text-(--ink)">
@@ -346,7 +355,7 @@ export function AppLayout() {
 
         <main
           className={`shell-main relative flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden${
-            isPrimaryContentPage ? ' overflow-hidden p-0' : ' overflow-y-auto p-8'
+            isFillMain ? ' overflow-hidden p-0' : ' overflow-y-auto p-8'
           }`}
         >
           <Outlet />

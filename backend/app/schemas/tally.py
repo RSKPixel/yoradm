@@ -159,3 +159,54 @@ class ReceivableAnalysisOut(BaseModel):
     totals: ReceivableAgeingBuckets
     parties: List[ReceivablePartyAgeingOut]
     invoices: List[ReceivableInvoiceAgeingOut]
+
+
+class DaybookTradePointOut(BaseModel):
+    date: str
+    label: str
+    sales: float = 0.0
+    purchase: float = 0.0
+    receipt: float = 0.0
+    payment: float = 0.0
+    sales_vouchers: int = 0
+    purchase_vouchers: int = 0
+    receipt_vouchers: int = 0
+    payment_vouchers: int = 0
+
+
+class DaybookTradeOut(BaseModel):
+    date_from: str
+    date_to: str
+    sales_total: float = 0.0
+    purchase_total: float = 0.0
+    receipt_total: float = 0.0
+    payment_total: float = 0.0
+    net_trade: float = 0.0
+    net_cash: float = 0.0
+    coverage_pct: Optional[float] = None
+    collection_pct: Optional[float] = None
+    sales_vouchers: int = 0
+    purchase_vouchers: int = 0
+    receipt_vouchers: int = 0
+    payment_vouchers: int = 0
+    points: List[DaybookTradePointOut] = []
+
+
+class CollectionAgeBucketOut(BaseModel):
+    key: str
+    label: str
+    amount: float = 0.0
+    count: int = 0
+    pct: float = 0.0
+
+
+class CollectionPerformanceOut(BaseModel):
+    date_from: str
+    date_to: str
+    total_amount: float = 0.0
+    matched_amount: float = 0.0
+    unmatched_amount: float = 0.0
+    matched_count: int = 0
+    unmatched_count: int = 0
+    avg_days: Optional[float] = None
+    buckets: List[CollectionAgeBucketOut] = []

@@ -30,10 +30,40 @@ export async function fetchReceivableRepresentatives() {
   return data
 }
 
+export async function fetchSaleRepresentatives() {
+  const { data } = await api.get('/tally/sales/representatives')
+  return data
+}
+
 export async function fetchReceivablesAnalysis({ representative, asOf } = {}) {
   const params = {}
   if (representative) params.representative = representative
   if (asOf) params.as_of = asOf
   const { data } = await api.get('/tally/receivables/analysis', { params })
+  return data
+}
+
+export async function fetchSalesPurchaseTrend({ dateFrom, dateTo } = {}) {
+  const { data } = await api.get('/tally/daybook/sales-purchase', {
+    params: {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    },
+  })
+  return data
+}
+
+export async function fetchCollectionPerformance({
+  dateFrom,
+  dateTo,
+  representative,
+} = {}) {
+  const { data } = await api.get('/tally/daybook/collection-performance', {
+    params: {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+      representative: representative || undefined,
+    },
+  })
   return data
 }

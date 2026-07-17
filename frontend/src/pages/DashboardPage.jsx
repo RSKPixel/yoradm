@@ -3,7 +3,15 @@ import {
   fetchPendingDeliveriesByStockGroup,
   fetchTodayDeliveriesByStockGroup,
 } from '../api/deliveryChallan'
+import {
+  fetchCollectionPerformance,
+  fetchSaleRepresentatives,
+  fetchSalesPurchaseTrend,
+} from '../api/tally'
+import { useAuth } from '../auth/AuthContext'
+import { CollectionPerformanceCard } from '../components/dashboard/CollectionPerformanceCard'
 import { PendingDeliveriesModal } from '../components/dashboard/PendingDeliveriesModal'
+import { SalesPurchaseTradeCard } from '../components/dashboard/SalesPurchaseTradeCard'
 import { FormDropdown } from '../components/form/FormDropdown'
 import { getApiErrorMessage } from '../utils/formValidation'
 import { formatDate, todayIsoDate, toIsoDateInput } from '../utils/formatDate'
@@ -91,6 +99,40 @@ function deliveryPeriodOptions() {
   return options
 }
 
+function collectionPeriodOptions() {
+  const today = new Date()
+  const todayIso = toIsoDateInput(today)
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+  const fy = currentFinancialYearRange(today)
+
+  return [
+    {
+      value: 'current_fy',
+      label: 'Current FY',
+      dateFrom: fy.dateFrom,
+      dateTo: fy.dateTo,
+      title: 'Current FY',
+    },
+    {
+      value: 'month',
+      label: 'This Month',
+      dateFrom: toIsoDateInput(monthStart),
+      dateTo: todayIso,
+      title: 'This Month',
+    },
+  ]
+}
+
+/** Indian FY: 1 Apr → 31 Mar. Range is FY start through today. */
+function currentFinancialYearRange(now = new Date()) {
+  const year = now.getFullYear()
+  const month = now.getMonth() // 0-based
+  const fyStartYear = month >= 3 ? year : year - 1
+  const dateFrom = toIsoDateInput(new Date(fyStartYear, 3, 1))
+  const dateTo = toIsoDateInput(now)
+  return { dateFrom, dateTo }
+}
+
 function DeliveriesSection({
   title,
   ariaLabel,
@@ -125,7 +167,7 @@ function DeliveriesSection({
       ) : null}
 
       {items.length > 0 ? (
-        <div className="mt-1.5">
+        <div className="dashboard-section__body">
           <div className="dashboard-section__cols" aria-hidden="true">
             <span>Stock group</span>
             <span>/50kgs</span>
@@ -152,7 +194,10 @@ function DeliveriesSection({
 }
 
 export function DashboardPage() {
+  const { isAdmin } = useAuth()
   const periodOptions = useMemo(() => deliveryPeriodOptions(), [])
+  const collectionOptions = useMemo(() => collectionPeriodOptions(), [])
+  const currentFy = useMemo(() => currentFinancialYearRange(), [])
   const [pending, setPending] = useState(null)
   const [pendingError, setPendingError] = useState('')
   const [pendingModalOpen, setPendingModalOpen] = useState(false)
@@ -162,10 +207,35 @@ export function DashboardPage() {
   const [deliveryError, setDeliveryError] = useState('')
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false)
 
+  const [trade, setTrade] = useState(null)
+  const [tradeError, setTradeError] = useState('')
+
+  const [collectionPeriod, setCollectionPeriod] = useState('month')
+  const [collectionRep, setCollectionRep] = useState('')
+  const [collectionReps, setCollectionReps] = useState([])
+  const [collection, setCollection] = useState(null)
+  const [collectionError, setCollectionError] = useState('')
+
   const selectedPeriod =
     periodOptions.find((option) => option.value === deliveryPeriod) ||
     periodOptions.find((option) => option.value === todayIsoDate()) ||
     periodOptions[0]
+
+  const selectedCollectionPeriod =
+    collectionOptions.find((option) => option.value === collectionPeriod) ||
+    collectionOptions[0]
+
+  const collectionRepOptions = useMemo(() => {
+    const options = [{ value: '', label: 'All representatives' }]
+    for (const rep of collectionReps) {
+      const name = String(rep?.name || '')
+      options.push({
+        value: name,
+        label: !name || name === '__blank__' ? '(Blank)' : name,
+      })
+    }
+    return options
+  }, [collectionReps])
 
   useEffect(() => {
     let cancelled = false
@@ -182,6 +252,21 @@ export function DashboardPage() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!isAdmin) return undefined
+    let cancelled = false
+    void fetchSaleRepresentatives()
+      .then((data) => {
+        if (!cancelled) setCollectionReps(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {
+        if (!cancelled) setCollectionReps([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin])
 
   useEffect(() => {
     if (!selectedPeriod) return undefined
@@ -205,8 +290,53 @@ export function DashboardPage() {
     }
   }, [selectedPeriod])
 
+  useEffect(() => {
+    if (!isAdmin) return undefined
+    let cancelled = false
+    setTrade(null)
+    setTradeError('')
+    void fetchSalesPurchaseTrend({
+      dateFrom: currentFy.dateFrom,
+      dateTo: currentFy.dateTo,
+    })
+      .then((data) => {
+        if (!cancelled) setTrade(data)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setTradeError(getApiErrorMessage(err, 'Unable to load sales vs purchase'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, currentFy])
+
+  useEffect(() => {
+    if (!isAdmin || !selectedCollectionPeriod) return undefined
+    let cancelled = false
+    setCollection(null)
+    setCollectionError('')
+    void fetchCollectionPerformance({
+      dateFrom: selectedCollectionPeriod.dateFrom,
+      dateTo: selectedCollectionPeriod.dateTo,
+      representative: collectionRep || undefined,
+    })
+      .then((data) => {
+        if (!cancelled) setCollection(data)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setCollectionError(getApiErrorMessage(err, 'Unable to load collection performance'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, selectedCollectionPeriod, collectionRep])
+
   return (
-    <div>
+    <div className="dashboard-page">
       <div className="dashboard-grid" aria-label="Dashboard tiles">
         <DeliveriesSection
           title="Pending deliveries"
@@ -235,6 +365,19 @@ export function DashboardPage() {
             />
           }
         />
+        {isAdmin ? (
+          <CollectionPerformanceCard
+            data={collection}
+            error={collectionError}
+            periodOptions={collectionOptions}
+            periodValue={collectionPeriod}
+            onPeriodChange={setCollectionPeriod}
+            representativeOptions={collectionRepOptions}
+            representativeValue={collectionRep}
+            onRepresentativeChange={setCollectionRep}
+          />
+        ) : null}
+        {isAdmin ? <SalesPurchaseTradeCard data={trade} error={tradeError} /> : null}
       </div>
 
       {pendingModalOpen ? (

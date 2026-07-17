@@ -36,9 +36,7 @@ const CHART_COLORS = {
   dhall: '#d4a35c',
   split: '#6ea8fe',
   rejection: '#f87171',
-  husk: '#34d399',
   overall: '#fbbf24',
-  gap: '#a78bfa',
 }
 
 const MONTH_LABELS = Object.fromEntries(
@@ -49,7 +47,7 @@ function formatQtyPct(qty, pct) {
   const qtyText =
     qty == null || qty === '' ? '' : formatCommaNumber(qty, 2)
   const pctText =
-    pct == null || pct === '' ? '' : `${formatCommaNumber(pct, 2)}%`
+    pct == null || pct === '' ? '' : `(${formatCommaNumber(pct, 2)}%)`
   if (!qtyText && !pctText) return null
   return (
     <>
@@ -71,6 +69,30 @@ function sumQty(items, key) {
   return any ? total : null
 }
 
+function addQty(...values) {
+  let total = 0
+  let any = false
+  for (const value of values) {
+    const n = Number(value)
+    if (!Number.isFinite(n)) continue
+    total += n
+    any = true
+  }
+  return any ? total : null
+}
+
+function addPct(...values) {
+  let total = 0
+  let any = false
+  for (const value of values) {
+    const n = Number(value)
+    if (!Number.isFinite(n)) continue
+    total += n
+    any = true
+  }
+  return any ? total : null
+}
+
 function weightedPct(items, pctKey, weightKey = 'orid_raw_qty') {
   let weightSum = 0
   let weighted = 0
@@ -82,6 +104,25 @@ function weightedPct(items, pctKey, weightKey = 'orid_raw_qty') {
     weighted += pct * weight
   }
   return weightSum > 0 ? weighted / weightSum : null
+}
+
+function rowOverallQty(row) {
+  return addQty(
+    row.orid_dhall_qty,
+    row.orid_dhall_split_qty,
+    row.orid_rejection_qty,
+  )
+}
+
+function rowOverallPct(row) {
+  if (row.overall_pct != null && Number.isFinite(Number(row.overall_pct))) {
+    return Number(row.overall_pct)
+  }
+  return addPct(
+    row.orid_dhall_pct,
+    row.orid_dhall_split_pct,
+    row.orid_rejection_pct,
+  )
 }
 
 function lotSortKey(row) {
@@ -140,16 +181,23 @@ export function OridDhallProductionSearchModal({
       (row) => (row.status || STATUS_OPEN) === STATUS_CLOSED,
     )
     const rawQty = sumQty(closed, 'orid_raw_qty')
+    const dhallQty = sumQty(closed, 'orid_dhall_qty')
+    const dhallPct = weightedPct(closed, 'orid_dhall_pct')
+    const splitQty = sumQty(closed, 'orid_dhall_split_qty')
+    const splitPct = weightedPct(closed, 'orid_dhall_split_pct')
+    const rejectionQty = sumQty(closed, 'orid_rejection_qty')
+    const rejectionPct = weightedPct(closed, 'orid_rejection_pct')
     return {
       rawQty,
       rawPct: rawQty != null && rawQty > 0 ? 100 : null,
-      dhallQty: sumQty(closed, 'orid_dhall_qty'),
-      dhallPct: weightedPct(closed, 'orid_dhall_pct'),
-      splitQty: sumQty(closed, 'orid_dhall_split_qty'),
-      splitPct: weightedPct(closed, 'orid_dhall_split_pct'),
-      huskQty: sumQty(closed, 'orid_husk_qty'),
-      huskPct: weightedPct(closed, 'orid_husk_pct'),
-      overallPct: weightedPct(closed, 'overall_pct'),
+      dhallQty,
+      dhallPct,
+      splitQty,
+      splitPct,
+      rejectionQty,
+      rejectionPct,
+      overallQty: addQty(dhallQty, splitQty, rejectionQty),
+      overallPct: addPct(dhallPct, splitPct, rejectionPct),
       netValue: sumQty(closed, 'net_value'),
     }
   }, [filteredItems])
@@ -160,7 +208,6 @@ export function OridDhallProductionSearchModal({
         .sort(compareByLotNo)
         .map((row) => {
           const overall = Number(row.overall_pct)
-          const gap = Number.isFinite(overall) ? Math.max(0, 100 - overall) : null
           return {
             lot: String(row.lot_no || row.id),
             date: formatDate(row.production_date),
@@ -171,9 +218,7 @@ export function OridDhallProductionSearchModal({
             rejection: Number.isFinite(Number(row.orid_rejection_pct))
               ? Number(row.orid_rejection_pct)
               : null,
-            husk: Number.isFinite(Number(row.orid_husk_pct)) ? Number(row.orid_husk_pct) : null,
             overall: Number.isFinite(overall) ? overall : null,
-            gap,
           }
         }),
     [filteredItems],
@@ -433,27 +478,9 @@ export function OridDhallProductionSearchModal({
                     />
                     <Line
                       type="monotone"
-                      dataKey="husk"
-                      name="Husk"
-                      stroke={CHART_COLORS.husk}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      connectNulls
-                    />
-                    <Line
-                      type="monotone"
                       dataKey="overall"
-                      name="Overall %"
+                      name="Yield"
                       stroke={CHART_COLORS.overall}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      connectNulls
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="gap"
-                      name="Shortage"
-                      stroke={CHART_COLORS.gap}
                       strokeWidth={2}
                       dot={{ r: 3 }}
                       connectNulls
@@ -488,12 +515,12 @@ export function OridDhallProductionSearchModal({
                       <br />
                       Split
                     </th>
-                    <th className="dc-search-num">Orid Husk</th>
                     <th className="dc-search-num">
-                      Overall
+                      Orid Dhall
                       <br />
-                      %
+                      Rejection
                     </th>
+                    <th className="dc-search-num">Yield</th>
                     <th className="dc-search-num">
                       Net
                       <br />
@@ -546,12 +573,13 @@ export function OridDhallProductionSearchModal({
                           )}
                         </td>
                         <td className="dc-search-num">
-                          {formatQtyPct(row.orid_husk_qty, row.orid_husk_pct)}
+                          {formatQtyPct(
+                            row.orid_rejection_qty,
+                            row.orid_rejection_pct,
+                          )}
                         </td>
-                        <td className="dc-search-num dc-search-num--bottom">
-                          {row.overall_pct == null
-                            ? ''
-                            : `${formatCommaNumber(row.overall_pct, 2)}%`}
+                        <td className="dc-search-num">
+                          {formatQtyPct(rowOverallQty(row), rowOverallPct(row))}
                         </td>
                         <td className="dc-search-num dc-search-num--bottom">
                           {row.net_value == null
@@ -608,12 +636,10 @@ export function OridDhallProductionSearchModal({
                         {formatQtyPct(totals.splitQty, totals.splitPct)}
                       </td>
                       <td className="dc-search-num">
-                        {formatQtyPct(totals.huskQty, totals.huskPct)}
+                        {formatQtyPct(totals.rejectionQty, totals.rejectionPct)}
                       </td>
-                      <td className="dc-search-num dc-search-num--bottom">
-                        {totals.overallPct == null
-                          ? ''
-                          : `${formatCommaNumber(totals.overallPct, 2)}%`}
+                      <td className="dc-search-num">
+                        {formatQtyPct(totals.overallQty, totals.overallPct)}
                       </td>
                       <td className="dc-search-num dc-search-num--bottom">
                         {totals.netValue == null

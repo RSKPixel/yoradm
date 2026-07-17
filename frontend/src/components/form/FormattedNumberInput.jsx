@@ -17,6 +17,9 @@ export function FormattedNumberInput({
   fractionDigits = 0,
   className = '',
   inputMode = 'decimal',
+  selectOnFocus = false,
+  onFocus,
+  onBlur,
   ...rest
 }) {
   const [focused, setFocused] = useState(false)
@@ -36,15 +39,22 @@ export function FormattedNumberInput({
       className={className}
       inputMode={inputMode}
       value={display}
-      onFocus={() => setFocused(true)}
-      onBlur={() => {
+      onFocus={(e) => {
+        setFocused(true)
+        if (selectOnFocus) {
+          e.target.select()
+        }
+        onFocus?.(e)
+      }}
+      onBlur={(e) => {
         setFocused(false)
         if (!raw.trim()) {
           onChange?.('')
-          return
+        } else {
+          const n = parseQty(raw)
+          onChange?.(Number.isFinite(n) ? String(n) : '')
         }
-        const n = parseQty(raw)
-        onChange?.(Number.isFinite(n) ? String(n) : '')
+        onBlur?.(e)
       }}
       onChange={(e) => {
         onChange?.(e.target.value.replace(/,/g, ''))

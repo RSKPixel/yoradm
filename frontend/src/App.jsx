@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage'
 import { OpenSettingsRoute } from './pages/OpenSettingsRoute'
 import { DeliveryChallanPage } from './pages/DeliveryChallanPage'
 import { OridDhallProductionPage } from './pages/OridDhallProductionPage'
+import { PackingMaterialPage } from './pages/PackingMaterialPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
@@ -34,6 +35,10 @@ export default function App() {
                   <Route
                     path="transactions/orid-dhall-production"
                     element={<OridDhallProductionPage />}
+                  />
+                  <Route
+                    path="transactions/packing-material"
+                    element={<PackingMaterialPage />}
                   />
                   <Route path="transactions/brokerage" element={<PlaceholderPage title="Brokerage" />} />
                   <Route

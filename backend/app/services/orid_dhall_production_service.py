@@ -143,12 +143,11 @@ def _list_summary(row: OridDhallProduction) -> dict:
     husk_pct = pct_of_raw_from_bags(husk_bags) if has_husk and raw_quintal else None
 
     overall_pct = None
-    if any(v is not None for v in (orid_dhall_pct, split_pct, sortex_pct, husk_pct)):
+    if any(v is not None for v in (orid_dhall_pct, split_pct, sortex_pct)):
         overall_pct = round(
             (orid_dhall_pct or 0)
             + (split_pct or 0)
-            + (sortex_pct or 0)
-            + (husk_pct or 0),
+            + (sortex_pct or 0),
             2,
         )
 
@@ -195,6 +194,7 @@ def _list_summary(row: OridDhallProduction) -> dict:
         "orid_dhall_pct": orid_dhall_pct,
         "orid_dhall_split_qty": round(split_bags, 2) if has_split else None,
         "orid_dhall_split_pct": split_pct,
+        "orid_rejection_qty": round(sortex_bags, 2) if has_sortex else None,
         "orid_rejection_pct": sortex_pct,
         "orid_husk_qty": round(husk_bags, 2) if has_husk else None,
         "orid_husk_pct": husk_pct,
@@ -243,6 +243,7 @@ def list_productions(
                 orid_dhall_pct=summary["orid_dhall_pct"],
                 orid_dhall_split_qty=summary["orid_dhall_split_qty"],
                 orid_dhall_split_pct=summary["orid_dhall_split_pct"],
+                orid_rejection_qty=summary["orid_rejection_qty"],
                 orid_rejection_pct=summary["orid_rejection_pct"],
                 orid_husk_qty=summary["orid_husk_qty"],
                 orid_husk_pct=summary["orid_husk_pct"],

@@ -17,7 +17,9 @@ from app.models.tally import (
 from app.schemas import DashboardStats, PaginatedResponse
 from app.schemas.tally import (
     AccountMasterOut,
+    CollectionPerformanceOut,
     CostCentreOut,
+    DaybookTradeOut,
     InventoryMasterOut,
     PurchaseOut,
     ReceivableAnalysisOut,
@@ -161,3 +163,43 @@ def receivables_analysis(
     if rep == "":
         rep = None
     return tally_service.receivables_analysis(db, as_of=as_of, representative=rep)
+
+
+@router.get("/daybook/sales-purchase", response_model=DaybookTradeOut)
+def daybook_sales_purchase(
+    _: AdminUser,
+    db: DbSession,
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+) -> DaybookTradeOut:
+    return tally_service.sales_purchase_trend(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+@router.get("/sales/representatives", response_model=List[ReceivableRepresentativeOut])
+def list_sale_representatives(
+    _: AdminUser, db: DbSession
+) -> List[ReceivableRepresentativeOut]:
+    return tally_service.list_sale_representatives(db)
+
+
+@router.get("/daybook/collection-performance", response_model=CollectionPerformanceOut)
+def daybook_collection_performance(
+    _: AdminUser,
+    db: DbSession,
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+    representative: Optional[str] = Query(None),
+) -> CollectionPerformanceOut:
+    rep = representative.strip() if representative else None
+    if rep == "":
+        rep = None
+    return tally_service.collection_performance(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        representative=rep,
+    )
