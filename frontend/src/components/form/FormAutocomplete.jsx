@@ -17,6 +17,7 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
     getInputLabel,
     renderOption,
     filterOption,
+    allowCustom = false,
     disabled = false,
     emptyMessage = 'No matches',
     className = '',
@@ -50,7 +51,14 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
   )
 
   const inputLabelFor = getInputLabel || getOptionLabel
-  const displayValue = editing || open ? query : selected ? inputLabelFor(selected) : ''
+  const displayValue =
+    editing || open
+      ? query
+      : selected
+        ? inputLabelFor(selected)
+        : allowCustom && value
+          ? value
+          : ''
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -97,6 +105,15 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
     }
   }, [highlight, open, filtered])
 
+  function confirmCustom(raw) {
+    const nextValue = String(raw ?? '').trim()
+    onChange?.(nextValue)
+    setOpen(false)
+    setEditing(false)
+    setQuery('')
+    if (nextValue) onConfirm?.(nextValue, null)
+  }
+
   function confirmOption(opt) {
     const nextValue = getOptionValue(opt)
     onChange?.(nextValue)
@@ -109,12 +126,19 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
   function onFocus() {
     if (disabled) return
     setEditing(true)
-    setQuery('')
+    setQuery(allowCustom && value ? value : '')
     setOpen(true)
   }
 
   function onBlur(event) {
     if (rootRef.current?.contains(event.relatedTarget)) return
+    if (allowCustom && editing) {
+      const typed = query.trim()
+      if (typed) {
+        confirmCustom(typed)
+        return
+      }
+    }
     setOpen(false)
     setEditing(false)
     setQuery('')
@@ -145,6 +169,8 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
       event.stopPropagation()
       if (open && filtered[highlight]) {
         confirmOption(filtered[highlight])
+      } else if (allowCustom && query.trim()) {
+        confirmCustom(query)
       } else if (value) {
         onConfirm?.(value, selected)
       }

@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { OpenSettingsRoute } from './pages/OpenSettingsRoute'
 import { DeliveryChallanPage } from './pages/DeliveryChallanPage'
+import { GoodsReceiptPage } from './pages/GoodsReceiptPage'
 import { OridDhallProductionPage } from './pages/OridDhallProductionPage'
 import { PackingMaterialPage } from './pages/PackingMaterialPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
@@ -32,6 +33,7 @@ export default function App() {
                     <Route path="tally/purchases" element={<PlaceholderPage title="Purchase" />} />
                   </Route>
                   <Route path="transactions/delivery-challan" element={<DeliveryChallanPage />} />
+                  <Route path="transactions/goods-receipt" element={<GoodsReceiptPage />} />
                   <Route
                     path="transactions/orid-dhall-production"
                     element={<OridDhallProductionPage />}

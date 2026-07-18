@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   BuildingOffice2Icon,
+  BanknotesIcon,
   Cog6ToothIcon,
   KeyIcon,
   UserCircleIcon,
@@ -9,8 +10,10 @@ import {
 import { useAuth } from '../../auth/AuthContext'
 import { Modal } from '../common/Modal'
 import { CompanyProfileTab } from './CompanyProfileTab'
+import { GeneralTab } from './GeneralTab'
 import { PasswordTab } from './PasswordTab'
 import { ProfileTab } from './ProfileTab'
+import { TdsTab } from './TdsTab'
 import { UsersTab } from './UsersTab'
 
 export function SettingsModal({ onClose, initialTab = 'general' }) {
@@ -22,6 +25,7 @@ export function SettingsModal({ onClose, initialTab = 'general' }) {
       { id: 'password', label: 'Password', icon: KeyIcon },
       ...(isAdmin
         ? [
+            { id: 'tds', label: 'TDS', icon: BanknotesIcon },
             { id: 'company', label: 'Company Profile', icon: BuildingOffice2Icon },
             { id: 'users', label: 'Users', icon: UsersIcon },
           ]
@@ -72,11 +76,10 @@ export function SettingsModal({ onClose, initialTab = 'general' }) {
           aria-labelledby={`settings-tab-${activeTab}`}
         >
           <div className="settings-panel-body">
-            {activeTab === 'general' && (
-              <p className="text-sm text-(--muted)">General settings will be added here.</p>
-            )}
+            {activeTab === 'general' && <GeneralTab />}
             {activeTab === 'profile' && <ProfileTab />}
             {activeTab === 'password' && <PasswordTab />}
+            {activeTab === 'tds' && isAdmin && <TdsTab />}
             {activeTab === 'company' && isAdmin && <CompanyProfileTab />}
             {activeTab === 'users' && isAdmin && <UsersTab />}
           </div>

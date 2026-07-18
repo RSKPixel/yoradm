@@ -42,3 +42,12 @@ let contentY = addPdfReportTitle(doc, pageWidth, 'Delivery Challan', y)
 ## Company data
 
 Fetch via `GET /api/v1/company` before PDF generation. Contact uses `mobile` (or `phone`) + `email`.
+
+## Optional letterhead fields
+
+`drawCompanyLetterhead(doc, company, options?)` — defaults keep GSTIN + contact on.
+Pass `{ showGstin: false, showContact: false }` only for internal docs (e.g. Goods Receipt). Do not change defaults for Delivery Challan / receivables / other external prints.
+
+## Numeric values — always right-aligned
+
+In every PDF table or label/value layout, **numeric** cells (qty, weight, amounts, rates, diffs, TDS, etc.) must use `halign: 'right'` (jspdf-autotable) or equivalent right alignment. Text/labels stay left-aligned.

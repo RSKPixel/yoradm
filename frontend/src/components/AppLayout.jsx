@@ -2,19 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArchiveBoxIcon,
+  ArrowRightStartOnRectangleIcon,
   ArrowsRightLeftIcon,
   ChartBarSquareIcon,
   ChevronDownIcon,
   BanknotesIcon,
+  Cog6ToothIcon,
   DocumentChartBarIcon,
   UserGroupIcon,
   ClipboardDocumentListIcon,
   CubeTransparentIcon,
+  InboxArrowDownIcon,
   RectangleStackIcon,
   ScaleIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../auth/AuthContext'
 import { fetchCompany } from '../api/company'
+import { fetchDaybookAvailability } from '../api/tally'
 import {
   readSidebarPinned,
   SIDEBAR_HOVER_COLLAPSE_DELAY_MS,
@@ -25,6 +29,7 @@ import { PushPinIcon } from './icons/PushPinIcon'
 import { useSettings } from './settings/SettingsContext'
 import { AppBrandName } from './layout/AppBrandName'
 import { SpotlightBackground } from './layout/SpotlightBackground'
+import { formatDate, parseDisplayDate } from '../utils/formatDate'
 import { formatLastLogin } from '../utils/formatLastLogin'
 
 const HEADER_HEIGHT = 'var(--shell-header-height)'
@@ -39,6 +44,7 @@ const navSections = [
     icon: ArrowsRightLeftIcon,
     items: [
       { to: '/transactions/delivery-challan', label: 'Delivery Challan', icon: ClipboardDocumentListIcon },
+      { to: '/transactions/goods-receipt', label: 'Goods Receipt', icon: InboxArrowDownIcon },
       { to: '/transactions/orid-dhall-production', label: 'Orid Dhall Production', icon: CubeTransparentIcon },
       {
         to: '/transactions/packing-material',
@@ -120,6 +126,8 @@ export function AppLayout() {
   const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned)
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const [companyName, setCompanyName] = useState('')
+  const [dataAvailability, setDataAvailability] = useState('')
+  const [dataAvailabilityIncomplete, setDataAvailabilityIncomplete] = useState(false)
   const expandTimeoutRef = useRef(null)
   const collapseTimeoutRef = useRef(null)
   const displayName = user?.full_name || user?.username || ''
@@ -146,6 +154,38 @@ export function AppLayout() {
   useEffect(() => {
     if (!settingsOpen) void loadCompanyName()
   }, [settingsOpen, loadCompanyName])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadAvailability() {
+      try {
+        const data = await fetchDaybookAvailability()
+        if (cancelled) return
+        const from = formatDate(data?.date_from)
+        const to = formatDate(data?.date_to)
+        if (from && to) {
+          setDataAvailability(`${from} — ${to}`)
+          const start = parseDisplayDate(data?.date_from)
+          // Full FY data starts on 1 Apr (year ignored).
+          const startsOnAprilFirst =
+            start != null && start.getMonth() === 3 && start.getDate() === 1
+          setDataAvailabilityIncomplete(!startsOnAprilFirst)
+        } else {
+          setDataAvailability('')
+          setDataAvailabilityIncomplete(false)
+        }
+      } catch {
+        if (!cancelled) {
+          setDataAvailability('')
+          setDataAvailabilityIncomplete(false)
+        }
+      }
+    }
+    void loadAvailability()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   function clearExpandTimeout() {
     if (expandTimeoutRef.current != null) {
@@ -227,6 +267,7 @@ export function AppLayout() {
   const isPrimaryContentPage =
     location.pathname.startsWith('/transactions/orid-dhall-production') ||
     location.pathname.startsWith('/transactions/delivery-challan') ||
+    location.pathname.startsWith('/transactions/goods-receipt') ||
     location.pathname.startsWith('/transactions/packing-material') ||
     location.pathname.startsWith('/reports/receivables-analysis')
   const isFillMain = isPrimaryContentPage || isDashboardPage
@@ -258,25 +299,20 @@ export function AppLayout() {
               <span className="shell-header-company-name">{companyName}</span>
             </button>
           ) : null}
-          <div className="shell-header-actions">
-            <button
-              type="button"
-              className="shell-header-action"
-              onClick={() => openSettings()}
+          {dataAvailability ? (
+            <span
+              className={`shell-header-data-range${
+                dataAvailabilityIncomplete ? ' shell-header-data-range--warn' : ''
+              }`}
+              title={
+                dataAvailabilityIncomplete
+                  ? `Daybook data does not start on 1 Apr (incomplete FY window): ${dataAvailability}`
+                  : `Tally daybook data available: ${dataAvailability}`
+              }
             >
-              Settings
-            </button>
-            <span className="shell-header-action-sep" aria-hidden="true">
-              ·
+              ({dataAvailability})
             </span>
-            <button
-              type="button"
-              className="shell-header-action shell-header-action-danger"
-              onClick={() => void handleLogout()}
-            >
-              Logout
-            </button>
-          </div>
+          ) : null}
         </div>
       </header>
 
@@ -323,6 +359,31 @@ export function AppLayout() {
                   />
                 ))}
               </nav>
+
+              <div className="shell-nav-actions">
+                <button
+                  type="button"
+                  className="shell-nav-link"
+                  title={!isExpanded ? 'Settings' : undefined}
+                  onClick={() => openSettings()}
+                >
+                  <span className="shell-nav-icon-slot">
+                    <Cog6ToothIcon className="shell-nav-icon" aria-hidden="true" />
+                  </span>
+                  <span className="shell-nav-label">Settings</span>
+                </button>
+                <button
+                  type="button"
+                  className="shell-nav-link shell-nav-link-danger"
+                  title={!isExpanded ? 'Logout' : undefined}
+                  onClick={() => void handleLogout()}
+                >
+                  <span className="shell-nav-icon-slot">
+                    <ArrowRightStartOnRectangleIcon className="shell-nav-icon" aria-hidden="true" />
+                  </span>
+                  <span className="shell-nav-label">Logout</span>
+                </button>
+              </div>
 
               <div className="shell-sidebar-footer">
                 <button

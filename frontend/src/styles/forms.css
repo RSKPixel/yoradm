@@ -505,6 +505,24 @@
   box-shadow: none;
 }
 
+.win-form__control--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+.win-form__control--warn {
+  border-color: color-mix(in srgb, #c45c26 70%, var(--form-input-line));
+  background: color-mix(in srgb, #c45c26 12%, var(--form-input-bg));
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.win-form__control--warn:read-only:focus {
+  border-color: color-mix(in srgb, #c45c26 70%, var(--form-input-line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, #c45c26 18%, transparent);
+}
+
 .win-form__control option {
   color: var(--form-input-ink);
   background: var(--form-input-bg);
@@ -1151,6 +1169,36 @@
 .win-form__calc-block .win-form__hint {
   margin-top: 0.35rem;
   margin-bottom: 0;
+}
+
+/* Goods Receipt — centered framed field panel */
+.gr-form {
+  border: 1px solid var(--form-line);
+  border-radius: 0.75rem;
+  background: var(--form-bg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  padding: 1.15rem 1.25rem 1.25rem;
+}
+
+.gr-form .win-form__field {
+  gap: 0.28rem;
+  margin-bottom: 0;
+}
+
+.gr-form .win-form__label {
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}
+
+.gr-form .win-form__control {
+  min-height: 1.9rem;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.8125rem;
+  border-radius: 0.4rem;
+}
+
+.gr-form .win-form__autocomplete-list {
+  font-size: 0.8125rem;
 }
 
 

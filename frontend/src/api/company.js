@@ -14,3 +14,8 @@ export async function updateCompany(payload) {
   const { data } = await api.put('/company', payload)
   return data
 }
+
+export async function updateGeneralSettings(payload) {
+  const { data } = await api.put('/company/general', payload)
+  return data
+}

@@ -273,6 +273,25 @@ body {
   line-height: 1.15;
 }
 
+.shell-header-data-range {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+  text-align: right;
+  line-height: 1.15;
+}
+
+.shell-header-data-range--warn {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 .shell-header-company {
   display: flex;
   max-width: 100%;
@@ -598,6 +617,19 @@ body {
 .shell-sidebar-collapsed .shell-nav-divider {
   margin-inline: calc(var(--shell-sidebar-rail-width) * 0.22);
   width: auto;
+}
+
+.shell-nav-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.shell-sidebar-collapsed .shell-nav-actions {
+  padding-inline: 0;
 }
 
 .shell-nav-group {
@@ -1106,6 +1138,10 @@ body {
 
 .dc-search-period--3 {
   grid-template-columns: repeat(3, minmax(10rem, 13rem));
+}
+
+.dc-search-period--4 {
+  grid-template-columns: repeat(4, minmax(9rem, 12rem));
 }
 
 .dc-search-field {
@@ -2047,23 +2083,44 @@ body {
 }
 
 .dashboard-section--collection .dashboard-trade__head {
+  flex-wrap: nowrap;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dashboard-section--collection .dashboard-section__title {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .dashboard-collection__filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.35rem;
   min-width: 0;
-  max-width: 100%;
+  flex: 1 1 auto;
+}
+
+.dashboard-section--collection .dashboard-section__period {
+  width: auto;
+  min-width: 0;
+  max-width: 8.25rem;
+  flex: 0 1 auto;
 }
 
 .dashboard-collection__rep {
-  min-width: 8.5rem;
-  max-width: 11rem;
+  min-width: 0;
+  max-width: 9.5rem;
+  flex: 0 1 auto;
+}
+
+.dashboard-section--collection .dashboard-section__period .win-form__dropdown-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dashboard-collection {

@@ -173,6 +173,52 @@ export function validateDeliveryChallanForm({
   return errors
 }
 
+export function validateGoodsReceiptForm({
+  receiptDate,
+  vendor,
+  stockItem,
+  qty,
+  weight,
+  invoiceNo,
+  unloadedAt,
+  tdsApplicable,
+  tdsValue,
+}) {
+  const errors = []
+
+  if (!receiptDate) {
+    errors.push('Receipt date is required.')
+  }
+  if (!vendor?.trim()) {
+    errors.push('Vendor is required.')
+  }
+  if (!stockItem?.trim()) {
+    errors.push('Stock item is required.')
+  }
+  const qtyNum = Number.parseFloat(String(qty ?? '').replace(/,/g, ''))
+  if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+    errors.push('Qty must be a positive number.')
+  }
+  const weightNum = Number.parseFloat(String(weight ?? '').replace(/,/g, ''))
+  if (!Number.isFinite(weightNum) || weightNum <= 0) {
+    errors.push('Weight must be a positive number.')
+  }
+  if (!invoiceNo?.trim()) {
+    errors.push('Invoice no. is required.')
+  }
+  if (!unloadedAt?.trim()) {
+    errors.push('Unloaded at is required.')
+  }
+  if (tdsApplicable) {
+    const tdsNum = Number.parseFloat(String(tdsValue ?? '').replace(/,/g, ''))
+    if (!Number.isFinite(tdsNum) || tdsNum < 0) {
+      errors.push('TDS value is required when TDS is applicable.')
+    }
+  }
+
+  return errors
+}
+
 export function validateOridDhallProductionForm({ date }) {
   const errors = []
 

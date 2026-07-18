@@ -19,7 +19,9 @@ from app.schemas.tally import (
     AccountMasterOut,
     CollectionPerformanceOut,
     CostCentreOut,
+    DaybookAvailabilityOut,
     DaybookTradeOut,
+    InventoryItemOptionOut,
     InventoryMasterOut,
     PurchaseOut,
     ReceivableAnalysisOut,
@@ -29,6 +31,8 @@ from app.schemas.tally import (
     SaleInvoiceOptionOut,
     SaleOut,
     StockSummaryOut,
+    VendorOptionOut,
+    VendorTdsStatusOut,
 )
 from app.services import tally_service
 
@@ -38,6 +42,11 @@ router = APIRouter(prefix="/tally", tags=["tally"])
 @router.get("/dashboard", response_model=DashboardStats)
 def get_dashboard(_: CurrentUser, db: DbSession) -> DashboardStats:
     return tally_service.dashboard_stats(db)
+
+
+@router.get("/daybook/availability", response_model=DaybookAvailabilityOut)
+def daybook_availability(_: CurrentUser, db: DbSession) -> DaybookAvailabilityOut:
+    return tally_service.daybook_availability(db)
 
 
 @router.get("/accounts", response_model=PaginatedResponse[AccountMasterOut])
@@ -82,6 +91,37 @@ def list_sale_invoice_lines(
 @router.get("/locations", response_model=List[CostCentreOut])
 def list_locations(_: CurrentUser, db: DbSession) -> List[CostCentreOut]:
     return list(tally_service.list_locations(db))
+
+
+@router.get("/representatives", response_model=List[CostCentreOut])
+def list_representatives(_: CurrentUser, db: DbSession) -> List[CostCentreOut]:
+    return list(tally_service.list_locations(db, parent="Representatives"))
+
+
+@router.get("/vendors", response_model=List[VendorOptionOut])
+def list_vendors(_: CurrentUser, db: DbSession) -> List[VendorOptionOut]:
+    return tally_service.list_vendors(db)
+
+
+@router.get("/vendors/tds-status", response_model=VendorTdsStatusOut)
+def vendor_tds_status(
+    _: CurrentUser,
+    db: DbSession,
+    ledger_name: str = Query(..., min_length=1),
+    invoice_value: float = Query(default=0, ge=0),
+    as_of: Optional[date] = Query(default=None),
+) -> VendorTdsStatusOut:
+    return tally_service.vendor_tds_status(
+        db,
+        ledger_name=ledger_name.strip(),
+        invoice_value=invoice_value,
+        as_of=as_of,
+    )
+
+
+@router.get("/inventory-items", response_model=List[InventoryItemOptionOut])
+def list_inventory_items(_: CurrentUser, db: DbSession) -> List[InventoryItemOptionOut]:
+    return tally_service.list_inventory_items(db)
 
 
 @router.get("/sales", response_model=PaginatedResponse[SaleOut])

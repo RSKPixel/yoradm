@@ -106,8 +106,14 @@ const addCenteredContactLine = (doc, pageWidth, y, phone, email) => {
 /**
  * Standard company letterhead (same design as YORA).
  * Returns the Y position after the header block.
+ *
+ * Options (all default to true so existing callers are unchanged):
+ * - showGstin: include GSTIN line when present on company
+ * - showContact: include phone/email contact line
  */
-export function drawCompanyLetterhead(doc, company) {
+export function drawCompanyLetterhead(doc, company, options = {}) {
+  const showGstin = options.showGstin !== false
+  const showContact = options.showContact !== false
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = LETTERHEAD_MARGIN
   let y = LETTERHEAD_START_Y
@@ -127,7 +133,7 @@ export function drawCompanyLetterhead(doc, company) {
   y = addSeparatorLine(doc, pageWidth, y + 1, margin)
 
   const locationLine = buildLocationLine(company)
-  const gstin = getGstin(company)
+  const gstin = showGstin ? getGstin(company) : ''
   const middleLines = []
   if (locationLine) {
     middleLines.push({ text: locationLine, fontStyle: 'normal' })
@@ -138,8 +144,13 @@ export function drawCompanyLetterhead(doc, company) {
 
   const blockTop = y
   const lineSpacing = 4
+  // Keep full middle-block height when GSTIN is shown; compact only when omitted
+  const middleBlockHeight =
+    showGstin || middleLines.length > 1
+      ? LETTERHEAD_MIDDLE_BLOCK_HEIGHT
+      : Math.min(LETTERHEAD_MIDDLE_BLOCK_HEIGHT, 7)
   const contentHeight = Math.max(lineSpacing, middleLines.length * lineSpacing)
-  const startY = blockTop + (LETTERHEAD_MIDDLE_BLOCK_HEIGHT - contentHeight) / 2 + 2.5
+  const startY = blockTop + (middleBlockHeight - contentHeight) / 2 + 2.5
 
   middleLines.forEach((line, index) => {
     addCenteredLine(doc, pageWidth, line.text, startY + index * lineSpacing, {
@@ -149,20 +160,25 @@ export function drawCompanyLetterhead(doc, company) {
     })
   })
 
-  y = blockTop + LETTERHEAD_MIDDLE_BLOCK_HEIGHT
-  y = addSeparatorLine(doc, pageWidth, y, margin, 3)
-  const phone = company?.mobile || company?.phone || ''
-  y = addCenteredContactLine(doc, pageWidth, y, phone, company?.email)
+  y = blockTop + middleBlockHeight
+  y = addSeparatorLine(doc, pageWidth, y, margin, showContact ? 3 : 2)
+  if (showContact) {
+    const phone = company?.mobile || company?.phone || ''
+    y = addCenteredContactLine(doc, pageWidth, y, phone, company?.email)
+  }
 
   return {
-    y: y + 4,
+    y: y + (showContact ? 4 : 3),
     pageWidth,
     margin,
   }
 }
 
-export function addPdfReportTitle(doc, pageWidth, title, y) {
-  return addCenteredLine(doc, pageWidth, toPdfTitleCase(title), y, {
+/**
+ * @param {number} [topGap=0] Extra space above the title (mm), useful after a compact letterhead.
+ */
+export function addPdfReportTitle(doc, pageWidth, title, y, topGap = 0) {
+  return addCenteredLine(doc, pageWidth, toPdfTitleCase(title), y + topGap, {
     fontSize: LETTERHEAD_REPORT_TITLE_FONT_SIZE,
     fontStyle: 'bold',
     lineHeight: 10,

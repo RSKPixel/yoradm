@@ -20,15 +20,21 @@ from app.schemas import DashboardStats
 from app.schemas.tally import (
     CollectionAgeBucketOut,
     CollectionPerformanceOut,
+    DaybookAvailabilityOut,
     DaybookTradeOut,
     DaybookTradePointOut,
+    InventoryItemOptionOut,
     ReceivableAgeingBuckets,
     ReceivableAnalysisOut,
     ReceivableInvoiceAgeingOut,
     ReceivablePartyAgeingOut,
     ReceivableRepresentativeOut,
     SaleInvoiceOptionOut,
+    VendorOptionOut,
+    VendorTdsStatusOut,
 )
+
+VENDOR_PRIMARY_GROUPS = ("Sundry Creditors", "Sundry Debtors")
 
 SALES_VTYPE = "SIVENDHI BILLING"
 PURCHASE_VTYPE = "Purchase"
@@ -75,6 +81,28 @@ def dashboard_stats(db: Session) -> DashboardStats:
     )
 
 
+def daybook_availability(db: Session) -> DaybookAvailabilityOut:
+    """Min/max VDT from daybook2 — synced Tally data window."""
+    row = db.query(
+        func.min(TallyDaybook2.vdt).label("date_from"),
+        func.max(TallyDaybook2.vdt).label("date_to"),
+    ).one()
+
+    def to_date(value: Any) -> Optional[date]:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        return None
+
+    return DaybookAvailabilityOut(
+        date_from=to_date(row.date_from),
+        date_to=to_date(row.date_to),
+    )
+
+
 def list_sale_invoices(db: Session) -> List[SaleInvoiceOptionOut]:
     rows = (
         db.query(
@@ -117,6 +145,148 @@ def list_locations(db: Session, parent: str = "Locations") -> Sequence[TallyCost
         )
         .order_by(TallyCostCentre.name.asc())
         .all()
+    )
+
+
+def list_vendors(db: Session) -> List[VendorOptionOut]:
+    """Party ledgers under Sundry Creditors / Sundry Debtors."""
+    rows = (
+        db.query(TallyAccountMaster.ledger_name, TallyAccountMaster.primary_group)
+        .filter(
+            TallyAccountMaster.primary_group.in_(VENDOR_PRIMARY_GROUPS),
+            TallyAccountMaster.ledger_name.isnot(None),
+            TallyAccountMaster.ledger_name != "",
+        )
+        .order_by(TallyAccountMaster.ledger_name.asc())
+        .all()
+    )
+    return [
+        VendorOptionOut(ledger_name=row.ledger_name, primary_group=row.primary_group)
+        for row in rows
+        if row.ledger_name
+    ]
+
+
+def list_inventory_items(db: Session) -> List[InventoryItemOptionOut]:
+    rows = (
+        db.query(
+            TallyInventoryMaster.stock_item,
+            TallyInventoryMaster.stock_group,
+            TallyInventoryMaster.packing,
+        )
+        .filter(
+            TallyInventoryMaster.stock_item.isnot(None),
+            TallyInventoryMaster.stock_item != "",
+        )
+        .order_by(TallyInventoryMaster.stock_item.asc())
+        .all()
+    )
+    return [
+        InventoryItemOptionOut(
+            stock_item=row.stock_item,
+            stock_group=row.stock_group,
+            packing=row.packing,
+        )
+        for row in rows
+        if row.stock_item
+    ]
+
+
+def _indian_fy_bounds(as_of: date) -> Tuple[date, date]:
+    """Indian FY: 1 Apr → 31 Mar containing as_of."""
+    if as_of.month >= 4:
+        start = date(as_of.year, 4, 1)
+        end = date(as_of.year + 1, 3, 31)
+    else:
+        start = date(as_of.year - 1, 4, 1)
+        end = date(as_of.year, 3, 31)
+    return start, end
+
+
+def sum_vendor_purchases(
+    db: Session,
+    *,
+    ledger_name: str,
+    date_from: date,
+    date_to: date,
+) -> float:
+    """Sum Purchase (New Ref) ledger amounts for a vendor in a date range."""
+    name = (ledger_name or "").strip()
+    if not name:
+        return 0.0
+    start_dt = datetime.combine(date_from, datetime.min.time())
+    end_dt = datetime.combine(date_to, datetime.max.time())
+    total = (
+        db.query(func.coalesce(func.sum(TallyDaybook2.ledger_amount), 0.0))
+        .filter(
+            TallyDaybook2.vtype == PURCHASE_VTYPE,
+            TallyDaybook2.bill_type == PARTY_BILL_TYPE_NEW,
+            TallyDaybook2.ledger_name == name,
+            TallyDaybook2.vdt.isnot(None),
+            TallyDaybook2.vdt >= start_dt,
+            TallyDaybook2.vdt <= end_dt,
+        )
+        .scalar()
+    )
+    return float(total or 0.0)
+
+
+def vendor_tds_status(
+    db: Session,
+    *,
+    ledger_name: str,
+    invoice_value: float = 0.0,
+    as_of: Optional[date] = None,
+) -> VendorTdsStatusOut:
+    from app.services import company_service
+
+    vendor = (ledger_name or "").strip()
+    invoice = float(invoice_value or 0.0)
+    if invoice < 0:
+        invoice = 0.0
+    as_of_date = as_of or date.today()
+    fy_start, fy_end = _indian_fy_bounds(as_of_date)
+    # Purchases in this FY up to the receipt date (not beyond it).
+    period_end = min(as_of_date, fy_end)
+
+    purchase_total = sum_vendor_purchases(
+        db,
+        ledger_name=vendor,
+        date_from=fy_start,
+        date_to=period_end,
+    ) if vendor else 0.0
+    projected = purchase_total + invoice
+
+    company = company_service.get_company(db)
+    pct = float(company.tds_purchase_pct) if company and company.tds_purchase_pct is not None else None
+    threshold = float(company.tds_threshold) if company and company.tds_threshold is not None else None
+
+    applicable = (
+        vendor != ""
+        and pct is not None
+        and pct > 0
+        and threshold is not None
+        and threshold >= 0
+        and invoice > 0
+        and projected >= threshold
+    )
+    tds_value = (
+        float((invoice * pct / 100.0 // 5) * 5)
+        if applicable and pct is not None
+        else None
+    )
+
+    return VendorTdsStatusOut(
+        vendor=vendor,
+        purchase_total=purchase_total,
+        invoice_value=invoice,
+        projected_total=projected,
+        tds_purchase_pct=pct,
+        tds_threshold=threshold,
+        tds_applicable=applicable,
+        tds_value=tds_value,
+        fy_start=fy_start.isoformat(),
+        fy_end=fy_end.isoformat(),
     )
 
 

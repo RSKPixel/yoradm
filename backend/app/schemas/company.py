@@ -78,6 +78,8 @@ class CompanyOut(BaseModel):
     mobile: Optional[str] = None
     gstin: Optional[str] = None
     pan: Optional[str] = None
+    tds_purchase_pct: Optional[float] = None
+    tds_threshold: Optional[float] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -85,3 +87,8 @@ class CompanyOut(BaseModel):
     @field_serializer("created_at", "updated_at")
     def serialize_datetimes(self, value: Optional[datetime]) -> Optional[str]:
         return _as_utc_iso(value)
+
+
+class GeneralSettingsUpdate(BaseModel):
+    tds_purchase_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    tds_threshold: Optional[float] = Field(default=None, ge=0)

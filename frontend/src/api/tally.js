@@ -1,5 +1,10 @@
 import api from './client'
 
+export async function fetchDaybookAvailability() {
+  const { data } = await api.get('/tally/daybook/availability')
+  return data
+}
+
 export async function fetchSaleInvoices() {
   const { data } = await api.get('/tally/sales/invoices')
   return data
@@ -14,6 +19,32 @@ export async function fetchSaleInvoiceLines(voucherNo) {
 
 export async function fetchLocations() {
   const { data } = await api.get('/tally/locations')
+  return data
+}
+
+export async function fetchRepresentatives() {
+  const { data } = await api.get('/tally/representatives')
+  return data
+}
+
+export async function fetchVendors() {
+  const { data } = await api.get('/tally/vendors')
+  return data
+}
+
+export async function fetchVendorTdsStatus({ ledgerName, invoiceValue, asOf } = {}) {
+  const { data } = await api.get('/tally/vendors/tds-status', {
+    params: {
+      ledger_name: ledgerName,
+      invoice_value: invoiceValue ?? 0,
+      as_of: asOf || undefined,
+    },
+  })
+  return data
+}
+
+export async function fetchInventoryItems() {
+  const { data } = await api.get('/tally/inventory-items')
   return data
 }
 

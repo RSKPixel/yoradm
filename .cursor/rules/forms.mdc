@@ -17,6 +17,13 @@ alwaysApply: false
 - Do not use placeholders — use visible labels only.
 - Do not render inline validation errors inside the form body.
 
+## Numeric fields — always right-aligned
+
+- All quantity, weight, amount, rate, percent, and other numeric values must be **right-aligned**.
+- Prefer `FormattedNumberInput` (applies `win-form__control--num`).
+- Read-only / plain numeric inputs must still use `win-form__control--num` (or table class `win-form__table-num` / `win-form__autocomplete-v--num`).
+- Never leave a numeric control left-aligned.
+
 ## Validation + toasts (match Yorawealth)
 
 1. Add validators in `frontend/src/utils/formValidation.js` — return `string[]` of **all** errors (empty = valid).

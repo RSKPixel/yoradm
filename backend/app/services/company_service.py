@@ -1,9 +1,10 @@
 from typing import Optional
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.company import Company
-from app.schemas.company import CompanyOut, CompanyUpdate
+from app.schemas.company import CompanyOut, CompanyUpdate, GeneralSettingsUpdate
 
 
 def get_company(db: Session) -> Optional[Company]:
@@ -26,6 +27,20 @@ def upsert_company(db: Session, payload: CompanyUpdate) -> Company:
     else:
         for key, value in data.items():
             setattr(company, key, value)
+    db.commit()
+    db.refresh(company)
+    return company
+
+
+def update_general_settings(db: Session, payload: GeneralSettingsUpdate) -> Company:
+    company = get_company(db)
+    if company is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Save company profile first before updating general settings",
+        )
+    company.tds_purchase_pct = payload.tds_purchase_pct
+    company.tds_threshold = payload.tds_threshold
     db.commit()
     db.refresh(company)
     return company

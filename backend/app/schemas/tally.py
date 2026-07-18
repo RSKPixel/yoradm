@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -75,6 +75,35 @@ class CostCentreOut(BaseModel):
     id: int
     name: Optional[str] = None
     parent: Optional[str] = None
+
+
+class VendorOptionOut(BaseModel):
+    ledger_name: str
+    primary_group: Optional[str] = None
+
+
+class InventoryItemOptionOut(BaseModel):
+    stock_item: str
+    stock_group: Optional[str] = None
+    packing: Optional[float] = None
+
+
+class VendorTdsStatusOut(BaseModel):
+    vendor: str
+    purchase_total: float = 0
+    invoice_value: float = 0
+    projected_total: float = 0
+    tds_purchase_pct: Optional[float] = None
+    tds_threshold: Optional[float] = None
+    tds_applicable: bool = False
+    tds_value: Optional[float] = None
+    fy_start: Optional[str] = None
+    fy_end: Optional[str] = None
+
+
+class DaybookAvailabilityOut(BaseModel):
+    date_from: Optional[date] = None
+    date_to: Optional[date] = None
 
 
 class PurchaseOut(BaseModel):
