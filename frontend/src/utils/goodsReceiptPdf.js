@@ -13,8 +13,9 @@ import {
   LETTERHEAD_MARGIN,
 } from './pdfCompanyLetterhead'
 
-const TABLE_FONT_SIZE = 8.5
+const TABLE_FONT_SIZE = 10.5
 const SIGN_AREA = 32
+const SIGN_FONT_SIZE = 11
 
 function formatNum(value, digits = 0) {
   const n = Number(value)
@@ -48,7 +49,7 @@ function drawSignatureBlock(doc, pageWidth, margin) {
   doc.line(rightX, lineY, rightX + lineWidth, lineY)
 
   setPdfCandaraFont(doc, 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(SIGN_FONT_SIZE)
   doc.setTextColor(0, 0, 0)
   doc.text('Incharge', leftX + lineWidth / 2, labelY, { align: 'center' })
   doc.text('Purchase Manager', rightX + lineWidth / 2, labelY, { align: 'center' })
@@ -119,7 +120,7 @@ export async function buildGoodsReceiptPdf({
     showGstin: false,
     showContact: false,
   })
-  const y = addPdfReportTitle(doc, pageWidth, 'Goods Receipt', letterheadY, 5)
+  const y = addPdfReportTitle(doc, pageWidth, 'Goods Receipt', letterheadY, 5, 14)
 
   const hasShortage = Number.isFinite(Number(weightDiff)) && Number(weightDiff) < 0
   const weightCell = numCell(
@@ -192,7 +193,7 @@ export async function buildGoodsReceiptPdf({
 
   const pageHeight = doc.internal.pageSize.getHeight()
   const availableHeight = Math.max(pageHeight - SIGN_AREA - y - 2, 50)
-  const rowHeight = Math.min(availableHeight / rows.length, 8.2)
+  const rowHeight = Math.min(availableHeight / rows.length, 9.4)
   const tableWidth = pageWidth - margin * 2
   const labelWidth = 32
   const valueWidth = (tableWidth - labelWidth * 2) / 2

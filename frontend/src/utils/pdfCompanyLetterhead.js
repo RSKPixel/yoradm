@@ -176,10 +176,11 @@ export function drawCompanyLetterhead(doc, company, options = {}) {
 
 /**
  * @param {number} [topGap=0] Extra space above the title (mm), useful after a compact letterhead.
+ * @param {number} [fontSize] Defaults to letterhead report title size (12).
  */
-export function addPdfReportTitle(doc, pageWidth, title, y, topGap = 0) {
+export function addPdfReportTitle(doc, pageWidth, title, y, topGap = 0, fontSize = LETTERHEAD_REPORT_TITLE_FONT_SIZE) {
   return addCenteredLine(doc, pageWidth, toPdfTitleCase(title), y + topGap, {
-    fontSize: LETTERHEAD_REPORT_TITLE_FONT_SIZE,
+    fontSize,
     fontStyle: 'bold',
     lineHeight: 10,
   })
