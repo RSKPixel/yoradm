@@ -80,7 +80,7 @@ export function SalesPurchaseTradeCard({ data, error }) {
 
   return (
     <section
-      className="dashboard-section dashboard-section--span-3 dashboard-section--trade"
+      className="dashboard-section dashboard-section--span-2 dashboard-section--trade"
       aria-label="Sales purchase receipt payment"
     >
       {error ? <p className="text-sm text-red-400">{error}</p> : null}

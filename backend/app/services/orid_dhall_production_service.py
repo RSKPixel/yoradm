@@ -19,6 +19,16 @@ from app.schemas.orid_dhall_production import (
     OridDhallProductionOut,
     OridDhallPurchaseLineIn,
     OridDhallPurchaseLineOut,
+    OridStockPositionItemOut,
+    OridStockPositionLineOut,
+    OridStockPositionOut,
+)
+from app.services import tally_service
+
+# Dashboard / picker stock groups for pending (unselected) purchases
+ORID_STOCK_GROUPS = (
+    ("Orid Raw", "Orid"),
+    ("Orid Dhall", "Orid Dhall"),
 )
 
 
@@ -339,6 +349,121 @@ def list_used_voucher_nos(
             OridDhallProductionLine.production_id != exclude_production_id
         )
     return sorted({row[0].strip() for row in query.distinct().all() if row[0] and str(row[0]).strip()})
+
+
+def stock_position_unselected(db: Session) -> OridStockPositionOut:
+    """Orid Raw + Orid Dhall purchase stock not yet selected on any production.
+
+    Excludes vouchers already on production lines and legacy-blocked vouchers
+    (same rules as the purchase line picker).
+    """
+    used = {no.strip() for no in list_used_voucher_nos(db) if no and str(no).strip()}
+    items: list[OridStockPositionItemOut] = []
+    total_vouchers = 0
+    grand_qty = 0.0
+    grand_weight = 0.0
+    grand_amount = 0.0
+
+    for stock_group, label in ORID_STOCK_GROUPS:
+        lines = tally_service.list_purchase_lines(db, stock_group=stock_group)
+        voucher_nos: set[str] = set()
+        qty_sum = 0.0
+        weight_sum = 0.0
+        amount_sum = 0.0
+        detail_lines: list[OridStockPositionLineOut] = []
+
+        for line in lines:
+            voucher_no = str(line.voucher_no or "").strip()
+            if not voucher_no:
+                continue
+            if voucher_no in used:
+                continue
+            if is_legacy_blocked_purchase_voucher(voucher_no):
+                continue
+
+            voucher_nos.add(voucher_no)
+            qty = float(line.qty or 0.0)
+            weight = float(line.weight or 0.0)
+            amount = float(line.amount or 0.0)
+            packing = float(line.packing) if line.packing is not None else None
+            if weight <= 0 and qty > 0:
+                weight = qty * (packing if packing is not None else 50.0)
+            # Rate per quintal: (amount / weight) × 100
+            rate = round((amount / weight) * 100.0, 2) if weight > 0 else None
+
+            voucher_date = None
+            if line.voucher_date is not None:
+                voucher_date = (
+                    line.voucher_date.date()
+                    if hasattr(line.voucher_date, "date")
+                    else line.voucher_date
+                )
+
+            detail_lines.append(
+                OridStockPositionLineOut(
+                    voucher_no=voucher_no,
+                    voucher_date=voucher_date,
+                    ledger_name=(line.ledger_name or "").strip() or None,
+                    broker=(line.broker or "").strip() or None,
+                    stock_item=(line.stock_item or "").strip() or None,
+                    brand=(line.brand or "").strip() or None,
+                    packing=packing,
+                    qty=qty,
+                    weight=weight,
+                    rate=rate,
+                    amount=amount,
+                    bags_50=weight / 50.0 if weight else 0.0,
+                    bags_100=weight / 100.0 if weight else 0.0,
+                )
+            )
+            qty_sum += qty
+            weight_sum += weight
+            amount_sum += amount
+
+        detail_lines.sort(
+            key=lambda row: (
+                str(row.voucher_date or ""),
+                row.voucher_no,
+                row.stock_item or "",
+            ),
+            reverse=True,
+        )
+
+        bags_50 = weight_sum / 50.0 if weight_sum else 0.0
+        bags_100 = weight_sum / 100.0 if weight_sum else 0.0
+        # Rate per quintal (same as Orid Dhall production): (amount / weight) × 100
+        avg_rate = (amount_sum / weight_sum) * 100.0 if weight_sum > 0 else 0.0
+        voucher_count = len(voucher_nos)
+        items.append(
+            OridStockPositionItemOut(
+                stock_group=stock_group,
+                label=label,
+                voucher_count=voucher_count,
+                qty=qty_sum,
+                weight=weight_sum,
+                amount=amount_sum,
+                avg_rate=round(avg_rate, 2),
+                bags_50=bags_50,
+                bags_100=bags_100,
+                lines=detail_lines,
+            )
+        )
+        total_vouchers += voucher_count
+        grand_qty += qty_sum
+        grand_weight += weight_sum
+        grand_amount += amount_sum
+
+    grand_avg = (grand_amount / grand_weight) * 100.0 if grand_weight > 0 else 0.0
+    return OridStockPositionOut(
+        items=items,
+        total_vouchers=total_vouchers,
+        qty=grand_qty,
+        weight=grand_weight,
+        amount=grand_amount,
+        avg_rate=round(grand_avg, 2),
+        bags_50=grand_weight / 50.0 if grand_weight else 0.0,
+        bags_100=grand_weight / 100.0 if grand_weight else 0.0,
+    )
 
 
 def _assert_vouchers_available(

@@ -10,6 +10,8 @@ import { DeliveryChallanPage } from './pages/DeliveryChallanPage'
 import { GoodsReceiptPage } from './pages/GoodsReceiptPage'
 import { OridDhallProductionPage } from './pages/OridDhallProductionPage'
 import { PackingMaterialPage } from './pages/PackingMaterialPage'
+import { PayrollAttendancePage } from './pages/PayrollAttendancePage'
+import { PayrollEmployeesPage } from './pages/PayrollEmployeesPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
@@ -31,6 +33,8 @@ export default function App() {
                     <Route path="tally/inventory" element={<PlaceholderPage title="Inventory" />} />
                     <Route path="tally/sales" element={<PlaceholderPage title="Sales" />} />
                     <Route path="tally/purchases" element={<PlaceholderPage title="Purchase" />} />
+                    <Route path="payroll/employees" element={<PayrollEmployeesPage />} />
+                    <Route path="payroll/attendance" element={<PayrollAttendancePage />} />
                   </Route>
                   <Route path="transactions/delivery-challan" element={<DeliveryChallanPage />} />
                   <Route path="transactions/goods-receipt" element={<GoodsReceiptPage />} />

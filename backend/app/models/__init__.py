@@ -3,6 +3,8 @@ from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
 from app.models.goods_receipt import GoodsReceipt
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
 from app.models.packing_material import PackingPurchase, PackingSku, PackingStockFy
+from app.models.payroll_attendance import PayrollAttendance
+from app.models.payroll_employee import PayrollEmployee
 from app.models.refresh_token import RefreshToken
 from app.models.tally import (
     TallyAccountMaster,
@@ -31,6 +33,8 @@ __all__ = [
     "PackingPurchase",
     "PackingSku",
     "PackingStockFy",
+    "PayrollAttendance",
+    "PayrollEmployee",
     "TallyAccountMaster",
     "TallyCostCentre",
     "TallyDaybook",

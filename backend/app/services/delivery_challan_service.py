@@ -129,6 +129,7 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
             TallySale.brand,
             TallySale.qty,
             TallySale.packing,
+            TallySale.amount,
         )
         .filter(
             TallySale.voucher_no.isnot(None),
@@ -149,6 +150,8 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
     all_voucher_nos: set[str] = set()
     grand_50 = 0.0
     grand_100 = 0.0
+    grand_amount = 0.0
+    grand_weight = 0.0
 
     for line in lines:
         voucher_no = (line.voucher_no or "").strip()
@@ -158,18 +161,23 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
 
         stock_group = stock_group_by_item.get(stock_item.lower()) or "—"
         qty = float(line.qty or 0.0)
+        amount = float(line.amount or 0.0)
         packing_raw = float(line.packing) if line.packing is not None else None
         packing = packing_raw if packing_raw is not None else 50.0
         weight = qty * packing
         bags_50 = weight / 50.0
         bags_100 = weight / 100.0
+        avg_rate = (amount / weight) * 100.0 if weight > 0 else 0.0
         detail = PendingDeliveryLineOut(
             stock_item=stock_item,
             brand=(line.brand or "").strip() or None,
             packing=packing_raw,
             qty=qty,
+            amount=amount,
+            weight=weight,
             bags_50=bags_50,
             bags_100=bags_100,
+            avg_rate=round(avg_rate, 2),
         )
 
         group = by_group.get(stock_group)
@@ -200,13 +208,25 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
         invoice.lines.append(detail)
         invoice.bags_50 += bags_50
         invoice.bags_100 += bags_100
+        invoice.amount += amount
+        invoice.weight += weight
+        invoice.avg_rate = (
+            round((invoice.amount / invoice.weight) * 100.0, 2) if invoice.weight > 0 else 0.0
+        )
         group.bags_50 += bags_50
         group.bags_100 += bags_100
+        group.amount += amount
+        group.weight += weight
         grand_50 += bags_50
         grand_100 += bags_100
+        grand_amount += amount
+        grand_weight += weight
 
     items = sorted(by_group.values(), key=lambda item: (-item.invoice_count, item.stock_group))
     for item in items:
+        item.avg_rate = (
+            round((item.amount / item.weight) * 100.0, 2) if item.weight > 0 else 0.0
+        )
         item.invoices.sort(
             key=lambda inv: (
                 inv.voucher_date is None,
@@ -220,6 +240,9 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
         total_invoices=len(all_voucher_nos),
         bags_50=grand_50,
         bags_100=grand_100,
+        amount=grand_amount,
+        weight=grand_weight,
+        avg_rate=round((grand_amount / grand_weight) * 100.0, 2) if grand_weight > 0 else 0.0,
     )
 
 
@@ -265,6 +288,8 @@ def today_deliveries_by_stock_group(
     all_voucher_nos: set[str] = set()
     grand_50 = 0.0
     grand_100 = 0.0
+    grand_amount = 0.0
+    grand_weight = 0.0
 
     for line in lines:
         voucher_no = (line.voucher_no or "").strip()
@@ -274,18 +299,23 @@ def today_deliveries_by_stock_group(
 
         stock_group = stock_group_by_item.get(stock_item.lower()) or "—"
         qty = float(line.qty or 0.0)
+        amount = float(line.amount or 0.0)
         packing_raw = float(line.packing) if line.packing is not None else None
         packing = packing_raw if packing_raw is not None else 50.0
         weight = qty * packing
         bags_50 = weight / 50.0
         bags_100 = weight / 100.0
+        avg_rate = (amount / weight) * 100.0 if weight > 0 else 0.0
         detail = PendingDeliveryLineOut(
             stock_item=stock_item,
             brand=(line.brand or "").strip() or None,
             packing=packing_raw,
             qty=qty,
+            amount=amount,
+            weight=weight,
             bags_50=bags_50,
             bags_100=bags_100,
+            avg_rate=round(avg_rate, 2),
         )
 
         group = by_group.get(stock_group)
@@ -317,13 +347,25 @@ def today_deliveries_by_stock_group(
         invoice.lines.append(detail)
         invoice.bags_50 += bags_50
         invoice.bags_100 += bags_100
+        invoice.amount += amount
+        invoice.weight += weight
+        invoice.avg_rate = (
+            round((invoice.amount / invoice.weight) * 100.0, 2) if invoice.weight > 0 else 0.0
+        )
         group.bags_50 += bags_50
         group.bags_100 += bags_100
+        group.amount += amount
+        group.weight += weight
         grand_50 += bags_50
         grand_100 += bags_100
+        grand_amount += amount
+        grand_weight += weight
 
     items = sorted(by_group.values(), key=lambda item: (-item.invoice_count, item.stock_group))
     for item in items:
+        item.avg_rate = (
+            round((item.amount / item.weight) * 100.0, 2) if item.weight > 0 else 0.0
+        )
         item.invoices.sort(
             key=lambda inv: (
                 inv.voucher_date is None,
@@ -337,6 +379,9 @@ def today_deliveries_by_stock_group(
         total_invoices=len(all_voucher_nos),
         bags_50=grand_50,
         bags_100=grand_100,
+        amount=grand_amount,
+        weight=grand_weight,
+        avg_rate=round((grand_amount / grand_weight) * 100.0, 2) if grand_weight > 0 else 0.0,
     )
 
 

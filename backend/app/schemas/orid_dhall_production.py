@@ -199,3 +199,45 @@ class OridDhallPeriodOptionsOut(BaseModel):
 
 class OridDhallProductionStatusUpdate(BaseModel):
     status: Literal["Open", "Closed"]
+
+
+class OridStockPositionLineOut(BaseModel):
+    voucher_no: str
+    voucher_date: Optional[date] = None
+    ledger_name: Optional[str] = None
+    broker: Optional[str] = None
+    stock_item: Optional[str] = None
+    brand: Optional[str] = None
+    packing: Optional[float] = None
+    qty: float = 0
+    weight: float = 0
+    rate: Optional[float] = None
+    amount: float = 0
+    bags_50: float = 0
+    bags_100: float = 0
+
+
+class OridStockPositionItemOut(BaseModel):
+    """Unselected purchase stock (not yet used on any production)."""
+
+    stock_group: str
+    label: str
+    voucher_count: int = 0
+    qty: float = 0
+    weight: float = 0
+    amount: float = 0
+    avg_rate: float = 0  # ₹ per quintal: (amount / weight) × 100
+    bags_50: float = 0
+    bags_100: float = 0
+    lines: List[OridStockPositionLineOut] = []
+
+
+class OridStockPositionOut(BaseModel):
+    items: List[OridStockPositionItemOut] = []
+    total_vouchers: int = 0
+    qty: float = 0
+    weight: float = 0
+    amount: float = 0
+    avg_rate: float = 0
+    bags_50: float = 0
+    bags_100: float = 0

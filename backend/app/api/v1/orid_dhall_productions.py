@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.schemas import PaginatedResponse
 from app.schemas.orid_dhall_production import (
     OridDhallOpenBatchItem,
@@ -12,6 +12,7 @@ from app.schemas.orid_dhall_production import (
     OridDhallProductionListItem,
     OridDhallProductionOut,
     OridDhallProductionStatusUpdate,
+    OridStockPositionOut,
 )
 from app.services import orid_dhall_production_service
 
@@ -36,6 +37,12 @@ def list_used_vouchers(
         line_kind=kind,
         exclude_production_id=exclude_production_id,
     )
+
+
+@router.get("/stock-position", response_model=OridStockPositionOut)
+def stock_position(_: AdminUser, db: DbSession) -> OridStockPositionOut:
+    """Orid + Orid Dhall purchase stock not yet selected in production (admin)."""
+    return orid_dhall_production_service.stock_position_unselected(db)
 
 
 @router.get("/open-batches", response_model=List[OridDhallOpenBatchItem])

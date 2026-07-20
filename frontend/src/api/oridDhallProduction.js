@@ -49,6 +49,11 @@ export async function fetchUsedProductionVouchers({
   return data
 }
 
+export async function fetchOridStockPosition() {
+  const { data } = await api.get('/orid-dhall-productions/stock-position')
+  return data
+}
+
 export async function searchOridDhallProductions({
   dateFrom,
   dateTo,

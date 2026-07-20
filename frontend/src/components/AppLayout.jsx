@@ -10,6 +10,8 @@ import {
   Cog6ToothIcon,
   DocumentChartBarIcon,
   UserGroupIcon,
+  IdentificationIcon,
+  CalendarDaysIcon,
   ClipboardDocumentListIcon,
   CubeTransparentIcon,
   InboxArrowDownIcon,
@@ -59,7 +61,11 @@ const navSections = [
     id: 'payroll',
     label: 'Payroll',
     icon: UserGroupIcon,
-    items: [],
+    adminOnly: true,
+    items: [
+      { to: '/payroll/employees', label: 'Employees', icon: IdentificationIcon },
+      { to: '/payroll/attendance', label: 'Attendance', icon: CalendarDaysIcon },
+    ],
   },
   {
     id: 'reports',
@@ -269,6 +275,7 @@ export function AppLayout() {
     location.pathname.startsWith('/transactions/delivery-challan') ||
     location.pathname.startsWith('/transactions/goods-receipt') ||
     location.pathname.startsWith('/transactions/packing-material') ||
+    location.pathname.startsWith('/payroll/') ||
     location.pathname.startsWith('/reports/receivables-analysis')
   const isFillMain = isPrimaryContentPage || isDashboardPage
 

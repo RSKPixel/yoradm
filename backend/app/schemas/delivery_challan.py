@@ -129,8 +129,11 @@ class PendingDeliveryLineOut(BaseModel):
     brand: Optional[str] = None
     packing: Optional[float] = None
     qty: float = 0
+    amount: float = 0
+    weight: float = 0
     bags_50: float = 0
     bags_100: float = 0
+    avg_rate: float = 0
 
 
 class PendingDeliveryInvoiceOut(BaseModel):
@@ -139,6 +142,9 @@ class PendingDeliveryInvoiceOut(BaseModel):
     ledger_name: Optional[str] = None
     bags_50: float = 0
     bags_100: float = 0
+    amount: float = 0
+    weight: float = 0
+    avg_rate: float = 0
     lines: List[PendingDeliveryLineOut] = []
 
 
@@ -147,6 +153,9 @@ class PendingDeliveryByStockGroupOut(BaseModel):
     invoice_count: int = 0
     bags_50: float = 0
     bags_100: float = 0
+    amount: float = 0
+    weight: float = 0
+    avg_rate: float = 0
     invoices: List[PendingDeliveryInvoiceOut] = []
 
 
@@ -155,3 +164,6 @@ class PendingDeliveriesOut(BaseModel):
     total_invoices: int = 0
     bags_50: float = 0
     bags_100: float = 0
+    amount: float = 0
+    weight: float = 0
+    avg_rate: float = 0

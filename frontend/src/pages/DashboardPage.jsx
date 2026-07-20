@@ -3,6 +3,7 @@ import {
   fetchPendingDeliveriesByStockGroup,
   fetchTodayDeliveriesByStockGroup,
 } from '../api/deliveryChallan'
+import { fetchOridStockPosition } from '../api/oridDhallProduction'
 import {
   fetchCollectionPerformance,
   fetchSaleRepresentatives,
@@ -10,6 +11,8 @@ import {
 } from '../api/tally'
 import { useAuth } from '../auth/AuthContext'
 import { CollectionPerformanceCard } from '../components/dashboard/CollectionPerformanceCard'
+import { OridStockPositionCard } from '../components/dashboard/OridStockPositionCard'
+import { OridStockPositionModal } from '../components/dashboard/OridStockPositionModal'
 import { PendingDeliveriesModal } from '../components/dashboard/PendingDeliveriesModal'
 import { SalesPurchaseTradeCard } from '../components/dashboard/SalesPurchaseTradeCard'
 import { FormDropdown } from '../components/form/FormDropdown'
@@ -22,13 +25,10 @@ function formatBags50(value) {
   return Math.round(num).toLocaleString()
 }
 
-function formatBags100(value) {
+function formatAvgRate(value) {
   const num = Number(value)
-  if (!Number.isFinite(num)) return '0.00'
-  return num.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  if (!Number.isFinite(num) || num === 0) return '—'
+  return Math.round(num).toLocaleString()
 }
 
 function startOfWeekMonday(day) {
@@ -168,21 +168,25 @@ function DeliveriesSection({
 
       {items.length > 0 ? (
         <div className="dashboard-section__body">
-          <div className="dashboard-section__cols" aria-hidden="true">
+          <div className="dashboard-section__cols dashboard-section__cols--avg" aria-hidden="true">
             <span>Stock group</span>
-            <span>/50kgs</span>
-            <span>/100kgs</span>
+            <span>50kg</span>
+            <span>Avg</span>
           </div>
           <ul className="dashboard-section__list">
             {items.map((item) => (
               <li key={item.stock_group}>
-                <button type="button" className="dashboard-section__row" onClick={onOpen}>
+                <button
+                  type="button"
+                  className="dashboard-section__row dashboard-section__row--avg"
+                  onClick={onOpen}
+                >
                   <span className="dashboard-section__group">
                     {item.stock_group}
                     <span className="text-(--muted)"> ({item.invoice_count})</span>
                   </span>
                   <span className="dashboard-section__num">{formatBags50(item.bags_50)}</span>
-                  <span className="dashboard-section__num">{formatBags100(item.bags_100)}</span>
+                  <span className="dashboard-section__num">{formatAvgRate(item.avg_rate)}</span>
                 </button>
               </li>
             ))}
@@ -209,6 +213,10 @@ export function DashboardPage() {
 
   const [trade, setTrade] = useState(null)
   const [tradeError, setTradeError] = useState('')
+
+  const [oridStock, setOridStock] = useState(null)
+  const [oridStockError, setOridStockError] = useState('')
+  const [oridStockModalOpen, setOridStockModalOpen] = useState(false)
 
   const [collectionPeriod, setCollectionPeriod] = useState('month')
   const [collectionRep, setCollectionRep] = useState('')
@@ -313,6 +321,25 @@ export function DashboardPage() {
   }, [isAdmin, currentFy])
 
   useEffect(() => {
+    if (!isAdmin) return undefined
+    let cancelled = false
+    setOridStock(null)
+    setOridStockError('')
+    void fetchOridStockPosition()
+      .then((data) => {
+        if (!cancelled) setOridStock(data)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setOridStockError(getApiErrorMessage(err, 'Unable to load Orid stock position'))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin])
+
+  useEffect(() => {
     if (!isAdmin || !selectedCollectionPeriod) return undefined
     let cancelled = false
     setCollection(null)
@@ -366,6 +393,13 @@ export function DashboardPage() {
           }
         />
         {isAdmin ? (
+          <OridStockPositionCard
+            data={oridStock}
+            error={oridStockError}
+            onOpen={() => setOridStockModalOpen(true)}
+          />
+        ) : null}
+        {isAdmin ? (
           <CollectionPerformanceCard
             data={collection}
             error={collectionError}
@@ -393,6 +427,13 @@ export function DashboardPage() {
           emptyMessage={selectedPeriod?.emptyMessage || 'No deliveries.'}
           items={delivery?.items ?? []}
           onClose={() => setDeliveryModalOpen(false)}
+        />
+      ) : null}
+
+      {oridStockModalOpen ? (
+        <OridStockPositionModal
+          items={oridStock?.items ?? []}
+          onClose={() => setOridStockModalOpen(false)}
         />
       ) : null}
     </div>
