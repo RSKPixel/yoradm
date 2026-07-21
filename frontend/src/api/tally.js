@@ -43,6 +43,37 @@ export async function fetchVendorTdsStatus({ ledgerName, invoiceValue, asOf } = 
   return data
 }
 
+export async function fetchTdsWorkings({ dateFrom, dateTo, q } = {}) {
+  const { data } = await api.get('/tally/tds-workings', {
+    params: {
+      date_from: dateFrom,
+      date_to: dateTo,
+      q: q || undefined,
+    },
+  })
+  return data
+}
+
+export async function saveTdsWorkings({ dateFrom, dateTo } = {}) {
+  const { data } = await api.post('/tally/tds-workings/save', null, {
+    params: {
+      date_from: dateFrom,
+      date_to: dateTo,
+    },
+  })
+  return data
+}
+
+export async function updateTdsWorkings({ dateFrom, dateTo } = {}) {
+  const { data } = await api.post('/tally/tds-workings/update', null, {
+    params: {
+      date_from: dateFrom,
+      date_to: dateTo,
+    },
+  })
+  return data
+}
+
 export async function fetchInventoryItems() {
   const { data } = await api.get('/tally/inventory-items')
   return data

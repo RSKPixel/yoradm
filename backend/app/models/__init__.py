@@ -6,6 +6,7 @@ from app.models.packing_material import PackingPurchase, PackingSku, PackingStoc
 from app.models.payroll_attendance import PayrollAttendance
 from app.models.payroll_employee import PayrollEmployee
 from app.models.refresh_token import RefreshToken
+from app.models.tds_working import TdsWorking
 from app.models.tally import (
     TallyAccountMaster,
     TallyCostCentre,
@@ -35,6 +36,7 @@ __all__ = [
     "PackingStockFy",
     "PayrollAttendance",
     "PayrollEmployee",
+    "TdsWorking",
     "TallyAccountMaster",
     "TallyCostCentre",
     "TallyDaybook",

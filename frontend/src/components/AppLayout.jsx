@@ -16,6 +16,7 @@ import {
   CubeTransparentIcon,
   InboxArrowDownIcon,
   RectangleStackIcon,
+  ReceiptPercentIcon,
   ScaleIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../auth/AuthContext'
@@ -73,6 +74,7 @@ const navSections = [
     icon: DocumentChartBarIcon,
     items: [
       { to: '/reports/receivables-analysis', label: 'Receivables Analysis', icon: ScaleIcon },
+      { to: '/reports/tds-workings', label: 'TDS Workings', icon: ReceiptPercentIcon },
     ],
   },
 ]
@@ -276,7 +278,8 @@ export function AppLayout() {
     location.pathname.startsWith('/transactions/goods-receipt') ||
     location.pathname.startsWith('/transactions/packing-material') ||
     location.pathname.startsWith('/payroll/') ||
-    location.pathname.startsWith('/reports/receivables-analysis')
+    location.pathname.startsWith('/reports/receivables-analysis') ||
+    location.pathname.startsWith('/reports/tds-workings')
   const isFillMain = isPrimaryContentPage || isDashboardPage
 
   return (

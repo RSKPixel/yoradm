@@ -3641,3 +3641,386 @@ body {
   border-color: var(--form-accent-dark, var(--accent-dark));
   box-shadow: inset 0 0 0 1px var(--form-accent-dark, var(--accent-dark));
 }
+
+/* TDS Workings */
+.tds-workings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 0.75rem 1rem 0.5rem;
+}
+
+.tds-workings__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem 1rem;
+}
+
+.tds-workings__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem 0.85rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tds-workings__toolbar .tds-workings__field {
+  margin-bottom: 0;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+}
+
+.tds-workings__toolbar .tds-workings__field--fy {
+  width: 8.5rem;
+}
+
+.tds-workings__toolbar .tds-workings__field--month {
+  width: 8rem;
+}
+
+.tds-workings__toolbar .tds-workings__field--head {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+}
+
+.tds-workings__toolbar .tds-workings__field--return {
+  width: auto;
+}
+
+.tds-workings__return-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.tds-workings__quarters {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background: var(--panel);
+  min-height: 2.1rem;
+}
+
+.tds-workings__quarter {
+  margin: 0;
+  padding: 0.35rem 0.7rem;
+  border: 0;
+  border-right: 1px solid var(--form-line, var(--line));
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: var(--font-tabular);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.tds-workings__quarter:last-child {
+  border-right: 0;
+}
+
+.tds-workings__quarter:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.tds-workings__quarter.is-active {
+  color: var(--on-accent, #fff);
+  background: var(--form-accent, var(--accent));
+}
+
+.tds-workings__quarter:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tds-workings__quarter:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--form-accent, var(--accent)) 70%, transparent);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.tds-workings__export {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.4rem;
+  overflow: hidden;
+  background: var(--panel);
+  min-height: 2.1rem;
+}
+
+.tds-workings__export-btn {
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-right: 1px solid var(--form-line, var(--line));
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tds-workings__export-btn:last-child {
+  border-right: 0;
+}
+
+.tds-workings__export-btn:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.tds-workings__export-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tds-workings__export-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--form-accent, var(--accent)) 70%, transparent);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.excel-preview-frame {
+  background: #fff;
+}
+
+.tds-workings__head-dropdown {
+  width: 100%;
+}
+
+.tds-workings__head-dropdown .win-form__dropdown-trigger {
+  width: 100%;
+}
+
+.tds-workings__head-dropdown .win-form__dropdown-label {
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.tds-workings__head-list {
+  white-space: nowrap;
+}
+
+.tds-workings__count {
+  margin: 0 0 0.2rem auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.tds-workings__table-wrap {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel);
+}
+
+.tds-workings__table-head,
+.tds-workings__table-foot {
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  background: var(--surface);
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+}
+
+.tds-workings__table-head::-webkit-scrollbar,
+.tds-workings__table-foot::-webkit-scrollbar {
+  display: none;
+}
+
+.tds-workings__table-head {
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.tds-workings__table-foot {
+  border-top: 1px solid var(--form-line, var(--line));
+}
+
+.tds-workings__table-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  background: var(--panel);
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.tds-workings__table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tds-workings__table-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.tds-workings__table {
+  width: 100%;
+  min-width: 56rem;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--panel);
+}
+
+.tds-workings__table--summary {
+  min-width: 32rem;
+}
+
+.tds-workings__table th,
+.tds-workings__table td {
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--panel);
+  font-family: var(--font-tabular);
+  font-variant-numeric: tabular-nums;
+}
+
+.tds-workings__table thead th {
+  background: var(--surface);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: none;
+  box-shadow: none;
+}
+
+.tds-workings__table-spacer {
+  visibility: hidden;
+  line-height: 0;
+}
+
+.tds-workings__table-spacer th {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border: none !important;
+  height: 0 !important;
+  overflow: hidden;
+  color: transparent;
+}
+
+.tds-workings__table tbody td {
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.tds-workings__table-foot td {
+  border-bottom: none;
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.tds-workings__col-date {
+  width: 6.5rem;
+}
+
+.tds-workings__col-party {
+  width: auto;
+  min-width: 12rem;
+}
+
+.tds-workings__col-pan {
+  width: 8.5rem;
+}
+
+.tds-workings__col-exp-date {
+  width: 7rem;
+}
+
+.tds-workings__col-exp-amount {
+  width: 8.5rem;
+}
+
+.tds-workings__table--summary .tds-workings__col-head {
+  width: auto;
+}
+
+.tds-workings__table th.tds-workings__col-party,
+.tds-workings__table td.tds-workings__col-party,
+.tds-workings__table th.tds-workings__col-head,
+.tds-workings__table td.tds-workings__col-head {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+.tds-workings__col-lines {
+  width: 5rem;
+}
+
+.tds-workings__col-amount {
+  width: 8.5rem;
+}
+
+.tds-workings__table th.tds-workings__col-amount,
+.tds-workings__table td.tds-workings__col-amount {
+  padding-right: 0.85rem;
+}
+
+.tds-workings__table th.win-form__table-num,
+.tds-workings__table td.win-form__table-num,
+.tds-workings__col-lines,
+.tds-workings__col-exp-amount,
+.tds-workings__col-amount {
+  text-align: right;
+}
+
+.tds-workings__row-click {
+  cursor: pointer;
+}
+
+.tds-workings__table tbody tr:hover td {
+  background: color-mix(in srgb, var(--form-accent, var(--accent)) 10%, var(--panel));
+}
+
+.tds-workings__table tbody tr.tds-workings__row--new td {
+  background: color-mix(in srgb, #2f9e44 16%, var(--panel));
+}
+
+.tds-workings__table tbody tr.tds-workings__row--new:hover td {
+  background: color-mix(in srgb, #2f9e44 26%, var(--panel));
+}
+
+.tds-workings__table tbody tr.tds-workings__row--deleted td {
+  background: color-mix(in srgb, #e03131 16%, var(--panel));
+}
+
+.tds-workings__table tbody tr.tds-workings__row--deleted:hover td {
+  background: color-mix(in srgb, #e03131 26%, var(--panel));
+}
+
+.tds-workings__total-label {
+  text-align: right;
+  color: var(--muted);
+}

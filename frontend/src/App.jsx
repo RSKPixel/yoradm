@@ -14,6 +14,7 @@ import { PayrollAttendancePage } from './pages/PayrollAttendancePage'
 import { PayrollEmployeesPage } from './pages/PayrollEmployeesPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
+import { TdsWorkingsPage } from './pages/TdsWorkingsPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
 
 export default function App() {
@@ -56,6 +57,7 @@ export default function App() {
                     path="reports/receivables-analysis"
                     element={<ReceivablesAnalysisPage />}
                   />
+                  <Route path="reports/tds-workings" element={<TdsWorkingsPage />} />
 
                   <Route path="settings" element={<OpenSettingsRoute />} />
                   <Route path="company" element={<OpenSettingsRoute tab="company" />} />

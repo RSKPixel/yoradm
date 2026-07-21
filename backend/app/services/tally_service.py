@@ -16,6 +16,7 @@ from app.models.tally import (
     TallySale,
     TallyStockSummary,
 )
+from app.models.tds_working import TdsWorking
 from app.schemas import DashboardStats
 from app.schemas.tally import (
     CollectionAgeBucketOut,
@@ -30,6 +31,8 @@ from app.schemas.tally import (
     ReceivablePartyAgeingOut,
     ReceivableRepresentativeOut,
     SaleInvoiceOptionOut,
+    TdsWorkingsOut,
+    TdsWorkingsRow,
     VendorOptionOut,
     VendorTdsStatusOut,
 )
@@ -40,6 +43,8 @@ SALES_VTYPE = "SIVENDHI BILLING"
 PURCHASE_VTYPE = "Purchase"
 RECEIPT_VTYPE = "Receipt"
 PAYMENT_VTYPE = "Payment"
+JOURNAL_VTYPE = "Journal"
+TDS_PAYABLE_LEDGER = "TDS Payable"
 PARTY_BILL_TYPE_NEW = "New Ref"
 PARTY_BILL_TYPE_AGST = "Agst Ref"
 
@@ -288,6 +293,515 @@ def vendor_tds_status(
         fy_start=fy_start.isoformat(),
         fy_end=fy_end.isoformat(),
     )
+
+
+def _daybook_vdt_date(value: Any) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def _voucher_key(vno: Optional[str], vdt: Any) -> Optional[Tuple[str, str]]:
+    no = (vno or "").strip()
+    day = _daybook_vdt_date(vdt)
+    if not no or day is None:
+        return None
+    return (no, day.isoformat())
+
+
+def _resolve_tds_party(
+    siblings: Sequence[TallyDaybook2],
+    party_groups: Dict[str, str],
+) -> Optional[str]:
+    """Pick party ledger from Journal sibling lines (exclude TDS Payable)."""
+    candidates: List[Tuple[str, float, bool]] = []
+    for row in siblings:
+        name = (row.ledger_name or "").strip()
+        if not name or name.casefold() == TDS_PAYABLE_LEDGER.casefold():
+            continue
+        amount = abs(float(row.ledger_amount or 0.0))
+        is_party = party_groups.get(name.casefold(), "") in {
+            g.casefold() for g in VENDOR_PRIMARY_GROUPS
+        }
+        candidates.append((name, amount, is_party))
+    if not candidates:
+        return None
+    party_candidates = [c for c in candidates if c[2]]
+    pool = party_candidates or candidates
+    pool.sort(key=lambda c: c[1], reverse=True)
+    return pool[0][0]
+
+
+def _resolve_tds_bill(
+    line: TallyDaybook2,
+    siblings: Sequence[TallyDaybook2],
+    party: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Bill ref from the TDS line, else the party sibling, else any sibling with a bill."""
+    bill_no = (line.bill_no or "").strip() or None
+    bill_type = (line.bill_type or "").strip() or None
+    if bill_no:
+        return bill_no, bill_type
+
+    ordered: List[TallyDaybook2] = []
+    if party:
+        party_cf = party.casefold()
+        ordered.extend(
+            row
+            for row in siblings
+            if (row.ledger_name or "").strip().casefold() == party_cf
+        )
+    ordered.extend(
+        row
+        for row in siblings
+        if (row.ledger_name or "").strip()
+        and (row.ledger_name or "").strip().casefold() != TDS_PAYABLE_LEDGER.casefold()
+        and row not in ordered
+    )
+    for row in ordered:
+        sibling_bill = (row.bill_no or "").strip() or None
+        if sibling_bill:
+            return sibling_bill, (row.bill_type or "").strip() or None
+    return None, bill_type
+
+
+def _expense_lookup_key(party: Optional[str], bill_no: Optional[str]) -> Optional[Tuple[str, str]]:
+    name = (party or "").strip()
+    bill = (bill_no or "").strip()
+    if not name or not bill:
+        return None
+    return (name.casefold(), bill)
+
+
+def _pan_from_account(pan: Optional[str], party_gstin: Optional[str]) -> Optional[str]:
+    """If PAN is set use it; otherwise take chars 3–12 from GSTIN."""
+    pan_value = (pan or "").strip()
+    if pan_value:
+        return pan_value.upper()
+    gstin = "".join(ch for ch in (party_gstin or "").strip().upper() if ch.isalnum())
+    if len(gstin) >= 12:
+        return gstin[2:12]
+    return None
+
+
+def _load_expense_refs(
+    db: Session,
+    party_bill_pairs: Sequence[Tuple[str, str]],
+) -> Dict[Tuple[str, str], Tuple[Optional[date], float]]:
+    """Map (party_cf, bill_no) → (vdt date, ledger_amount) from New Ref daybook rows."""
+    pairs = {
+        (party.strip(), bill.strip())
+        for party, bill in party_bill_pairs
+        if (party or "").strip() and (bill or "").strip()
+    }
+    if not pairs:
+        return {}
+
+    parties = sorted({party for party, _ in pairs})
+    bill_nos = sorted({bill for _, bill in pairs})
+    wanted = {_expense_lookup_key(party, bill) for party, bill in pairs}
+
+    expense_rows = (
+        db.query(TallyDaybook2)
+        .filter(
+            TallyDaybook2.bill_type == PARTY_BILL_TYPE_NEW,
+            TallyDaybook2.ledger_name.in_(parties),
+            TallyDaybook2.bill_no.in_(bill_nos),
+            TallyDaybook2.vdt.isnot(None),
+        )
+        .order_by(TallyDaybook2.vdt.asc(), TallyDaybook2.id.asc())
+        .all()
+    )
+
+    result: Dict[Tuple[str, str], Tuple[Optional[date], float]] = {}
+    for row in expense_rows:
+        key = _expense_lookup_key(row.ledger_name, row.bill_no)
+        if key is None or key not in wanted or key in result:
+            continue
+        result[key] = (
+            _daybook_vdt_date(row.vdt),
+            float(row.ledger_amount or 0.0),
+        )
+    return result
+
+
+TDS_STATUS_MATCHED = "matched"
+TDS_STATUS_NEW = "new"
+TDS_STATUS_DELETED = "deleted"
+
+
+def _parse_iso_date(value: Optional[str]) -> Optional[date]:
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def _tds_row_from_saved(row: TdsWorking, *, status: str) -> TdsWorkingsRow:
+    return TdsWorkingsRow(
+        source_id=int(row.source_id),
+        voucher_date=row.voucher_date.isoformat() if row.voucher_date else None,
+        voucher_no=(row.voucher_no or None),
+        party=(row.party or None),
+        pan=(row.pan or None),
+        tds_head=(row.tds_head or None),
+        amount=float(row.amount or 0.0),
+        narration=(row.narration or None),
+        bill_no=(row.bill_no or None),
+        bill_type=(row.bill_type or None),
+        expenses_date=row.expenses_date.isoformat() if row.expenses_date else None,
+        expenses_amount=(
+            float(row.expenses_amount) if row.expenses_amount is not None else None
+        ),
+        status=status,
+    )
+
+
+def _tds_entity_from_row(row: TdsWorkingsRow) -> TdsWorking:
+    return TdsWorking(
+        source_id=int(row.source_id),
+        voucher_date=_parse_iso_date(row.voucher_date),
+        voucher_no=(row.voucher_no or None),
+        party=(row.party or None),
+        pan=(row.pan or None),
+        tds_head=(row.tds_head or None),
+        amount=float(row.amount or 0.0),
+        narration=(row.narration or None),
+        bill_no=(row.bill_no or None),
+        bill_type=(row.bill_type or None),
+        expenses_date=_parse_iso_date(row.expenses_date),
+        expenses_amount=(
+            float(row.expenses_amount) if row.expenses_amount is not None else None
+        ),
+    )
+
+
+def _apply_live_fields(target: TdsWorking, live: TdsWorkingsRow) -> None:
+    target.voucher_date = _parse_iso_date(live.voucher_date)
+    target.voucher_no = live.voucher_no or None
+    target.party = live.party or None
+    target.pan = live.pan or None
+    target.tds_head = live.tds_head or None
+    target.amount = float(live.amount or 0.0)
+    target.narration = live.narration or None
+    target.bill_no = live.bill_no or None
+    target.bill_type = live.bill_type or None
+    target.expenses_date = _parse_iso_date(live.expenses_date)
+    target.expenses_amount = (
+        float(live.expenses_amount) if live.expenses_amount is not None else None
+    )
+
+
+def _build_live_tds_workings(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+    q: Optional[str] = None,
+) -> List[TdsWorkingsRow]:
+    """Journal lines on TDS Payable, with party/PAN/expenses resolved (no saved merge)."""
+    start = min(date_from, date_to)
+    end = max(date_from, date_to)
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.max.time())
+
+    tds_lines = (
+        db.query(TallyDaybook2)
+        .filter(
+            TallyDaybook2.vtype == JOURNAL_VTYPE,
+            TallyDaybook2.ledger_name == TDS_PAYABLE_LEDGER,
+            TallyDaybook2.vdt.isnot(None),
+            TallyDaybook2.vdt >= start_dt,
+            TallyDaybook2.vdt <= end_dt,
+        )
+        .order_by(TallyDaybook2.vdt.asc(), TallyDaybook2.vno.asc(), TallyDaybook2.id.asc())
+        .all()
+    )
+
+    vnos = sorted(
+        {
+            (row.vno or "").strip()
+            for row in tds_lines
+            if (row.vno or "").strip()
+        }
+    )
+
+    siblings_by_key: Dict[Tuple[str, str], List[TallyDaybook2]] = defaultdict(list)
+    if vnos:
+        sibling_rows = (
+            db.query(TallyDaybook2)
+            .filter(
+                TallyDaybook2.vtype == JOURNAL_VTYPE,
+                TallyDaybook2.vno.in_(vnos),
+                TallyDaybook2.vdt.isnot(None),
+                TallyDaybook2.vdt >= start_dt,
+                TallyDaybook2.vdt <= end_dt,
+            )
+            .all()
+        )
+        for row in sibling_rows:
+            key = _voucher_key(row.vno, row.vdt)
+            if key:
+                siblings_by_key[key].append(row)
+
+    sibling_names = {
+        (row.ledger_name or "").strip()
+        for rows in siblings_by_key.values()
+        for row in rows
+        if (row.ledger_name or "").strip()
+        and (row.ledger_name or "").strip().casefold() != TDS_PAYABLE_LEDGER.casefold()
+    }
+    party_groups: Dict[str, str] = {}
+    party_pans: Dict[str, str] = {}
+    if sibling_names:
+        for ledger_name, primary_group, pan, party_gstin in (
+            db.query(
+                TallyAccountMaster.ledger_name,
+                TallyAccountMaster.primary_group,
+                TallyAccountMaster.pan,
+                TallyAccountMaster.party_gstin,
+            )
+            .filter(TallyAccountMaster.ledger_name.in_(sibling_names))
+            .all()
+        ):
+            name = (ledger_name or "").strip()
+            if not name:
+                continue
+            key = name.casefold()
+            party_groups[key] = (primary_group or "").strip()
+            pan_value = _pan_from_account(pan, party_gstin)
+            if pan_value:
+                party_pans[key] = pan_value
+
+    search = (q or "").strip().lower()
+    search_tokens = [t for t in search.split() if t] if search else []
+
+    pending: List[dict] = []
+    party_bill_pairs: List[Tuple[str, str]] = []
+    for line in tds_lines:
+        key = _voucher_key(line.vno, line.vdt)
+        siblings = siblings_by_key.get(key, []) if key else []
+        party = _resolve_tds_party(siblings, party_groups)
+        pan = party_pans.get(party.casefold()) if party else None
+        amount = float(line.ledger_amount or 0.0)
+        day = _daybook_vdt_date(line.vdt)
+        voucher_no = (line.vno or "").strip() or None
+        tds_head = (line.costcentre_name or "").strip() or None
+        narration = (line.narration or "").strip() or None
+        bill_no, bill_type = _resolve_tds_bill(line, siblings, party)
+
+        if search_tokens:
+            haystack = " ".join(
+                [
+                    party or "",
+                    pan or "",
+                    tds_head or "",
+                    voucher_no or "",
+                    narration or "",
+                    bill_no or "",
+                    bill_type or "",
+                ]
+            ).lower()
+            if not all(token in haystack for token in search_tokens):
+                continue
+
+        if party and bill_no:
+            party_bill_pairs.append((party, bill_no))
+
+        pending.append(
+            {
+                "source_id": int(line.id),
+                "voucher_date": day.isoformat() if day else None,
+                "voucher_no": voucher_no,
+                "party": party,
+                "pan": pan,
+                "tds_head": tds_head,
+                "amount": amount,
+                "narration": narration,
+                "bill_no": bill_no,
+                "bill_type": bill_type,
+            }
+        )
+
+    expense_refs = _load_expense_refs(db, party_bill_pairs)
+
+    rows: List[TdsWorkingsRow] = []
+    for item in pending:
+        expense_key = _expense_lookup_key(item["party"], item["bill_no"])
+        expense = expense_refs.get(expense_key) if expense_key else None
+        expenses_date = expense[0].isoformat() if expense and expense[0] else None
+        expenses_amount = expense[1] if expense else None
+
+        rows.append(
+            TdsWorkingsRow(
+                source_id=item["source_id"],
+                voucher_date=item["voucher_date"],
+                voucher_no=item["voucher_no"],
+                party=item["party"],
+                pan=item["pan"],
+                tds_head=item["tds_head"],
+                amount=item["amount"],
+                narration=item["narration"],
+                bill_no=item["bill_no"],
+                bill_type=item["bill_type"],
+                expenses_date=expenses_date,
+                expenses_amount=expenses_amount,
+                status=TDS_STATUS_NEW,
+            )
+        )
+    return rows
+
+
+def _load_saved_tds_workings(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+) -> List[TdsWorking]:
+    start = min(date_from, date_to)
+    end = max(date_from, date_to)
+    return (
+        db.query(TdsWorking)
+        .filter(
+            TdsWorking.voucher_date.isnot(None),
+            TdsWorking.voucher_date >= start,
+            TdsWorking.voucher_date <= end,
+        )
+        .order_by(
+            TdsWorking.voucher_date.asc(),
+            TdsWorking.voucher_no.asc(),
+            TdsWorking.source_id.asc(),
+        )
+        .all()
+    )
+
+
+def _merge_tds_workings(
+    live_rows: Sequence[TdsWorkingsRow],
+    saved_rows: Sequence[TdsWorking],
+) -> Tuple[List[TdsWorkingsRow], int, int, bool]:
+    saved_by_source = {int(row.source_id): row for row in saved_rows}
+    live_by_source = {
+        int(row.source_id): row for row in live_rows if row.source_id is not None
+    }
+
+    merged: List[TdsWorkingsRow] = []
+    for source_id, live in live_by_source.items():
+        if source_id in saved_by_source:
+            merged.append(live.model_copy(update={"status": TDS_STATUS_MATCHED}))
+        else:
+            merged.append(live.model_copy(update={"status": TDS_STATUS_NEW}))
+
+    for source_id, saved in saved_by_source.items():
+        if source_id not in live_by_source:
+            merged.append(_tds_row_from_saved(saved, status=TDS_STATUS_DELETED))
+
+    def sort_key(row: TdsWorkingsRow) -> Tuple:
+        return (
+            row.voucher_date or "",
+            row.voucher_no or "",
+            row.source_id or 0,
+        )
+
+    merged.sort(key=sort_key)
+    new_count = sum(1 for row in merged if row.status == TDS_STATUS_NEW)
+    deleted_count = sum(1 for row in merged if row.status == TDS_STATUS_DELETED)
+    return merged, new_count, deleted_count, bool(saved_rows)
+
+
+def list_tds_workings(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+    q: Optional[str] = None,
+) -> TdsWorkingsOut:
+    """Live TDS lines merged with saved snapshot (new/deleted highlighted)."""
+    start = min(date_from, date_to)
+    end = max(date_from, date_to)
+    live_rows = _build_live_tds_workings(db, date_from=start, date_to=end, q=q)
+    saved_rows = _load_saved_tds_workings(db, date_from=start, date_to=end)
+    merged, new_count, deleted_count, saved = _merge_tds_workings(live_rows, saved_rows)
+
+    total_amount = sum(
+        float(row.amount or 0.0)
+        for row in merged
+        if row.status != TDS_STATUS_DELETED
+    )
+    return TdsWorkingsOut(
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+        row_count=len(merged),
+        total_amount=total_amount,
+        saved=saved,
+        new_count=new_count,
+        deleted_count=deleted_count,
+        rows=merged,
+    )
+
+
+def save_tds_workings(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+) -> TdsWorkingsOut:
+    """Replace saved snapshot for the period with current live Tally rows."""
+    start = min(date_from, date_to)
+    end = max(date_from, date_to)
+    live_rows = _build_live_tds_workings(db, date_from=start, date_to=end)
+
+    db.query(TdsWorking).filter(
+        TdsWorking.voucher_date.isnot(None),
+        TdsWorking.voucher_date >= start,
+        TdsWorking.voucher_date <= end,
+    ).delete(synchronize_session=False)
+
+    for row in live_rows:
+        if row.source_id is None:
+            continue
+        db.add(_tds_entity_from_row(row))
+    db.commit()
+
+    return list_tds_workings(db, date_from=start, date_to=end)
+
+
+def update_tds_workings(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+) -> TdsWorkingsOut:
+    """Apply diff: insert new live rows, remove deleted saved rows, refresh matched."""
+    start = min(date_from, date_to)
+    end = max(date_from, date_to)
+    live_rows = _build_live_tds_workings(db, date_from=start, date_to=end)
+    saved_rows = _load_saved_tds_workings(db, date_from=start, date_to=end)
+    saved_by_source = {int(row.source_id): row for row in saved_rows}
+    live_by_source = {
+        int(row.source_id): row for row in live_rows if row.source_id is not None
+    }
+
+    for source_id, live in live_by_source.items():
+        existing = saved_by_source.get(source_id)
+        if existing is None:
+            db.add(_tds_entity_from_row(live))
+        else:
+            _apply_live_fields(existing, live)
+
+    for source_id, saved in saved_by_source.items():
+        if source_id not in live_by_source:
+            db.delete(saved)
+
+    db.commit()
+    return list_tds_workings(db, date_from=start, date_to=end)
 
 
 def list_purchase_lines(

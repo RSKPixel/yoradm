@@ -31,6 +31,7 @@ from app.schemas.tally import (
     SaleInvoiceOptionOut,
     SaleOut,
     StockSummaryOut,
+    TdsWorkingsOut,
     VendorOptionOut,
     VendorTdsStatusOut,
 )
@@ -116,6 +117,50 @@ def vendor_tds_status(
         ledger_name=ledger_name.strip(),
         invoice_value=invoice_value,
         as_of=as_of,
+    )
+
+
+@router.get("/tds-workings", response_model=TdsWorkingsOut)
+def tds_workings(
+    _: CurrentUser,
+    db: DbSession,
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    q: Optional[str] = Query(default=None),
+) -> TdsWorkingsOut:
+    return tally_service.list_tds_workings(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        q=q,
+    )
+
+
+@router.post("/tds-workings/save", response_model=TdsWorkingsOut)
+def save_tds_workings(
+    _: CurrentUser,
+    db: DbSession,
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+) -> TdsWorkingsOut:
+    return tally_service.save_tds_workings(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+@router.post("/tds-workings/update", response_model=TdsWorkingsOut)
+def update_tds_workings(
+    _: CurrentUser,
+    db: DbSession,
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+) -> TdsWorkingsOut:
+    return tally_service.update_tds_workings(
+        db,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 

@@ -101,6 +101,33 @@ class VendorTdsStatusOut(BaseModel):
     fy_end: Optional[str] = None
 
 
+class TdsWorkingsRow(BaseModel):
+    source_id: Optional[int] = None
+    voucher_date: Optional[str] = None
+    voucher_no: Optional[str] = None
+    party: Optional[str] = None
+    pan: Optional[str] = None
+    tds_head: Optional[str] = None
+    amount: float = 0.0
+    narration: Optional[str] = None
+    bill_no: Optional[str] = None
+    bill_type: Optional[str] = None
+    expenses_date: Optional[str] = None
+    expenses_amount: Optional[float] = None
+    status: str = "matched"  # matched | new | deleted
+
+
+class TdsWorkingsOut(BaseModel):
+    date_from: str
+    date_to: str
+    row_count: int = 0
+    total_amount: float = 0.0
+    saved: bool = False
+    new_count: int = 0
+    deleted_count: int = 0
+    rows: List[TdsWorkingsRow] = []
+
+
 class DaybookAvailabilityOut(BaseModel):
     date_from: Optional[date] = None
     date_to: Optional[date] = None

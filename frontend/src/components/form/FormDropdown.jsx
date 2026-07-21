@@ -15,6 +15,7 @@ export function FormDropdown({
   emptyMessage = 'No options',
   className = '',
   listClassName = '',
+  style,
 }) {
   const listId = useId()
   const rootRef = useRef(null)
@@ -41,7 +42,9 @@ export function FormDropdown({
     setMenuStyle({
       position: 'fixed',
       left: rect.left,
-      width: Math.max(rect.width, 10),
+      minWidth: Math.max(rect.width, 10),
+      width: 'max-content',
+      maxWidth: Math.min(window.innerWidth - 16, Math.max(rect.width, 320)),
       top: openUp ? undefined : rect.bottom + gap,
       bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
       maxHeight: Math.max(height, 80),
@@ -183,7 +186,7 @@ export function FormDropdown({
       : null
 
   return (
-    <div className={`win-form__dropdown ${className}`.trim()} ref={rootRef}>
+    <div className={`win-form__dropdown ${className}`.trim()} ref={rootRef} style={style}>
       <button
         ref={buttonRef}
         type="button"
@@ -193,6 +196,7 @@ export function FormDropdown({
         aria-controls={listId}
         aria-haspopup="listbox"
         disabled={disabled}
+        title={typeof label === 'string' ? label : undefined}
         onClick={() => {
           if (disabled) return
           setOpen((prev) => !prev)

@@ -67,3 +67,27 @@ export function dateRangeForFinancialYear(fyStartYear, month) {
     dateTo: `${year}-${pad2(monthNum)}-${pad2(lastDay)}`,
   }
 }
+
+/** TDS return quarters within an Indian FY (Q1 Apr–Jun … Q4 Jan–Mar). */
+export const FY_QUARTERS = [
+  { value: 1, label: 'Q1' },
+  { value: 2, label: 'Q2' },
+  { value: 3, label: 'Q3' },
+  { value: 4, label: 'Q4' },
+]
+
+/**
+ * Date range for an FY quarter (1–4).
+ * Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec, Q4 Jan–Mar (next calendar year).
+ */
+export function dateRangeForFinancialYearQuarter(fyStartYear, quarter) {
+  const start = Number(fyStartYear)
+  const q = Number(quarter)
+  if (!Number.isFinite(start) || ![1, 2, 3, 4].includes(q)) {
+    return { dateFrom: '', dateTo: '' }
+  }
+  if (q === 1) return { dateFrom: `${start}-04-01`, dateTo: `${start}-06-30` }
+  if (q === 2) return { dateFrom: `${start}-07-01`, dateTo: `${start}-09-30` }
+  if (q === 3) return { dateFrom: `${start}-10-01`, dateTo: `${start}-12-31` }
+  return { dateFrom: `${start + 1}-01-01`, dateTo: `${start + 1}-03-31` }
+}
