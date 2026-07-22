@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import date, datetime
 from math import ceil
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -33,6 +33,9 @@ from app.schemas.tally import (
     SaleInvoiceOptionOut,
     TdsWorkingsOut,
     TdsWorkingsRow,
+    TdsExpenseMatchApplyOut,
+    TdsExpenseMatchCandidate,
+    TdsExpenseMatchOut,
     VendorOptionOut,
     VendorTdsStatusOut,
 )
@@ -391,8 +394,8 @@ def _pan_from_account(pan: Optional[str], party_gstin: Optional[str]) -> Optiona
 def _load_expense_refs(
     db: Session,
     party_bill_pairs: Sequence[Tuple[str, str]],
-) -> Dict[Tuple[str, str], Tuple[Optional[date], float]]:
-    """Map (party_cf, bill_no) → (vdt date, ledger_amount) from New Ref daybook rows."""
+) -> Dict[Tuple[str, str], Tuple[Optional[date], float, int]]:
+    """Map (party_cf, bill_no) → (vdt date, ledger_amount, daybook id) from New Ref rows."""
     pairs = {
         (party.strip(), bill.strip())
         for party, bill in party_bill_pairs
@@ -417,7 +420,7 @@ def _load_expense_refs(
         .all()
     )
 
-    result: Dict[Tuple[str, str], Tuple[Optional[date], float]] = {}
+    result: Dict[Tuple[str, str], Tuple[Optional[date], float, int]] = {}
     for row in expense_rows:
         key = _expense_lookup_key(row.ledger_name, row.bill_no)
         if key is None or key not in wanted or key in result:
@@ -425,6 +428,7 @@ def _load_expense_refs(
         result[key] = (
             _daybook_vdt_date(row.vdt),
             float(row.ledger_amount or 0.0),
+            int(row.id),
         )
     return result
 
@@ -460,6 +464,9 @@ def _tds_row_from_saved(row: TdsWorking, *, status: str) -> TdsWorkingsRow:
         expenses_amount=(
             float(row.expenses_amount) if row.expenses_amount is not None else None
         ),
+        expense_source_id=(
+            int(row.expense_source_id) if row.expense_source_id is not None else None
+        ),
         status=status,
     )
 
@@ -480,6 +487,7 @@ def _tds_entity_from_row(row: TdsWorkingsRow) -> TdsWorking:
         expenses_amount=(
             float(row.expenses_amount) if row.expenses_amount is not None else None
         ),
+        expense_source_id=row.expense_source_id,
     )
 
 
@@ -493,9 +501,370 @@ def _apply_live_fields(target: TdsWorking, live: TdsWorkingsRow) -> None:
     target.narration = live.narration or None
     target.bill_no = live.bill_no or None
     target.bill_type = live.bill_type or None
-    target.expenses_date = _parse_iso_date(live.expenses_date)
-    target.expenses_amount = (
-        float(live.expenses_amount) if live.expenses_amount is not None else None
+    if target.expenses_date is None and target.expenses_amount is None:
+        target.expenses_date = _parse_iso_date(live.expenses_date)
+        target.expenses_amount = (
+            float(live.expenses_amount) if live.expenses_amount is not None else None
+        )
+
+
+def _saved_has_manual_expenses(saved: TdsWorking) -> bool:
+    return (
+        saved.expenses_date is not None
+        or saved.expenses_amount is not None
+        or saved.expense_source_id is not None
+    )
+
+
+def _expense_claim_from_saved(saved: TdsWorking) -> Dict[str, Any]:
+    return {
+        "expenses_date": saved.expenses_date.isoformat() if saved.expenses_date else None,
+        "expenses_amount": (
+            float(saved.expenses_amount) if saved.expenses_amount is not None else None
+        ),
+        "expense_source_id": (
+            int(saved.expense_source_id) if saved.expense_source_id is not None else None
+        ),
+    }
+
+
+def _infer_expense_source_id(
+    db: Session,
+    *,
+    party: Optional[str],
+    expenses_date: Optional[date],
+    expenses_amount: Optional[float],
+) -> Optional[int]:
+    """Best-effort daybook id for legacy rows saved without expense_source_id."""
+    name = (party or "").strip()
+    if not name or expenses_date is None:
+        return None
+    start_dt = datetime.combine(expenses_date, datetime.min.time())
+    end_dt = datetime.combine(expenses_date, datetime.max.time())
+    query = db.query(TallyDaybook2.id).filter(
+        TallyDaybook2.ledger_name == name,
+        TallyDaybook2.vdt.isnot(None),
+        TallyDaybook2.vdt >= start_dt,
+        TallyDaybook2.vdt <= end_dt,
+        func.lower(TallyDaybook2.debit_credit) == "cr",
+    )
+    if expenses_amount is not None:
+        query = query.filter(TallyDaybook2.ledger_amount == float(expenses_amount))
+    ids = [int(row[0]) for row in query.all()]
+    if len(ids) != 1:
+        return None
+    return ids[0]
+
+
+def _other_claimed_expense_source_ids(
+    db: Session,
+    *,
+    except_tds_source_id: int,
+) -> Set[int]:
+    """Daybook Cr line ids already linked to a different TDS working row."""
+    claimed: Set[int] = set()
+    rows = (
+        db.query(
+            TdsWorking.source_id,
+            TdsWorking.expense_source_id,
+            TdsWorking.party,
+            TdsWorking.expenses_date,
+            TdsWorking.expenses_amount,
+        )
+        .filter(
+            or_(
+                TdsWorking.expense_source_id.isnot(None),
+                TdsWorking.expenses_date.isnot(None),
+                TdsWorking.expenses_amount.isnot(None),
+            )
+        )
+        .all()
+    )
+    for tds_source_id, expense_source_id, party, exp_date, exp_amount in rows:
+        if int(tds_source_id) == int(except_tds_source_id):
+            continue
+        if expense_source_id is not None:
+            claimed.add(int(expense_source_id))
+            continue
+        inferred = _infer_expense_source_id(
+            db,
+            party=party,
+            expenses_date=exp_date,
+            expenses_amount=exp_amount,
+        )
+        if inferred is not None:
+            claimed.add(inferred)
+    return claimed
+
+
+def _assert_expense_source_available(
+    db: Session,
+    *,
+    expense_source_id: Optional[int],
+    tds_source_id: int,
+) -> None:
+    if expense_source_id is None:
+        return
+    expense_id = int(expense_source_id)
+    existing = (
+        db.query(TdsWorking.source_id)
+        .filter(
+            TdsWorking.expense_source_id == expense_id,
+            TdsWorking.source_id != int(tds_source_id),
+        )
+        .first()
+    )
+    if existing is not None:
+        raise ValueError("This expense transaction is already matched to another TDS line")
+
+
+def _score_cr_expense_row(
+    row: TallyDaybook2,
+    *,
+    tds_date: date,
+    journal_bill_no: Optional[str],
+) -> int:
+    dc = (row.debit_credit or "").strip().casefold()
+    if dc != "cr":
+        return -1
+    row_day = _daybook_vdt_date(row.vdt)
+    if row_day is None or row_day > tds_date:
+        return -1
+
+    score = 0
+    if journal_bill_no:
+        row_bill = (row.bill_no or "").strip()
+        if row_bill and row_bill == journal_bill_no:
+            score += 100
+    if row_day == tds_date:
+        score += 50
+    else:
+        days = abs((row_day - tds_date).days)
+        score += max(0, 20 - min(days, 20))
+    if (row.bill_type or "").strip() == PARTY_BILL_TYPE_NEW:
+        score += 30
+    if (row.vtype or "").strip().casefold() == PURCHASE_VTYPE.casefold():
+        score += 5
+    return score
+
+
+def _load_journal_siblings_for_line(
+    db: Session,
+    line: TallyDaybook2,
+    *,
+    tds_date: date,
+) -> List[TallyDaybook2]:
+    vno = (line.vno or "").strip()
+    if not vno:
+        return []
+    start_dt = datetime.combine(tds_date, datetime.min.time())
+    end_dt = datetime.combine(tds_date, datetime.max.time())
+    return (
+        db.query(TallyDaybook2)
+        .filter(
+            TallyDaybook2.vtype == JOURNAL_VTYPE,
+            TallyDaybook2.vno == vno,
+            TallyDaybook2.vdt.isnot(None),
+            TallyDaybook2.vdt >= start_dt,
+            TallyDaybook2.vdt <= end_dt,
+        )
+        .all()
+    )
+
+
+def _party_groups_for_names(
+    db: Session,
+    ledger_names: Sequence[str],
+) -> Dict[str, str]:
+    names = sorted({(n or "").strip() for n in ledger_names if (n or "").strip()})
+    if not names:
+        return {}
+    party_groups: Dict[str, str] = {}
+    for ledger_name, primary_group in (
+        db.query(TallyAccountMaster.ledger_name, TallyAccountMaster.primary_group)
+        .filter(TallyAccountMaster.ledger_name.in_(names))
+        .all()
+    ):
+        name = (ledger_name or "").strip()
+        if name:
+            party_groups[name.casefold()] = (primary_group or "").strip()
+    return party_groups
+
+
+def match_tds_expense(db: Session, *, source_id: int) -> TdsExpenseMatchOut:
+    """Find Cr party ledger lines from FY start through TDS date for manual expense match."""
+    line = db.query(TallyDaybook2).filter(TallyDaybook2.id == source_id).first()
+    if line is None:
+        raise ValueError("TDS journal line not found")
+    if (line.ledger_name or "").strip() != TDS_PAYABLE_LEDGER:
+        raise ValueError("Not a TDS Payable journal line")
+    if (line.vtype or "").strip() != JOURNAL_VTYPE:
+        raise ValueError("Not a journal voucher")
+
+    tds_date = _daybook_vdt_date(line.vdt)
+    if tds_date is None:
+        raise ValueError("TDS line has no voucher date")
+
+    siblings = _load_journal_siblings_for_line(db, line, tds_date=tds_date)
+    sibling_names = [
+        (row.ledger_name or "").strip()
+        for row in siblings
+        if (row.ledger_name or "").strip()
+        and (row.ledger_name or "").strip().casefold() != TDS_PAYABLE_LEDGER.casefold()
+    ]
+    party_groups = _party_groups_for_names(db, sibling_names)
+    party = _resolve_tds_party(siblings, party_groups)
+    journal_bill_no, journal_bill_type = _resolve_tds_bill(line, siblings, party)
+    if not party:
+        raise ValueError("Could not resolve party for this TDS line")
+
+    fy_start, _ = _indian_fy_bounds(tds_date)
+    start_dt = datetime.combine(fy_start, datetime.min.time())
+    end_dt = datetime.combine(tds_date, datetime.max.time())
+    claimed_expense_ids = _other_claimed_expense_source_ids(
+        db,
+        except_tds_source_id=int(source_id),
+    )
+
+    cr_rows = (
+        db.query(TallyDaybook2)
+        .filter(
+            TallyDaybook2.ledger_name == party,
+            TallyDaybook2.vdt.isnot(None),
+            TallyDaybook2.vdt >= start_dt,
+            TallyDaybook2.vdt <= end_dt,
+            func.lower(TallyDaybook2.debit_credit) == "cr",
+        )
+        .order_by(TallyDaybook2.vdt.desc(), TallyDaybook2.id.desc())
+        .all()
+    )
+
+    scored: List[Tuple[int, TallyDaybook2]] = []
+    for row in cr_rows:
+        if int(row.id) in claimed_expense_ids:
+            continue
+        score = _score_cr_expense_row(
+            row,
+            tds_date=tds_date,
+            journal_bill_no=journal_bill_no,
+        )
+        if score >= 0:
+            scored.append((score, row))
+    scored.sort(key=lambda item: (-item[0], item[1].vdt or datetime.min, item[1].id))
+
+    best_score = scored[0][0] if scored else -1
+    best_id = scored[0][1].id if scored else None
+    tds_head = (line.costcentre_name or "").strip() or None
+    tds_amount = float(line.ledger_amount or 0.0)
+
+    candidates: List[TdsExpenseMatchCandidate] = []
+    for score, row in scored:
+        row_day = _daybook_vdt_date(row.vdt)
+        selected = best_id is not None and int(row.id) == int(best_id)
+        candidates.append(
+            TdsExpenseMatchCandidate(
+                source_id=int(row.id),
+                voucher_date=row_day.isoformat() if row_day else None,
+                voucher_no=(row.vno or "").strip() or None,
+                voucher_type=(row.vtype or "").strip() or None,
+                party=party,
+                bill_no=(row.bill_no or "").strip() or None,
+                bill_type=(row.bill_type or "").strip() or None,
+                debit_credit=(row.debit_credit or "").strip() or None,
+                amount=float(row.ledger_amount or 0.0),
+                selected=selected,
+            )
+        )
+
+    matched = best_score >= 0 and best_id is not None
+    expenses_date: Optional[str] = None
+    expenses_amount: Optional[float] = None
+    if matched:
+        best = scored[0][1]
+        best_day = _daybook_vdt_date(best.vdt)
+        expenses_date = best_day.isoformat() if best_day else None
+        expenses_amount = float(best.ledger_amount or 0.0)
+
+    return TdsExpenseMatchOut(
+        source_id=int(source_id),
+        tds_voucher_date=tds_date.isoformat(),
+        tds_voucher_no=(line.vno or "").strip() or None,
+        tds_head=tds_head,
+        tds_amount=tds_amount,
+        party=party,
+        expenses_date=expenses_date,
+        expenses_amount=expenses_amount,
+        matched=matched,
+        candidates=candidates,
+    )
+
+
+def apply_tds_expense_match(
+    db: Session,
+    *,
+    source_id: int,
+    expenses_date: Optional[str],
+    expenses_amount: Optional[float],
+    expense_source_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> TdsExpenseMatchApplyOut:
+    """Persist manual expense match on saved TDS working row (upsert from live if needed)."""
+    _assert_expense_source_available(
+        db,
+        expense_source_id=expense_source_id,
+        tds_source_id=source_id,
+    )
+
+    saved = db.query(TdsWorking).filter(TdsWorking.source_id == source_id).first()
+    if saved is not None:
+        saved.expenses_date = _parse_iso_date(expenses_date)
+        saved.expenses_amount = (
+            float(expenses_amount) if expenses_amount is not None else None
+        )
+        saved.expense_source_id = (
+            int(expense_source_id) if expense_source_id is not None else None
+        )
+        db.commit()
+        return TdsExpenseMatchApplyOut(
+            applied=True,
+            saved=True,
+            expenses_date=expenses_date,
+            expenses_amount=expenses_amount,
+        )
+
+    if date_from is None or date_to is None:
+        return TdsExpenseMatchApplyOut(
+            applied=False,
+            saved=False,
+            expenses_date=expenses_date,
+            expenses_amount=expenses_amount,
+        )
+
+    live_rows = _build_live_tds_workings(db, date_from=date_from, date_to=date_to)
+    live = next((row for row in live_rows if row.source_id == source_id), None)
+    if live is None:
+        return TdsExpenseMatchApplyOut(
+            applied=False,
+            saved=False,
+            expenses_date=expenses_date,
+            expenses_amount=expenses_amount,
+        )
+
+    live = live.model_copy(
+        update={
+            "expenses_date": expenses_date,
+            "expenses_amount": expenses_amount,
+            "expense_source_id": expense_source_id,
+        }
+    )
+    db.add(_tds_entity_from_row(live))
+    db.commit()
+    return TdsExpenseMatchApplyOut(
+        applied=True,
+        saved=False,
+        expenses_date=expenses_date,
+        expenses_amount=expenses_amount,
     )
 
 
@@ -631,13 +1000,27 @@ def _build_live_tds_workings(
         )
 
     expense_refs = _load_expense_refs(db, party_bill_pairs)
+    claimed_expense_ids: Set[int] = {
+        int(row[0])
+        for row in db.query(TdsWorking.expense_source_id)
+        .filter(TdsWorking.expense_source_id.isnot(None))
+        .all()
+    }
 
     rows: List[TdsWorkingsRow] = []
     for item in pending:
         expense_key = _expense_lookup_key(item["party"], item["bill_no"])
         expense = expense_refs.get(expense_key) if expense_key else None
-        expenses_date = expense[0].isoformat() if expense and expense[0] else None
-        expenses_amount = expense[1] if expense else None
+        expenses_date: Optional[str] = None
+        expenses_amount: Optional[float] = None
+        expense_source_id: Optional[int] = None
+        if expense:
+            exp_id = int(expense[2])
+            if exp_id not in claimed_expense_ids:
+                claimed_expense_ids.add(exp_id)
+                expenses_date = expense[0].isoformat() if expense[0] else None
+                expenses_amount = expense[1]
+                expense_source_id = exp_id
 
         rows.append(
             TdsWorkingsRow(
@@ -653,6 +1036,7 @@ def _build_live_tds_workings(
                 bill_type=item["bill_type"],
                 expenses_date=expenses_date,
                 expenses_amount=expenses_amount,
+                expense_source_id=expense_source_id,
                 status=TDS_STATUS_NEW,
             )
         )
@@ -695,7 +1079,11 @@ def _merge_tds_workings(
     merged: List[TdsWorkingsRow] = []
     for source_id, live in live_by_source.items():
         if source_id in saved_by_source:
-            merged.append(live.model_copy(update={"status": TDS_STATUS_MATCHED}))
+            saved = saved_by_source[source_id]
+            row = live.model_copy(update={"status": TDS_STATUS_MATCHED})
+            if _saved_has_manual_expenses(saved):
+                row = row.model_copy(update=_expense_claim_from_saved(saved))
+            merged.append(row)
         else:
             merged.append(live.model_copy(update={"status": TDS_STATUS_NEW}))
 
@@ -757,6 +1145,12 @@ def save_tds_workings(
     start = min(date_from, date_to)
     end = max(date_from, date_to)
     live_rows = _build_live_tds_workings(db, date_from=start, date_to=end)
+    existing_rows = _load_saved_tds_workings(db, date_from=start, date_to=end)
+    manual_by_source = {
+        int(row.source_id): row
+        for row in existing_rows
+        if _saved_has_manual_expenses(row)
+    }
 
     db.query(TdsWorking).filter(
         TdsWorking.voucher_date.isnot(None),
@@ -767,7 +1161,13 @@ def save_tds_workings(
     for row in live_rows:
         if row.source_id is None:
             continue
-        db.add(_tds_entity_from_row(row))
+        entity = _tds_entity_from_row(row)
+        manual = manual_by_source.get(int(row.source_id))
+        if manual is not None:
+            entity.expenses_date = manual.expenses_date
+            entity.expenses_amount = manual.expenses_amount
+            entity.expense_source_id = manual.expense_source_id
+        db.add(entity)
     db.commit()
 
     return list_tds_workings(db, date_from=start, date_to=end)

@@ -114,6 +114,7 @@ class TdsWorkingsRow(BaseModel):
     bill_type: Optional[str] = None
     expenses_date: Optional[str] = None
     expenses_amount: Optional[float] = None
+    expense_source_id: Optional[int] = None
     status: str = "matched"  # matched | new | deleted
 
 
@@ -126,6 +127,48 @@ class TdsWorkingsOut(BaseModel):
     new_count: int = 0
     deleted_count: int = 0
     rows: List[TdsWorkingsRow] = []
+
+
+class TdsExpenseMatchCandidate(BaseModel):
+    source_id: int
+    voucher_date: Optional[str] = None
+    voucher_no: Optional[str] = None
+    voucher_type: Optional[str] = None
+    party: Optional[str] = None
+    bill_no: Optional[str] = None
+    bill_type: Optional[str] = None
+    debit_credit: Optional[str] = None
+    amount: float = 0.0
+    selected: bool = False
+
+
+class TdsExpenseMatchOut(BaseModel):
+    source_id: int
+    tds_voucher_date: Optional[str] = None
+    tds_voucher_no: Optional[str] = None
+    tds_head: Optional[str] = None
+    tds_amount: float = 0.0
+    party: Optional[str] = None
+    expenses_date: Optional[str] = None
+    expenses_amount: Optional[float] = None
+    matched: bool = False
+    candidates: List[TdsExpenseMatchCandidate] = []
+
+
+class TdsExpenseMatchApplyIn(BaseModel):
+    source_id: int
+    expenses_date: Optional[str] = None
+    expenses_amount: Optional[float] = None
+    expense_source_id: Optional[int] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+
+
+class TdsExpenseMatchApplyOut(BaseModel):
+    applied: bool = False
+    saved: bool = False
+    expenses_date: Optional[str] = None
+    expenses_amount: Optional[float] = None
 
 
 class DaybookAvailabilityOut(BaseModel):

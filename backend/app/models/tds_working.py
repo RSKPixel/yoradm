@@ -30,6 +30,9 @@ class TdsWorking(Base):
     bill_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     expenses_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     expenses_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    expense_source_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, unique=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

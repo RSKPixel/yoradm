@@ -1,0 +1,16 @@
+---
+description: Numeric table cells and values are always right-aligned
+alwaysApply: true
+---
+
+# Numeric alignment
+
+- **All number cells are right-aligned** — amounts, quantities, rates, percents, counts, line totals, and any tabular numeric data.
+- In tables: put `win-form__table-num` on both `<th>` and `<td>` for numeric columns (not only body cells).
+- Read-only numeric fields in summary grids or modals: use `win-form__table-num`, `win-form__control--num`, or CSS `text-align: right` + tabular nums.
+- Do not left-align or center numeric columns unless the user explicitly asks for an exception.
+
+```jsx
+<th className="win-form__table-num">Amount</th>
+<td className="win-form__table-num">{formatValue(amount)}</td>
+```

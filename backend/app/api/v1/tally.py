@@ -32,6 +32,9 @@ from app.schemas.tally import (
     SaleOut,
     StockSummaryOut,
     TdsWorkingsOut,
+    TdsExpenseMatchApplyIn,
+    TdsExpenseMatchApplyOut,
+    TdsExpenseMatchOut,
     VendorOptionOut,
     VendorTdsStatusOut,
 )
@@ -162,6 +165,52 @@ def update_tds_workings(
         date_from=date_from,
         date_to=date_to,
     )
+
+
+@router.get("/tds-workings/expense-match", response_model=TdsExpenseMatchOut)
+def tds_workings_expense_match(
+    _: CurrentUser,
+    db: DbSession,
+    source_id: int = Query(..., ge=1),
+) -> TdsExpenseMatchOut:
+    try:
+        return tally_service.match_tds_expense(db, source_id=source_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("/tds-workings/expense-match/apply", response_model=TdsExpenseMatchApplyOut)
+def tds_workings_expense_match_apply(
+    _: CurrentUser,
+    db: DbSession,
+    body: TdsExpenseMatchApplyIn,
+) -> TdsExpenseMatchApplyOut:
+    def parse_day(value: Optional[str]) -> Optional[date]:
+        text = (value or "").strip()
+        if not text:
+            return None
+        try:
+            return date.fromisoformat(text[:10])
+        except ValueError:
+            return None
+
+    try:
+        return tally_service.apply_tds_expense_match(
+            db,
+            source_id=body.source_id,
+            expenses_date=body.expenses_date,
+            expenses_amount=body.expenses_amount,
+            expense_source_id=body.expense_source_id,
+            date_from=parse_day(body.date_from),
+            date_to=parse_day(body.date_to),
+        )
+    except ValueError as exc:
+        if "already matched" in str(exc).casefold():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.get("/inventory-items", response_model=List[InventoryItemOptionOut])

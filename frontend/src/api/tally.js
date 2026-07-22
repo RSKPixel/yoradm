@@ -74,6 +74,32 @@ export async function updateTdsWorkings({ dateFrom, dateTo } = {}) {
   return data
 }
 
+export async function fetchTdsExpenseMatch(sourceId) {
+  const { data } = await api.get('/tally/tds-workings/expense-match', {
+    params: { source_id: sourceId },
+  })
+  return data
+}
+
+export async function applyTdsExpenseMatch({
+  sourceId,
+  expensesDate,
+  expensesAmount,
+  expenseSourceId,
+  dateFrom,
+  dateTo,
+}) {
+  const { data } = await api.post('/tally/tds-workings/expense-match/apply', {
+    source_id: sourceId,
+    expenses_date: expensesDate ?? undefined,
+    expenses_amount: expensesAmount ?? undefined,
+    expense_source_id: expenseSourceId ?? undefined,
+    date_from: dateFrom ?? undefined,
+    date_to: dateTo ?? undefined,
+  })
+  return data
+}
+
 export async function fetchInventoryItems() {
   const { data } = await api.get('/tally/inventory-items')
   return data

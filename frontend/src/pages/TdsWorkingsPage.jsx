@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { LinkIcon } from '@heroicons/react/24/outline'
 import { fetchCompany } from '../api/company'
-import { fetchTdsWorkings, saveTdsWorkings, updateTdsWorkings } from '../api/tally'
+import {
+  applyTdsExpenseMatch,
+  fetchTdsExpenseMatch,
+  fetchTdsWorkings,
+  saveTdsWorkings,
+  updateTdsWorkings,
+} from '../api/tally'
 import { ExcelPreviewModal } from '../components/common/ExcelPreviewModal'
 import { PdfPreviewModal } from '../components/common/PdfPreviewModal'
+import { TdsExpenseMatchModal } from '../components/tally/TdsExpenseMatchModal'
 import { FormDropdown } from '../components/form/FormDropdown'
 import { FormField } from '../components/form/FormPanel'
 import { useFormMessage } from '../components/form/FormMessage'
@@ -47,6 +55,19 @@ function isActiveRow(row) {
   return row?.status !== STATUS_DELETED
 }
 
+function isExpensesMissing(row) {
+  if (!isActiveRow(row)) return false
+  const hasDate = Boolean(String(row.expenses_date ?? '').trim())
+  const amount = Number(row.expenses_amount)
+  const hasAmount = row.expenses_amount != null && Number.isFinite(amount)
+  return !hasDate || !hasAmount
+}
+
+function isPanMissing(row) {
+  if (!isActiveRow(row)) return false
+  return !String(row.pan ?? '').trim()
+}
+
 function groupByTdsHead(rows) {
   const map = new Map()
   for (const row of rows) {
@@ -58,11 +79,15 @@ function groupByTdsHead(rows) {
         key,
         tdsHead: headLabel(key),
         lineCount: 0,
+        panMissing: 0,
+        expensesMissing: 0,
         amount: 0,
       }
       map.set(key, group)
     }
     group.lineCount += 1
+    if (isPanMissing(row)) group.panMissing += 1
+    if (isExpensesMissing(row)) group.expensesMissing += 1
     group.amount += Number(row.amount) || 0
   }
   return Array.from(map.values()).sort((a, b) =>
@@ -80,6 +105,8 @@ const summaryColGroup = (
   <colgroup>
     <col className="tds-workings__col-head" />
     <col className="tds-workings__col-lines" />
+    <col className="tds-workings__col-pan-missing" />
+    <col className="tds-workings__col-exp-missing" />
     <col className="tds-workings__col-amount" />
   </colgroup>
 )
@@ -92,6 +119,7 @@ const detailColGroup = (
     <col className="tds-workings__col-exp-date" />
     <col className="tds-workings__col-exp-amount" />
     <col className="tds-workings__col-amount" />
+    <col className="tds-workings__col-action" />
   </colgroup>
 )
 
@@ -100,6 +128,8 @@ function SummaryHeaderRow() {
     <tr>
       <th className="tds-workings__col-head">TDS Head</th>
       <th className="tds-workings__col-lines win-form__table-num">Lines</th>
+      <th className="tds-workings__col-pan-missing win-form__table-num">PAN missing</th>
+      <th className="tds-workings__col-exp-missing win-form__table-num">Missing exp.</th>
       <th className="tds-workings__col-amount win-form__table-num">Amount</th>
     </tr>
   )
@@ -114,6 +144,7 @@ function DetailHeaderRow() {
       <th className="tds-workings__col-exp-date">Expenses Date</th>
       <th className="tds-workings__col-exp-amount win-form__table-num">Expenses Amount</th>
       <th className="tds-workings__col-amount win-form__table-num">Amount</th>
+      <th className="tds-workings__col-action">Action</th>
     </tr>
   )
 }
@@ -143,6 +174,11 @@ export function TdsWorkingsPage() {
   const [excelLoading, setExcelLoading] = useState(false)
   const [pdfPreview, setPdfPreview] = useState(null)
   const [excelPreview, setExcelPreview] = useState(null)
+  const [expenseMatchOpen, setExpenseMatchOpen] = useState(false)
+  const [expenseMatchLoading, setExpenseMatchLoading] = useState(false)
+  const [expenseMatchApplying, setExpenseMatchApplying] = useState(false)
+  const [expenseMatch, setExpenseMatch] = useState(null)
+  const [expenseMatchSourceId, setExpenseMatchSourceId] = useState(null)
 
   const headRef = useRef(null)
   const bodyRef = useRef(null)
@@ -264,6 +300,16 @@ export function TdsWorkingsPage() {
     [activeFilteredRows],
   )
 
+  const totalExpensesMissing = useMemo(
+    () => activeFilteredRows.filter(isExpensesMissing).length,
+    [activeFilteredRows],
+  )
+
+  const totalPanMissing = useMemo(
+    () => activeFilteredRows.filter(isPanMissing).length,
+    [activeFilteredRows],
+  )
+
   const showFooter = !loading && filteredRows.length > 0
 
   const countLabel = loading
@@ -297,6 +343,85 @@ export function TdsWorkingsPage() {
       showError(getApiErrorMessage(err, 'Unable to update TDS workings'))
     } finally {
       setUpdating(false)
+    }
+  }
+
+  function closeExpenseMatchModal() {
+    if (expenseMatchApplying) return
+    setExpenseMatchOpen(false)
+    setExpenseMatch(null)
+    setExpenseMatchSourceId(null)
+    setExpenseMatchLoading(false)
+  }
+
+  function applyCandidateToMatch(prev, candidate) {
+    if (!prev || !candidate) return prev
+    return {
+      ...prev,
+      matched: true,
+      expenses_date: candidate.voucher_date,
+      expenses_amount: candidate.amount,
+      candidates: (prev.candidates || []).map((c) => ({
+        ...c,
+        selected: c.source_id === candidate.source_id,
+      })),
+    }
+  }
+
+  async function onMatchExpense(row) {
+    if (!row?.source_id || row.status === STATUS_DELETED || busy) return
+    setExpenseMatchOpen(true)
+    setExpenseMatchLoading(true)
+    setExpenseMatch(null)
+    setExpenseMatchSourceId(row.source_id)
+    try {
+      const data = await fetchTdsExpenseMatch(row.source_id)
+      setExpenseMatch(data)
+    } catch (err) {
+      closeExpenseMatchModal()
+      showError(getApiErrorMessage(err, 'Unable to match expenses'))
+    } finally {
+      setExpenseMatchLoading(false)
+    }
+  }
+
+  function onSelectExpenseCandidate(candidate) {
+    setExpenseMatch((prev) => applyCandidateToMatch(prev, candidate))
+  }
+
+  async function onApplyExpenseMatch() {
+    if (!expenseMatch?.matched || !expenseMatchSourceId || expenseMatchApplying) return
+    setExpenseMatchApplying(true)
+    try {
+      const selected =
+        expenseMatch.candidates?.find((c) => c.selected) || expenseMatch.candidates?.[0]
+      await applyTdsExpenseMatch({
+        sourceId: expenseMatchSourceId,
+        expensesDate: expenseMatch.expenses_date,
+        expensesAmount: expenseMatch.expenses_amount,
+        expenseSourceId: selected?.source_id,
+        dateFrom,
+        dateTo,
+      })
+      setRows((prev) =>
+        prev.map((row) =>
+          row.source_id === expenseMatchSourceId
+            ? {
+                ...row,
+                expenses_date: expenseMatch.expenses_date,
+                expenses_amount: expenseMatch.expenses_amount,
+              }
+            : row,
+        ),
+      )
+      showSuccess(
+        saved ? 'Expenses match applied and saved.' : 'Expenses match applied to this row.',
+      )
+      closeExpenseMatchModal()
+    } catch (err) {
+      showError(getApiErrorMessage(err, 'Unable to apply expenses match'))
+    } finally {
+      setExpenseMatchApplying(false)
     }
   }
 
@@ -421,6 +546,15 @@ export function TdsWorkingsPage() {
           if (!excelLoading) closeExcelPreview()
         }}
         onDownload={onDownloadExcel}
+      />
+      <TdsExpenseMatchModal
+        open={expenseMatchOpen}
+        loading={expenseMatchLoading}
+        match={expenseMatch}
+        applying={expenseMatchApplying}
+        onClose={closeExpenseMatchModal}
+        onApply={() => void onApplyExpenseMatch()}
+        onSelectCandidate={onSelectExpenseCandidate}
       />
       <PrimaryContentLayout
       title="TDS Workings"
@@ -570,14 +704,14 @@ export function TdsWorkingsPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={isSummary ? 3 : 6} className="win-form__table-empty">
+                    <td colSpan={isSummary ? 5 : 7} className="win-form__table-empty">
                       Loading…
                     </td>
                   </tr>
                 ) : isSummary ? (
                   summaryRows.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="win-form__table-empty">
+                      <td colSpan={5} className="win-form__table-empty">
                         No TDS Payable journal lines for this period.
                       </td>
                     </tr>
@@ -602,6 +736,12 @@ export function TdsWorkingsPage() {
                         <td className="tds-workings__col-lines win-form__table-num">
                           {group.lineCount}
                         </td>
+                        <td className="tds-workings__col-pan-missing win-form__table-num">
+                          {group.panMissing}
+                        </td>
+                        <td className="tds-workings__col-exp-missing win-form__table-num">
+                          {group.expensesMissing}
+                        </td>
                         <td className="tds-workings__col-amount win-form__table-num">
                           {formatValue(group.amount)}
                         </td>
@@ -610,7 +750,7 @@ export function TdsWorkingsPage() {
                   )
                 ) : filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="win-form__table-empty">
+                    <td colSpan={7} className="win-form__table-empty">
                       No lines for this TDS head.
                     </td>
                   </tr>
@@ -647,6 +787,22 @@ export function TdsWorkingsPage() {
                       <td className="tds-workings__col-amount win-form__table-num">
                         {formatValue(row.amount)}
                       </td>
+                      <td className="tds-workings__col-action">
+                        {row.status === STATUS_DELETED || !row.source_id ? (
+                          '—'
+                        ) : (
+                          <button
+                            type="button"
+                            className="tds-workings__match-btn"
+                            disabled={busy}
+                            title="Match expenses from Cr transactions"
+                            aria-label="Match expenses"
+                            onClick={() => void onMatchExpense(row)}
+                          >
+                            <LinkIcon className="size-4" aria-hidden="true" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -674,6 +830,12 @@ export function TdsWorkingsPage() {
                       <td className="tds-workings__col-lines win-form__table-num">
                         {activeFilteredRows.length}
                       </td>
+                      <td className="tds-workings__col-pan-missing win-form__table-num">
+                        {totalPanMissing}
+                      </td>
+                      <td className="tds-workings__col-exp-missing win-form__table-num">
+                        {totalExpensesMissing}
+                      </td>
                       <td className="tds-workings__col-amount win-form__table-num">
                         {formatValue(totalAmount)}
                       </td>
@@ -692,6 +854,7 @@ export function TdsWorkingsPage() {
                       <td className="tds-workings__col-amount win-form__table-num">
                         {formatValue(totalAmount)}
                       </td>
+                      <td className="tds-workings__col-action" />
                     </tr>
                   )}
                 </tbody>

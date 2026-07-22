@@ -19,10 +19,11 @@ alwaysApply: false
 
 ## Numeric fields — always right-aligned
 
-- All quantity, weight, amount, rate, percent, and other numeric values must be **right-aligned**.
+- All quantity, weight, amount, rate, percent, and other numeric values must be **right-aligned** (forms, tables, modals, reports).
 - Prefer `FormattedNumberInput` (applies `win-form__control--num`).
 - Read-only / plain numeric inputs must still use `win-form__control--num` (or table class `win-form__table-num` / `win-form__autocomplete-v--num`).
-- Never leave a numeric control left-aligned.
+- **Tables:** numeric columns use `win-form__table-num` on **header and body** cells. See also rule `tables-numeric.mdc`.
+- Never leave a numeric control or table cell left-aligned.
 
 ## Validation + toasts (match Yorawealth)
 

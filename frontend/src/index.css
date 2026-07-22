@@ -3979,6 +3979,14 @@ body {
   width: 5rem;
 }
 
+.tds-workings__col-pan-missing {
+  width: 6.5rem;
+}
+
+.tds-workings__col-exp-missing {
+  width: 7rem;
+}
+
 .tds-workings__col-amount {
   width: 8.5rem;
 }
@@ -3991,6 +3999,8 @@ body {
 .tds-workings__table th.win-form__table-num,
 .tds-workings__table td.win-form__table-num,
 .tds-workings__col-lines,
+.tds-workings__col-pan-missing,
+.tds-workings__col-exp-missing,
 .tds-workings__col-exp-amount,
 .tds-workings__col-amount {
   text-align: right;
@@ -4000,27 +4010,337 @@ body {
   cursor: pointer;
 }
 
-.tds-workings__table tbody tr:hover td {
+.tds-workings__table-scroll .tds-workings__table tbody tr:hover td {
   background: color-mix(in srgb, var(--form-accent, var(--accent)) 10%, var(--panel));
 }
 
-.tds-workings__table tbody tr.tds-workings__row--new td {
+.tds-workings__table-scroll .tds-workings__table tbody tr.tds-workings__row--new td {
   background: color-mix(in srgb, #2f9e44 16%, var(--panel));
 }
 
-.tds-workings__table tbody tr.tds-workings__row--new:hover td {
+.tds-workings__table-scroll .tds-workings__table tbody tr.tds-workings__row--new:hover td {
   background: color-mix(in srgb, #2f9e44 26%, var(--panel));
 }
 
-.tds-workings__table tbody tr.tds-workings__row--deleted td {
+.tds-workings__table-scroll .tds-workings__table tbody tr.tds-workings__row--deleted td {
   background: color-mix(in srgb, #e03131 16%, var(--panel));
 }
 
-.tds-workings__table tbody tr.tds-workings__row--deleted:hover td {
+.tds-workings__table-scroll .tds-workings__table tbody tr.tds-workings__row--deleted:hover td {
   background: color-mix(in srgb, #e03131 26%, var(--panel));
 }
 
 .tds-workings__total-label {
   text-align: right;
   color: var(--muted);
+}
+
+.tds-workings__col-action {
+  width: 3.25rem;
+  text-align: center;
+}
+
+.tds-workings__match-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tds-workings__match-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.tds-workings__match-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tds-workings__match-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.app-modal.tds-expense-match-modal {
+  width: min(44rem, calc(100vw - 1.5rem));
+  max-height: min(90vh, 36rem);
+  height: min(90vh, 36rem);
+}
+
+.tds-expense-match-modal .app-modal-header {
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 0.3rem 0.65rem;
+}
+
+.tds-expense-match-modal .app-modal-title {
+  font-size: 0.8125rem;
+  gap: 0.35rem;
+}
+
+.tds-expense-match-modal .app-modal-title-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.tds-expense-match-modal .app-modal-close {
+  padding: 0.2rem;
+}
+
+.tds-expense-match-modal__layout {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  --form-line: #2a2e36;
+  --form-header: #1a1d24;
+}
+
+.tds-expense-match-modal__body {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tds-expense-match-modal__status,
+.tds-expense-match-modal__muted {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.tds-expense-match-modal__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem 0.65rem;
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+
+.tds-expense-match-modal__summary-item {
+  min-width: 0;
+}
+
+.tds-expense-match-modal__summary dt {
+  font-size: 0.6875rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.tds-expense-match-modal__summary dd {
+  margin: 0;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tds-expense-match-modal__num {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+}
+
+.tds-expense-match-modal__section {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tds-expense-match-modal__heading {
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tds-expense-match-modal__table-wrap {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel);
+}
+
+.tds-expense-match-modal__table-head,
+.tds-expense-match-modal__table-scroll {
+  box-sizing: border-box;
+  padding-right: 0.85rem;
+}
+
+.tds-expense-match-modal__table-head {
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.tds-expense-match-modal__table-head::-webkit-scrollbar {
+  display: none;
+}
+
+.tds-expense-match-modal__table-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  background: var(--panel);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.tds-expense-match-modal__table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tds-expense-match-modal__table-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.tds-expense-match-modal__table {
+  width: max(100%, 36rem);
+  min-width: 36rem;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.75rem;
+  font-family: var(--font-tabular);
+  font-variant-numeric: tabular-nums;
+}
+
+.tds-expense-match__col-date {
+  width: 6.75rem;
+}
+
+.tds-expense-match__col-type {
+  width: 5.5rem;
+}
+
+.tds-expense-match__col-voucher {
+  width: 5.5rem;
+}
+
+.tds-expense-match__col-bill {
+  width: auto;
+  min-width: 8rem;
+}
+
+.tds-expense-match__col-amount {
+  width: 7rem;
+}
+
+.tds-expense-match-modal__table th,
+.tds-expense-match-modal__table td {
+  padding: 0.35rem 0.5rem;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  background: var(--panel);
+  border-right: 1px solid var(--form-line, var(--line));
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.tds-expense-match-modal__table th:last-child,
+.tds-expense-match-modal__table td:last-child {
+  border-right: none;
+}
+
+.tds-expense-match-modal__table thead th {
+  background: var(--surface);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.tds-expense-match-modal__table-head .tds-expense-match-modal__table thead th {
+  border-bottom: none;
+}
+
+.tds-expense-match-modal__table-spacer {
+  visibility: hidden;
+  line-height: 0;
+}
+
+.tds-expense-match-modal__table-spacer th {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border: none !important;
+  height: 0 !important;
+  overflow: hidden;
+  color: transparent;
+}
+
+.tds-expense-match-modal__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tds-expense-match-modal__table th.win-form__table-num,
+.tds-expense-match-modal__table td.win-form__table-num {
+  text-align: right;
+  font-family: var(--font-tabular, 'IBM Plex Mono', ui-monospace, monospace);
+}
+
+.tds-expense-match-modal__row--selected td {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+
+.tds-expense-match-modal__row--selected:hover td {
+  background: color-mix(in srgb, var(--accent) 20%, var(--panel));
+}
+
+.tds-expense-match-modal__row--click {
+  cursor: pointer;
+}
+
+.tds-expense-match-modal__row--click:hover td {
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+
+.tds-expense-match-modal__footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.tds-expense-match-modal__footer .win-form__button {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8125rem;
 }

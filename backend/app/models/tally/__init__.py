@@ -59,6 +59,7 @@ class TallyDaybook2(Base):
     vno: Mapped[Optional[str]] = mapped_column("VNO", Text)
     vdt: Mapped[Optional[datetime]] = mapped_column("VDT", DateTime)
     narration: Mapped[Optional[str]] = mapped_column("NARRATION", Text)
+    debit_credit: Mapped[Optional[str]] = mapped_column("DEBIT_CREDIT", Text)
     ledger_name: Mapped[Optional[str]] = mapped_column("LEDGER_NAME", Text)
     costcentre_name: Mapped[Optional[str]] = mapped_column("COSTCENTRE_NAME", Text)
     costcentre_amt: Mapped[Optional[float]] = mapped_column("COSTCENTRE_AMT", Float)
