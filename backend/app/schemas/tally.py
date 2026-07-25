@@ -309,3 +309,55 @@ class CollectionPerformanceOut(BaseModel):
     unmatched_count: int = 0
     avg_days: Optional[float] = None
     buckets: List[CollectionAgeBucketOut] = []
+
+
+class CollectionAnalysisPartyOut(BaseModel):
+    ledger_name: str
+    avg_days: float = 0.0
+    matched_count: int = 0
+    matched_amount: float = 0.0
+
+
+class CollectionAnalysisOut(BaseModel):
+    date_from: str
+    date_to: str
+    avg_days: Optional[float] = None
+    matched_count: int = 0
+    matched_amount: float = 0.0
+    unmatched_count: int = 0
+    unmatched_amount: float = 0.0
+    parties: List[CollectionAnalysisPartyOut] = []
+
+
+class CollectionPerformanceUpdateOut(BaseModel):
+    date_from: str
+    date_to: str
+    updated_count: int = 0
+    cleared_count: int = 0
+    party_count: int = 0
+
+
+class ExpectedCollectionLineOut(BaseModel):
+    ledger_name: str
+    invoice_no: Optional[str] = None
+    invoice_date: Optional[str] = None
+    amount: float = 0.0
+    avg_days: float = 0.0
+    expected_date: str
+    # overdue | due | upcoming
+    status: str = "due"
+
+
+class ExpectedCollectionOut(BaseModel):
+    """Collection forecast from receivables × party avg payment days."""
+
+    # this_week | next_week | this_month
+    period: str = "this_week"
+    week_from: str
+    week_to: str
+    as_of: str
+    total_amount: float = 0.0
+    invoice_count: int = 0
+    party_count: int = 0
+    performance_count: int = 0
+    lines: List[ExpectedCollectionLineOut] = []

@@ -7,8 +7,10 @@ import {
   ChartBarSquareIcon,
   ChevronDownIcon,
   BanknotesIcon,
+  ClockIcon,
   Cog6ToothIcon,
   DocumentChartBarIcon,
+  DocumentCheckIcon,
   UserGroupIcon,
   IdentificationIcon,
   CalendarDaysIcon,
@@ -48,6 +50,11 @@ const navSections = [
     items: [
       { to: '/transactions/delivery-challan', label: 'Delivery Challan', icon: ClipboardDocumentListIcon },
       { to: '/transactions/goods-receipt', label: 'Goods Receipt', icon: InboxArrowDownIcon },
+      {
+        to: '/transactions/post-dated-cheque',
+        label: 'Post Dated Cheque',
+        icon: DocumentCheckIcon,
+      },
       { to: '/transactions/orid-dhall-production', label: 'Orid Dhall Production', icon: CubeTransparentIcon },
       {
         to: '/transactions/packing-material',
@@ -74,6 +81,7 @@ const navSections = [
     icon: DocumentChartBarIcon,
     items: [
       { to: '/reports/receivables-analysis', label: 'Receivables Analysis', icon: ScaleIcon },
+      { to: '/reports/collection-analysis', label: 'Collection Analysis', icon: ClockIcon },
       { to: '/reports/tds-workings', label: 'TDS Workings', icon: ReceiptPercentIcon },
     ],
   },
@@ -276,9 +284,11 @@ export function AppLayout() {
     location.pathname.startsWith('/transactions/orid-dhall-production') ||
     location.pathname.startsWith('/transactions/delivery-challan') ||
     location.pathname.startsWith('/transactions/goods-receipt') ||
+    location.pathname.startsWith('/transactions/post-dated-cheque') ||
     location.pathname.startsWith('/transactions/packing-material') ||
     location.pathname.startsWith('/payroll/') ||
     location.pathname.startsWith('/reports/receivables-analysis') ||
+    location.pathname.startsWith('/reports/collection-analysis') ||
     location.pathname.startsWith('/reports/tds-workings')
   const isFillMain = isPrimaryContentPage || isDashboardPage
 

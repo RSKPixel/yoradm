@@ -219,6 +219,35 @@ export function validateGoodsReceiptForm({
   return errors
 }
 
+export function validatePostDatedChequeForm({
+  party,
+  chequeNo,
+  chequeDate,
+  chequeAmount,
+  status,
+}) {
+  const errors = []
+
+  if (!party?.trim()) {
+    errors.push('Party is required.')
+  }
+  if (!chequeNo?.trim()) {
+    errors.push('Cheque no. is required.')
+  }
+  if (!chequeDate) {
+    errors.push('Cheque date is required.')
+  }
+  const amountNum = Number.parseFloat(String(chequeAmount ?? '').replace(/,/g, ''))
+  if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    errors.push('Cheque amount must be a positive number.')
+  }
+  if (!['Postdated', 'Cleared', 'Returned'].includes(String(status ?? '').trim())) {
+    errors.push('Status is required.')
+  }
+
+  return errors
+}
+
 export function validateOridDhallProductionForm({ date }) {
   const errors = []
 

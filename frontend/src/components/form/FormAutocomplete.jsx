@@ -3,7 +3,8 @@ import { forwardRef, useEffect, useId, useImperativeHandle, useMemo, useRef, use
 /**
  * Searchable single-select combobox styled like win-form controls.
  * Browser autocomplete is always off; this is in-app filtering only.
- * Dropdown opens on focus (shows all options) and filters as you type.
+ * By default the dropdown opens on focus (shows all options) and filters as you type.
+ * Set openOnFocus={false} to open only while typing / arrow keys.
  * Enter confirms (never submits a parent form).
  */
 export const FormAutocomplete = forwardRef(function FormAutocomplete(
@@ -18,6 +19,7 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
     renderOption,
     filterOption,
     allowCustom = false,
+    openOnFocus = true,
     disabled = false,
     emptyMessage = 'No matches',
     className = '',
@@ -126,8 +128,18 @@ export const FormAutocomplete = forwardRef(function FormAutocomplete(
   function onFocus() {
     if (disabled) return
     setEditing(true)
-    setQuery(allowCustom && value ? value : '')
-    setOpen(true)
+    if (openOnFocus) {
+      setQuery(allowCustom && value ? value : '')
+      setOpen(true)
+      return
+    }
+    const seed = selected
+      ? inputLabelFor(selected)
+      : allowCustom && value
+        ? value
+        : value || ''
+    setQuery(seed)
+    setOpen(false)
   }
 
   function onBlur(event) {

@@ -6,6 +6,7 @@ import { SettingsProvider } from './components/settings/SettingsContext'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { OpenSettingsRoute } from './pages/OpenSettingsRoute'
+import { CollectionAnalysisPage } from './pages/CollectionAnalysisPage'
 import { DeliveryChallanPage } from './pages/DeliveryChallanPage'
 import { GoodsReceiptPage } from './pages/GoodsReceiptPage'
 import { OridDhallProductionPage } from './pages/OridDhallProductionPage'
@@ -13,6 +14,7 @@ import { PackingMaterialPage } from './pages/PackingMaterialPage'
 import { PayrollAttendancePage } from './pages/PayrollAttendancePage'
 import { PayrollEmployeesPage } from './pages/PayrollEmployeesPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { PostDatedChequePage } from './pages/PostDatedChequePage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
 import { TdsWorkingsPage } from './pages/TdsWorkingsPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
@@ -40,6 +42,10 @@ export default function App() {
                   <Route path="transactions/delivery-challan" element={<DeliveryChallanPage />} />
                   <Route path="transactions/goods-receipt" element={<GoodsReceiptPage />} />
                   <Route
+                    path="transactions/post-dated-cheque"
+                    element={<PostDatedChequePage />}
+                  />
+                  <Route
                     path="transactions/orid-dhall-production"
                     element={<OridDhallProductionPage />}
                   />
@@ -56,6 +62,10 @@ export default function App() {
                   <Route
                     path="reports/receivables-analysis"
                     element={<ReceivablesAnalysisPage />}
+                  />
+                  <Route
+                    path="reports/collection-analysis"
+                    element={<CollectionAnalysisPage />}
                   />
                   <Route path="reports/tds-workings" element={<TdsWorkingsPage />} />
 

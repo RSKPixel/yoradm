@@ -15,12 +15,15 @@ from app.models.tally import (
     TallyStockSummary,
 )
 from app.schemas import DashboardStats, PaginatedResponse
+from app.schemas.post_dated_cheque import PendingBillOut
 from app.schemas.tally import (
     AccountMasterOut,
     CollectionPerformanceOut,
+    CollectionPerformanceUpdateOut,
     CostCentreOut,
     DaybookAvailabilityOut,
     DaybookTradeOut,
+    ExpectedCollectionOut,
     InventoryItemOptionOut,
     InventoryMasterOut,
     PurchaseOut,
@@ -105,6 +108,25 @@ def list_representatives(_: CurrentUser, db: DbSession) -> List[CostCentreOut]:
 @router.get("/vendors", response_model=List[VendorOptionOut])
 def list_vendors(_: CurrentUser, db: DbSession) -> List[VendorOptionOut]:
     return tally_service.list_vendors(db)
+
+
+@router.get("/receivables/parties", response_model=List[VendorOptionOut])
+def list_receivable_parties(_: CurrentUser, db: DbSession) -> List[VendorOptionOut]:
+    return tally_service.list_receivable_parties(db)
+
+
+@router.get("/receivables/pending-bills", response_model=List[PendingBillOut])
+def list_party_pending_bills(
+    _: CurrentUser,
+    db: DbSession,
+    party: str = Query(..., min_length=1),
+    exclude_cheque_id: Optional[int] = Query(default=None, ge=1),
+) -> List[PendingBillOut]:
+    return tally_service.list_party_pending_bills(
+        db,
+        party=party.strip(),
+        exclude_cheque_id=exclude_cheque_id,
+    )
 
 
 @router.get("/vendors/tds-status", response_model=VendorTdsStatusOut)
@@ -336,4 +358,45 @@ def daybook_collection_performance(
         date_from=date_from,
         date_to=date_to,
         representative=rep,
+    )
+
+
+@router.get("/collection-analysis", response_model=ExpectedCollectionOut)
+def collection_analysis(
+    _: CurrentUser,
+    db: DbSession,
+    as_of: Optional[date] = Query(default=None),
+    period: Optional[str] = Query(
+        default="this_week",
+        description="this_week | next_week | this_month",
+    ),
+    representative: Optional[str] = Query(default=None),
+    days: Optional[int] = Query(default=None, ge=1, le=62),
+) -> ExpectedCollectionOut:
+    """Expected collections for the selected due window from receivables × party performance."""
+    rep = representative.strip() if representative else None
+    return tally_service.expected_collections(
+        db,
+        as_of=as_of,
+        period=period,
+        representative=rep,
+        days=days,
+    )
+
+
+@router.post(
+    "/collection-analysis/update-performance",
+    response_model=CollectionPerformanceUpdateOut,
+)
+def update_collection_performance(
+    _: AdminUser,
+    db: DbSession,
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+) -> CollectionPerformanceUpdateOut:
+    """Recompute party avg payment days and write to yoradm_party_collection_performance."""
+    return tally_service.update_party_collection_performance(
+        db,
+        date_from=date_from,
+        date_to=date_to,
     )

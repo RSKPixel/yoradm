@@ -1,11 +1,14 @@
+from calendar import monthrange
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from math import ceil
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from app.models.post_dated_cheque import PostDatedChequeAllocation
+from app.models.party_collection_performance import PartyCollectionPerformance
 from app.models.tally import (
     TallyAccountMaster,
     TallyCostCentre,
@@ -18,16 +21,23 @@ from app.models.tally import (
 )
 from app.models.tds_working import TdsWorking
 from app.schemas import DashboardStats
+from app.schemas.post_dated_cheque import PendingBillOut
 from app.schemas.tally import (
     CollectionAgeBucketOut,
+    CollectionAnalysisOut,
+    CollectionAnalysisPartyOut,
     CollectionPerformanceOut,
+    CollectionPerformanceUpdateOut,
     DaybookAvailabilityOut,
     DaybookTradeOut,
     DaybookTradePointOut,
+    ExpectedCollectionLineOut,
+    ExpectedCollectionOut,
     InventoryItemOptionOut,
     ReceivableAgeingBuckets,
     ReceivableAnalysisOut,
     ReceivableInvoiceAgeingOut,
+    ReceivableOut,
     ReceivablePartyAgeingOut,
     ReceivableRepresentativeOut,
     SaleInvoiceOptionOut,
@@ -154,6 +164,84 @@ def list_locations(db: Session, parent: str = "Locations") -> Sequence[TallyCost
         .order_by(TallyCostCentre.name.asc())
         .all()
     )
+
+
+def list_receivable_parties(db: Session) -> List[VendorOptionOut]:
+    """Distinct party ledger names from tallydata_receivables."""
+    rows = (
+        db.query(TallyReceivable.ledger_name)
+        .filter(
+            TallyReceivable.ledger_name.isnot(None),
+            TallyReceivable.ledger_name != "",
+        )
+        .distinct()
+        .order_by(TallyReceivable.ledger_name.asc())
+        .all()
+    )
+    return [
+        VendorOptionOut(ledger_name=name.strip(), primary_group=None)
+        for (name,) in rows
+        if name and name.strip()
+    ]
+
+
+def list_party_pending_bills(
+    db: Session,
+    *,
+    party: str,
+    exclude_cheque_id: Optional[int] = None,
+) -> List[PendingBillOut]:
+    """Pending receivable invoices for a party, with cheque received totals."""
+    name = (party or "").strip()
+    if not name:
+        return []
+    rows = (
+        db.query(TallyReceivable)
+        .filter(
+            TallyReceivable.ledger_name.isnot(None),
+            TallyReceivable.ledger_name != "",
+            func.lower(TallyReceivable.ledger_name) == name.lower(),
+        )
+        .order_by(
+            TallyReceivable.invoice_date.asc(),
+            TallyReceivable.invoice_no.asc(),
+            TallyReceivable.id.asc(),
+        )
+        .all()
+    )
+
+    received_query = (
+        db.query(
+            PostDatedChequeAllocation.invoice_no,
+            func.coalesce(func.sum(PostDatedChequeAllocation.allocated_amount), 0.0),
+        )
+        .filter(func.lower(PostDatedChequeAllocation.party) == name.lower())
+    )
+    if exclude_cheque_id is not None:
+        received_query = received_query.filter(
+            PostDatedChequeAllocation.cheque_id != int(exclude_cheque_id)
+        )
+    received_by_invoice = {
+        (invoice or "").strip(): float(total or 0.0)
+        for invoice, total in received_query.group_by(PostDatedChequeAllocation.invoice_no).all()
+        if (invoice or "").strip()
+    }
+
+    bills: List[PendingBillOut] = []
+    for row in rows:
+        invoice_no = (row.invoice_no or "").strip() or None
+        bills.append(
+            PendingBillOut(
+                id=int(row.id),
+                invoice_no=invoice_no,
+                invoice_date=row.invoice_date,
+                ledger_name=(row.ledger_name or None),
+                representative=(row.representative or None),
+                amount=float(row.amount) if row.amount is not None else None,
+                cheque_received=received_by_invoice.get(invoice_no or "", 0.0),
+            )
+        )
+    return bills
 
 
 def list_vendors(db: Session) -> List[VendorOptionOut]:
@@ -1750,4 +1838,402 @@ def collection_performance(
         unmatched_count=unmatched_count,
         avg_days=avg_days,
         buckets=buckets,
+    )
+
+
+def _current_fy_start(today: Optional[date] = None) -> date:
+    day = today or date.today()
+    fy_start_year = day.year if day.month >= 4 else day.year - 1
+    return date(fy_start_year, 4, 1)
+
+
+def _load_sales_invoice_dates(
+    db: Session,
+    bill_nos: Sequence[str],
+) -> Dict[str, date]:
+    """Map sales voucher_no → earliest voucher_date for fallback invoice dating."""
+    bills = sorted({(b or "").strip() for b in bill_nos if (b or "").strip()})
+    if not bills:
+        return {}
+
+    rows = (
+        db.query(
+            TallySale.voucher_no,
+            func.min(TallySale.voucher_date).label("invoice_date"),
+        )
+        .filter(
+            TallySale.voucher_no.in_(bills),
+            TallySale.voucher_date.isnot(None),
+        )
+        .group_by(TallySale.voucher_no)
+        .all()
+    )
+    result: Dict[str, date] = {}
+    for voucher_no, invoice_dt in rows:
+        key = (voucher_no or "").strip()
+        day = _daybook_vdt_date(invoice_dt)
+        if key and day is not None:
+            result[key] = day
+    return result
+
+
+def collection_analysis(
+    db: Session,
+    *,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> CollectionAnalysisOut:
+    """Avg payment days per party: Receipt Agst Ref VDT − invoice date.
+
+    Invoice date prefers daybook New Ref (same ledger_name + bill_no); falls back
+    to tallydata_sales.voucher_date when New Ref is missing (older invoices).
+    Average is amount-weighted. Unmatched receipts are excluded from the average.
+    Default window is current FY start (1 Apr) through today.
+    """
+    end = date_to or date.today()
+    start = date_from or _current_fy_start(end)
+    if start > end:
+        start, end = end, start
+
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.max.time())
+
+    receipt_rows = (
+        db.query(
+            TallyDaybook2.ledger_name,
+            TallyDaybook2.bill_no,
+            TallyDaybook2.ledger_amount,
+            TallyDaybook2.vdt,
+        )
+        .filter(
+            TallyDaybook2.vtype == RECEIPT_VTYPE,
+            TallyDaybook2.bill_type == PARTY_BILL_TYPE_AGST,
+            TallyDaybook2.vdt.isnot(None),
+            TallyDaybook2.vdt >= start_dt,
+            TallyDaybook2.vdt <= end_dt,
+            TallyDaybook2.bill_no.isnot(None),
+            TallyDaybook2.bill_no != "",
+            TallyDaybook2.ledger_name.isnot(None),
+            TallyDaybook2.ledger_name != "",
+        )
+        .all()
+    )
+
+    party_bill_pairs = [
+        ((row.ledger_name or "").strip(), (row.bill_no or "").strip())
+        for row in receipt_rows
+    ]
+    invoice_refs = _load_expense_refs(db, party_bill_pairs)
+
+    missing_bills = []
+    for party, bill in party_bill_pairs:
+        key = _expense_lookup_key(party, bill)
+        if key and key not in invoice_refs:
+            missing_bills.append(bill)
+    sales_dates = _load_sales_invoice_dates(db, missing_bills)
+
+    party_stats: Dict[str, Dict[str, Any]] = {}
+    overall_weighted_days = 0.0
+    overall_matched_amount = 0.0
+    overall_matched_count = 0
+    overall_unmatched_amount = 0.0
+    overall_unmatched_count = 0
+
+    for ledger_raw, bill_raw, amount_raw, receipt_vdt in receipt_rows:
+        ledger = (ledger_raw or "").strip() or "(No party)"
+        bill = (bill_raw or "").strip()
+        amount = float(amount_raw or 0.0)
+        receipt_day = _daybook_vdt_date(receipt_vdt)
+        key = _expense_lookup_key(ledger_raw, bill_raw)
+        invoice_meta = invoice_refs.get(key) if key else None
+        invoice_day = invoice_meta[0] if invoice_meta else None
+        if invoice_day is None and bill:
+            invoice_day = sales_dates.get(bill)
+
+        if receipt_day is None or invoice_day is None:
+            overall_unmatched_amount += amount
+            overall_unmatched_count += 1
+            continue
+
+        days = max((receipt_day - invoice_day).days, 0)
+        stats = party_stats.get(ledger)
+        if stats is None:
+            stats = {
+                "weighted_days": 0.0,
+                "matched_amount": 0.0,
+                "matched_count": 0,
+            }
+            party_stats[ledger] = stats
+
+        stats["weighted_days"] += days * amount
+        stats["matched_amount"] += amount
+        stats["matched_count"] += 1
+        overall_weighted_days += days * amount
+        overall_matched_amount += amount
+        overall_matched_count += 1
+
+    parties: List[CollectionAnalysisPartyOut] = []
+    for ledger_name, stats in party_stats.items():
+        matched_amount = float(stats["matched_amount"])
+        avg_days = (stats["weighted_days"] / matched_amount) if matched_amount else 0.0
+        parties.append(
+            CollectionAnalysisPartyOut(
+                ledger_name=ledger_name,
+                avg_days=avg_days,
+                matched_count=int(stats["matched_count"]),
+                matched_amount=matched_amount,
+            )
+        )
+
+    parties.sort(
+        key=lambda row: (-row.avg_days, row.ledger_name.casefold()),
+    )
+
+    overall_avg = (
+        (overall_weighted_days / overall_matched_amount) if overall_matched_amount else None
+    )
+
+    return CollectionAnalysisOut(
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+        avg_days=overall_avg,
+        matched_count=overall_matched_count,
+        matched_amount=overall_matched_amount,
+        unmatched_count=overall_unmatched_count,
+        unmatched_amount=overall_unmatched_amount,
+        parties=parties,
+    )
+
+
+def update_party_collection_performance(
+    db: Session,
+    *,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> CollectionPerformanceUpdateOut:
+    """Recompute avg payment days and upsert into yoradm_party_collection_performance.
+
+    Default window: current FY start through max daybook2 VDT (synced data end).
+    Survives Tally sync.
+    """
+    if date_to is None:
+        availability = daybook_availability(db)
+        date_to = availability.date_to or date.today()
+    if date_from is None:
+        date_from = _current_fy_start(date_to)
+
+    analysis = collection_analysis(db, date_from=date_from, date_to=date_to)
+    window_from = date.fromisoformat(analysis.date_from)
+    window_to = date.fromisoformat(analysis.date_to)
+
+    new_by_name = {
+        (party.ledger_name or "").strip(): party
+        for party in analysis.parties
+        if (party.ledger_name or "").strip()
+    }
+
+    existing_rows = db.query(PartyCollectionPerformance).all()
+    existing_by_name = {
+        (row.ledger_name or "").strip(): row
+        for row in existing_rows
+        if (row.ledger_name or "").strip()
+    }
+
+    updated_count = 0
+    cleared_count = 0
+
+    for name, row in existing_by_name.items():
+        if name not in new_by_name:
+            db.delete(row)
+            cleared_count += 1
+
+    for name, party in new_by_name.items():
+        row = existing_by_name.get(name)
+        if row is None:
+            db.add(
+                PartyCollectionPerformance(
+                    ledger_name=name,
+                    avg_days=float(party.avg_days),
+                    matched_count=int(party.matched_count),
+                    matched_amount=float(party.matched_amount),
+                    date_from=window_from,
+                    date_to=window_to,
+                )
+            )
+            updated_count += 1
+            continue
+
+        row.avg_days = float(party.avg_days)
+        row.matched_count = int(party.matched_count)
+        row.matched_amount = float(party.matched_amount)
+        row.date_from = window_from
+        row.date_to = window_to
+        updated_count += 1
+
+    db.commit()
+
+    return CollectionPerformanceUpdateOut(
+        date_from=analysis.date_from,
+        date_to=analysis.date_to,
+        updated_count=updated_count,
+        cleared_count=cleared_count,
+        party_count=len(new_by_name),
+    )
+
+
+COLLECTION_PERIOD_THIS_WEEK = "this_week"
+COLLECTION_PERIOD_NEXT_WEEK = "next_week"
+COLLECTION_PERIOD_THIS_MONTH = "this_month"
+COLLECTION_PERIODS = {
+    COLLECTION_PERIOD_THIS_WEEK,
+    COLLECTION_PERIOD_NEXT_WEEK,
+    COLLECTION_PERIOD_THIS_MONTH,
+}
+
+
+def _collection_due_window(as_of: date, period: str) -> Tuple[str, date, date]:
+    """Return (period_key, due_from, due_to) for the selected due window.
+
+    All windows start at as_of (today):
+    - this_week: today → this Sunday
+    - next_week: today → next Sunday
+    - this_month: today → month end
+    """
+    key = (period or COLLECTION_PERIOD_THIS_WEEK).strip().lower()
+    if key not in COLLECTION_PERIODS:
+        key = COLLECTION_PERIOD_THIS_WEEK
+
+    this_sunday = as_of + timedelta(days=(6 - as_of.weekday()))
+
+    if key == COLLECTION_PERIOD_NEXT_WEEK:
+        return key, as_of, this_sunday + timedelta(days=7)
+
+    if key == COLLECTION_PERIOD_THIS_MONTH:
+        last_day = monthrange(as_of.year, as_of.month)[1]
+        return key, as_of, date(as_of.year, as_of.month, last_day)
+
+    return key, as_of, this_sunday
+
+
+def expected_collections(
+    db: Session,
+    *,
+    as_of: Optional[date] = None,
+    period: Optional[str] = None,
+    representative: Optional[str] = None,
+    days: Optional[int] = None,
+) -> ExpectedCollectionOut:
+    """Estimate collections from receivables × party avg days.
+
+    expected_date = invoice_date + round(avg_days).
+    overdue = expected before as_of; due = expected in the selected window;
+    upcoming = after the window. Lines include all pending bills for parties
+    that have at least one due bill in the window.
+    """
+    as_of_date = as_of or date.today()
+    if period:
+        period_key, due_from, due_to = _collection_due_window(as_of_date, period)
+    elif days is not None:
+        window_days = max(int(days), 1)
+        period_key = COLLECTION_PERIOD_THIS_WEEK
+        due_from = as_of_date
+        due_to = as_of_date + timedelta(days=window_days - 1)
+    else:
+        period_key, due_from, due_to = _collection_due_window(
+            as_of_date, COLLECTION_PERIOD_THIS_WEEK
+        )
+
+    if due_to < due_from:
+        due_to = due_from
+
+    perf_rows = db.query(PartyCollectionPerformance).all()
+    avg_by_party = {
+        (row.ledger_name or "").strip(): float(row.avg_days or 0.0)
+        for row in perf_rows
+        if (row.ledger_name or "").strip()
+    }
+
+    receivables = (
+        _receivable_query(db, representative)
+        .filter(
+            TallyReceivable.invoice_date.isnot(None),
+            TallyReceivable.ledger_name.isnot(None),
+            TallyReceivable.ledger_name != "",
+        )
+        .order_by(
+            TallyReceivable.ledger_name.asc(),
+            TallyReceivable.invoice_date.asc(),
+            TallyReceivable.id.asc(),
+        )
+        .all()
+    )
+
+    due_parties: Set[str] = set()
+    due_amount = 0.0
+    due_count = 0
+    classified: List[Tuple[str, ExpectedCollectionLineOut]] = []
+
+    for row in receivables:
+        ledger = (row.ledger_name or "").strip()
+        if not ledger or ledger not in avg_by_party:
+            continue
+
+        inv_dt = row.invoice_date
+        if isinstance(inv_dt, datetime):
+            inv_day = inv_dt.date()
+        elif isinstance(inv_dt, date):
+            inv_day = inv_dt
+        else:
+            continue
+
+        avg_days = avg_by_party[ledger]
+        expected_day = inv_day + timedelta(days=max(int(round(avg_days)), 0))
+        if expected_day < as_of_date:
+            status = "overdue"
+        elif due_from <= expected_day <= due_to:
+            status = "due"
+        else:
+            status = "upcoming"
+
+        amount = float(row.amount or 0.0)
+        if status == "due":
+            due_amount += amount
+            due_count += 1
+            due_parties.add(ledger)
+
+        classified.append(
+            (
+                ledger,
+                ExpectedCollectionLineOut(
+                    ledger_name=ledger,
+                    invoice_no=(row.invoice_no or "").strip() or None,
+                    invoice_date=inv_day.isoformat(),
+                    amount=amount,
+                    avg_days=avg_days,
+                    expected_date=expected_day.isoformat(),
+                    status=status,
+                ),
+            )
+        )
+
+    lines = [line for ledger, line in classified if ledger in due_parties]
+    lines.sort(
+        key=lambda line: (
+            line.ledger_name.casefold(),
+            {"overdue": 0, "due": 1, "upcoming": 2}.get(line.status, 9),
+            line.expected_date,
+            line.invoice_no or "",
+        )
+    )
+
+    return ExpectedCollectionOut(
+        period=period_key,
+        week_from=due_from.isoformat(),
+        week_to=due_to.isoformat(),
+        as_of=as_of_date.isoformat(),
+        total_amount=due_amount,
+        invoice_count=due_count,
+        party_count=len(due_parties),
+        performance_count=len(avg_by_party),
+        lines=lines,
     )

@@ -32,6 +32,21 @@ export async function fetchVendors() {
   return data
 }
 
+export async function fetchReceivableParties() {
+  const { data } = await api.get('/tally/receivables/parties')
+  return data
+}
+
+export async function fetchPartyPendingBills(party, { excludeChequeId } = {}) {
+  const { data } = await api.get('/tally/receivables/pending-bills', {
+    params: {
+      party,
+      exclude_cheque_id: excludeChequeId || undefined,
+    },
+  })
+  return data
+}
+
 export async function fetchVendorTdsStatus({ ledgerName, invoiceValue, asOf } = {}) {
   const { data } = await api.get('/tally/vendors/tds-status', {
     params: {
@@ -151,6 +166,33 @@ export async function fetchCollectionPerformance({
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
       representative: representative || undefined,
+    },
+  })
+  return data
+}
+
+export async function fetchCollectionAnalysis({
+  asOf,
+  period,
+  representative,
+  days,
+} = {}) {
+  const { data } = await api.get('/tally/collection-analysis', {
+    params: {
+      as_of: asOf || undefined,
+      period: period || undefined,
+      representative: representative || undefined,
+      days: days || undefined,
+    },
+  })
+  return data
+}
+
+export async function updateCollectionPerformance({ dateFrom, dateTo } = {}) {
+  const { data } = await api.post('/tally/collection-analysis/update-performance', null, {
+    params: {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
     },
   })
   return data
