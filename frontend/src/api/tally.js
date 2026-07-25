@@ -115,6 +115,59 @@ export async function applyTdsExpenseMatch({
   return data
 }
 
+export async function fetchTdsHeadPayments({ fyStart, month } = {}) {
+  const { data } = await api.get('/tally/tds-workings/payments', {
+    params: {
+      fy_start: fyStart,
+      month,
+    },
+  })
+  return data
+}
+
+export async function updateTdsHeadPaymentDate({ fyStart, month, tdsHead, paymentDate } = {}) {
+  const { data } = await api.patch('/tally/tds-workings/payments/payment-date', {
+    fy_start: fyStart,
+    month,
+    tds_head: tdsHead,
+    payment_date: paymentDate || null,
+  })
+  return data
+}
+
+export async function uploadTdsHeadPaymentPdf({ fyStart, month, tdsHead, file } = {}) {
+  const form = new FormData()
+  form.append('fy_start', String(fyStart))
+  form.append('month', String(month))
+  form.append('tds_head', tdsHead)
+  form.append('file', file)
+  const { data } = await api.post('/tally/tds-workings/payments/pdf', form)
+  return data
+}
+
+export async function fetchTdsHeadPaymentPdfBlob({ fyStart, month, tdsHead } = {}) {
+  const { data } = await api.get('/tally/tds-workings/payments/pdf', {
+    params: {
+      fy_start: fyStart,
+      month,
+      tds_head: tdsHead,
+    },
+    responseType: 'blob',
+  })
+  return data
+}
+
+export async function deleteTdsHeadPaymentPdf({ fyStart, month, tdsHead } = {}) {
+  const { data } = await api.delete('/tally/tds-workings/payments/pdf', {
+    params: {
+      fy_start: fyStart,
+      month,
+      tds_head: tdsHead,
+    },
+  })
+  return data
+}
+
 export async function fetchInventoryItems() {
   const { data } = await api.get('/tally/inventory-items')
   return data

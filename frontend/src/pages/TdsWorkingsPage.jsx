@@ -1,18 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { LinkIcon } from '@heroicons/react/24/outline'
+import {
+  ArrowPathIcon,
+  ArrowUpTrayIcon,
+  EyeIcon,
+  LinkIcon,
+  TrashIcon,
+} from '@heroicons/react/24/outline'
 import { fetchCompany } from '../api/company'
 import {
   applyTdsExpenseMatch,
+  deleteTdsHeadPaymentPdf,
   fetchTdsExpenseMatch,
+  fetchTdsHeadPaymentPdfBlob,
+  fetchTdsHeadPayments,
   fetchTdsWorkings,
   saveTdsWorkings,
+  updateTdsHeadPaymentDate,
   updateTdsWorkings,
+  uploadTdsHeadPaymentPdf,
 } from '../api/tally'
 import { ExcelPreviewModal } from '../components/common/ExcelPreviewModal'
 import { PdfPreviewModal } from '../components/common/PdfPreviewModal'
 import { TdsExpenseMatchModal } from '../components/tally/TdsExpenseMatchModal'
 import { FormDropdown } from '../components/form/FormDropdown'
-import { FormField } from '../components/form/FormPanel'
+import { FormField, FormInput } from '../components/form/FormPanel'
 import { useFormMessage } from '../components/form/FormMessage'
 import { PrimaryContentLayout } from '../components/layout/PrimaryContentLayout'
 import {
@@ -35,8 +46,10 @@ import {
 const MONTH_ALL = 'all'
 const HEAD_ALL = 'all'
 const HEAD_BLANK = '__blank__'
+const HEAD_COMMON = '__COMMON__'
 const STATUS_NEW = 'new'
 const STATUS_DELETED = 'deleted'
+const MAX_PAYMENT_PDF_BYTES = 1 * 1024 * 1024
 
 function currentMonthValue() {
   return String(new Date().getMonth() + 1)
@@ -49,6 +62,30 @@ function headKey(value) {
 
 function headLabel(key) {
   return key === HEAD_BLANK ? '(Blank)' : key
+}
+
+function paymentDateIso(value) {
+  return value ? String(value).slice(0, 10) : ''
+}
+
+function hasOwnPaymentDate(payment) {
+  return Boolean(payment && payment.payment_date)
+}
+
+function hasOwnPaymentPdf(payment) {
+  return Boolean(payment?.has_pdf)
+}
+
+function effectivePaymentDate(headKeyValue, paymentsByHead) {
+  const own = paymentsByHead[headKeyValue]
+  if (hasOwnPaymentDate(own)) return paymentDateIso(own.payment_date)
+  return paymentDateIso(paymentsByHead[HEAD_COMMON]?.payment_date)
+}
+
+function effectivePdfSourceHead(headKeyValue, paymentsByHead) {
+  if (hasOwnPaymentPdf(paymentsByHead[headKeyValue])) return headKeyValue
+  if (hasOwnPaymentPdf(paymentsByHead[HEAD_COMMON])) return HEAD_COMMON
+  return null
 }
 
 function isActiveRow(row) {
@@ -111,6 +148,18 @@ const summaryColGroup = (
   </colgroup>
 )
 
+const summaryPaymentColGroup = (
+  <colgroup>
+    <col className="tds-workings__col-head" />
+    <col className="tds-workings__col-lines" />
+    <col className="tds-workings__col-pan-missing" />
+    <col className="tds-workings__col-exp-missing" />
+    <col className="tds-workings__col-amount" />
+    <col className="tds-workings__col-pay-date" />
+    <col className="tds-workings__col-pay-pdf" />
+  </colgroup>
+)
+
 const detailColGroup = (
   <colgroup>
     <col className="tds-workings__col-date" />
@@ -123,7 +172,7 @@ const detailColGroup = (
   </colgroup>
 )
 
-function SummaryHeaderRow() {
+function SummaryHeaderRow({ showPaymentCols = false }) {
   return (
     <tr>
       <th className="tds-workings__col-head">TDS Head</th>
@@ -131,6 +180,22 @@ function SummaryHeaderRow() {
       <th className="tds-workings__col-pan-missing win-form__table-num">PAN missing</th>
       <th className="tds-workings__col-exp-missing win-form__table-num">Missing exp.</th>
       <th className="tds-workings__col-amount win-form__table-num">Amount</th>
+      {showPaymentCols ? (
+        <>
+          <th
+            className="tds-workings__col-pay-date"
+            title="Per head; Total row sets common for all"
+          >
+            Payment Date
+          </th>
+          <th
+            className="tds-workings__col-pay-pdf"
+            title="Per head; Total row sets common for all"
+          >
+            Payment PDF
+          </th>
+        </>
+      ) : null}
     </tr>
   )
 }
@@ -179,6 +244,12 @@ export function TdsWorkingsPage() {
   const [expenseMatchApplying, setExpenseMatchApplying] = useState(false)
   const [expenseMatch, setExpenseMatch] = useState(null)
   const [expenseMatchSourceId, setExpenseMatchSourceId] = useState(null)
+  const [paymentsByHead, setPaymentsByHead] = useState({})
+  const [paymentDateDrafts, setPaymentDateDrafts] = useState({})
+  const [paymentSavingKey, setPaymentSavingKey] = useState(null)
+  const paymentFileRefs = useRef({})
+  const commonPaymentFileRef = useRef(null)
+  const paymentDateSavedRef = useRef({})
 
   const headRef = useRef(null)
   const bodyRef = useRef(null)
@@ -193,10 +264,13 @@ export function TdsWorkingsPage() {
   }, [fyStart, month, quarter])
 
   const isSummary = tdsHead === HEAD_ALL
+  const showPaymentCols = isSummary && !quarter && month !== MONTH_ALL
   const busy = loading || saving || updating || printing || excelLoading
   const hasDiff = newCount > 0 || deletedCount > 0
   const quarterSelected = Boolean(quarter)
   const exportRows = useMemo(() => rows.filter(isActiveRow), [rows])
+  const paymentMonth = Number(month)
+  const paymentFyStart = Number(fyStart)
 
   const exportTitle = useMemo(() => {
     if (!quarterSelected) return 'TDS Return'
@@ -246,6 +320,241 @@ export function TdsWorkingsPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!showPaymentCols || !Number.isFinite(paymentFyStart) || !Number.isFinite(paymentMonth)) {
+      setPaymentsByHead({})
+      setPaymentDateDrafts({})
+      paymentDateSavedRef.current = {}
+      return undefined
+    }
+
+    let cancelled = false
+    async function loadPayments() {
+      try {
+        const items = await fetchTdsHeadPayments({
+          fyStart: paymentFyStart,
+          month: paymentMonth,
+        })
+        if (cancelled) return
+        const next = {}
+        const drafts = {}
+        const savedDates = {}
+        for (const item of Array.isArray(items) ? items : []) {
+          next[item.tds_head] = item
+          const dateValue = paymentDateIso(item.payment_date)
+          if (item.tds_head === HEAD_COMMON || hasOwnPaymentDate(item)) {
+            drafts[item.tds_head] = dateValue
+            savedDates[item.tds_head] = dateValue
+          }
+        }
+        setPaymentsByHead(next)
+        setPaymentDateDrafts(drafts)
+        paymentDateSavedRef.current = savedDates
+      } catch (err) {
+        if (!cancelled) {
+          setPaymentsByHead({})
+          setPaymentDateDrafts({})
+          paymentDateSavedRef.current = {}
+          showError(getApiErrorMessage(err, 'Unable to load payment details'))
+        }
+      }
+    }
+
+    void loadPayments()
+    return () => {
+      cancelled = true
+    }
+  }, [showPaymentCols, paymentFyStart, paymentMonth, showError])
+
+  function upsertPayment(item) {
+    if (!item?.tds_head) return
+    const dateValue = paymentDateIso(item.payment_date)
+    setPaymentsByHead((prev) => ({ ...prev, [item.tds_head]: item }))
+    setPaymentDateDrafts((prev) => {
+      const next = { ...prev }
+      if (item.tds_head === HEAD_COMMON || hasOwnPaymentDate(item)) {
+        next[item.tds_head] = dateValue
+      } else if (item.tds_head !== HEAD_COMMON) {
+        delete next[item.tds_head]
+      }
+      return next
+    })
+    const savedDates = { ...paymentDateSavedRef.current }
+    if (item.tds_head === HEAD_COMMON || hasOwnPaymentDate(item)) {
+      savedDates[item.tds_head] = dateValue
+    } else {
+      delete savedDates[item.tds_head]
+    }
+    paymentDateSavedRef.current = savedDates
+  }
+
+  function displayPaymentDate(headKeyValue) {
+    if (Object.prototype.hasOwnProperty.call(paymentDateDrafts, headKeyValue)) {
+      return paymentDateDrafts[headKeyValue] ?? ''
+    }
+    return effectivePaymentDate(headKeyValue, paymentsByHead)
+  }
+
+  function onPaymentDateInput(headKeyValue, value) {
+    setPaymentDateDrafts((prev) => ({
+      ...prev,
+      [headKeyValue]: String(value || '').trim(),
+    }))
+  }
+
+  async function commitPaymentDate(headKeyValue, rawValue) {
+    const paymentDate = String(
+      rawValue != null ? rawValue : paymentDateDrafts[headKeyValue] ?? '',
+    ).trim()
+    const ownSaved = Object.prototype.hasOwnProperty.call(
+      paymentDateSavedRef.current,
+      headKeyValue,
+    )
+      ? String(paymentDateSavedRef.current[headKeyValue] ?? '').trim()
+      : null
+    const commonDate = paymentDateIso(paymentsByHead[HEAD_COMMON]?.payment_date)
+    const previousDisplayed =
+      ownSaved != null ? ownSaved : headKeyValue === HEAD_COMMON ? '' : commonDate
+
+    if (paymentDate === previousDisplayed) {
+      if (headKeyValue !== HEAD_COMMON && !ownSaved) {
+        setPaymentDateDrafts((prev) => {
+          const next = { ...prev }
+          delete next[headKeyValue]
+          return next
+        })
+      }
+      return
+    }
+
+    // Matching common date again → clear individual override so common applies.
+    const clearOverride =
+      headKeyValue !== HEAD_COMMON &&
+      ownSaved != null &&
+      paymentDate === commonDate
+
+    const toSave = clearOverride ? null : paymentDate || null
+    setPaymentDateDrafts((prev) => ({ ...prev, [headKeyValue]: paymentDate }))
+
+    const savingKey = `${headKeyValue}:date`
+    setPaymentSavingKey(savingKey)
+    try {
+      const savedPayment = await updateTdsHeadPaymentDate({
+        fyStart: paymentFyStart,
+        month: paymentMonth,
+        tdsHead: headKeyValue,
+        paymentDate: toSave,
+      })
+      upsertPayment(savedPayment)
+      if (headKeyValue !== HEAD_COMMON && clearOverride) {
+        setPaymentDateDrafts((prev) => {
+          const next = { ...prev }
+          delete next[headKeyValue]
+          return next
+        })
+      }
+    } catch (err) {
+      if (ownSaved != null) {
+        setPaymentDateDrafts((prev) => ({ ...prev, [headKeyValue]: ownSaved }))
+      } else {
+        setPaymentDateDrafts((prev) => {
+          const next = { ...prev }
+          delete next[headKeyValue]
+          return next
+        })
+      }
+      showError(getApiErrorMessage(err, 'Could not update payment date'))
+    } finally {
+      setPaymentSavingKey((current) => (current === savingKey ? null : current))
+    }
+  }
+
+  async function onPaymentPdfSelected(headKeyValue, file) {
+    if (!file) return
+    if (file.type && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      showError('Please upload a PDF file.')
+      return
+    }
+    if (file.size > MAX_PAYMENT_PDF_BYTES) {
+      showError('PDF must be 1 MB or smaller.')
+      return
+    }
+
+    const savingKey = `${headKeyValue}:pdf`
+    setPaymentSavingKey(savingKey)
+    try {
+      const savedPayment = await uploadTdsHeadPaymentPdf({
+        fyStart: paymentFyStart,
+        month: paymentMonth,
+        tdsHead: headKeyValue,
+        file,
+      })
+      upsertPayment(savedPayment)
+      showSuccess(
+        headKeyValue === HEAD_COMMON
+          ? 'Common payment PDF uploaded for this month.'
+          : 'Payment PDF uploaded.',
+      )
+    } catch (err) {
+      showError(getApiErrorMessage(err, 'Could not upload payment PDF'))
+    } finally {
+      setPaymentSavingKey(null)
+    }
+  }
+
+  async function onViewPaymentPdf(headKeyValue) {
+    const sourceHead = effectivePdfSourceHead(headKeyValue, paymentsByHead)
+    if (!sourceHead) {
+      showError('No payment PDF available.')
+      return
+    }
+    setPaymentSavingKey(`${headKeyValue}:view`)
+    try {
+      const blob = await fetchTdsHeadPaymentPdfBlob({
+        fyStart: paymentFyStart,
+        month: paymentMonth,
+        tdsHead: sourceHead,
+      })
+      const payment = paymentsByHead[sourceHead]
+      closePdfPreview()
+      const url = URL.createObjectURL(blob)
+      setPdfPreview({
+        url,
+        fileName: payment?.pdf_filename || `tds-payment-${sourceHead}.pdf`,
+        title:
+          sourceHead === HEAD_COMMON
+            ? 'Payment PDF — Common (this month)'
+            : `Payment PDF — ${headLabel(headKeyValue)}`,
+      })
+    } catch (err) {
+      showError(getApiErrorMessage(err, 'Could not open payment PDF'))
+    } finally {
+      setPaymentSavingKey(null)
+    }
+  }
+
+  async function onDeletePaymentPdf(headKeyValue) {
+    const savingKey = `${headKeyValue}:pdf-del`
+    setPaymentSavingKey(savingKey)
+    try {
+      const savedPayment = await deleteTdsHeadPaymentPdf({
+        fyStart: paymentFyStart,
+        month: paymentMonth,
+        tdsHead: headKeyValue,
+      })
+      upsertPayment(savedPayment)
+      showSuccess(
+        headKeyValue === HEAD_COMMON
+          ? 'Common payment PDF removed.'
+          : 'Payment PDF removed.',
+      )
+    } catch (err) {
+      showError(getApiErrorMessage(err, 'Could not remove payment PDF'))
+    } finally {
+      setPaymentSavingKey(null)
+    }
+  }
 
   const headOptions = useMemo(() => {
     const keys = new Set()
@@ -521,13 +830,16 @@ export function TdsWorkingsPage() {
 
   const tableClass = `win-form__table tds-workings__table${
     isSummary ? ' tds-workings__table--summary' : ''
-  }`
+  }${showPaymentCols ? ' tds-workings__table--payment' : ''}`
+  const summaryCols = showPaymentCols ? summaryPaymentColGroup : summaryColGroup
+  const summaryColSpan = showPaymentCols ? 7 : 5
+  const summaryHeader = <SummaryHeaderRow showPaymentCols={showPaymentCols} />
 
   return (
     <>
       <PdfPreviewModal
         open={printing || Boolean(pdfPreview)}
-        title={exportTitle}
+        title={pdfPreview?.title || exportTitle}
         fileName={pdfPreview?.fileName}
         pdfUrl={pdfPreview?.url}
         loading={printing}
@@ -686,8 +998,8 @@ export function TdsWorkingsPage() {
             onScroll={(event) => syncHorizontalScroll(event.currentTarget)}
           >
             <table className={tableClass}>
-              {isSummary ? summaryColGroup : detailColGroup}
-              <thead>{isSummary ? <SummaryHeaderRow /> : <DetailHeaderRow />}</thead>
+              {isSummary ? summaryCols : detailColGroup}
+              <thead>{isSummary ? summaryHeader : <DetailHeaderRow />}</thead>
             </table>
           </div>
 
@@ -697,56 +1009,169 @@ export function TdsWorkingsPage() {
             onScroll={(event) => syncHorizontalScroll(event.currentTarget)}
           >
             <table className={tableClass}>
-              {isSummary ? summaryColGroup : detailColGroup}
+              {isSummary ? summaryCols : detailColGroup}
               <thead aria-hidden="true" className="tds-workings__table-spacer">
-                {isSummary ? <SummaryHeaderRow /> : <DetailHeaderRow />}
+                {isSummary ? summaryHeader : <DetailHeaderRow />}
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={isSummary ? 5 : 7} className="win-form__table-empty">
+                    <td colSpan={isSummary ? summaryColSpan : 7} className="win-form__table-empty">
                       Loading…
                     </td>
                   </tr>
                 ) : isSummary ? (
                   summaryRows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="win-form__table-empty">
+                      <td colSpan={summaryColSpan} className="win-form__table-empty">
                         No TDS Payable journal lines for this period.
                       </td>
                     </tr>
                   ) : (
-                    summaryRows.map((group) => (
-                      <tr
-                        key={group.key}
-                        className="tds-workings__row-click"
-                        tabIndex={0}
-                        onClick={() => setTdsHead(group.key)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            setTdsHead(group.key)
-                          }
-                        }}
-                        title="Click to view breakup"
-                      >
-                        <td className="tds-workings__col-head" title={group.tdsHead}>
-                          {group.tdsHead}
-                        </td>
-                        <td className="tds-workings__col-lines win-form__table-num">
-                          {group.lineCount}
-                        </td>
-                        <td className="tds-workings__col-pan-missing win-form__table-num">
-                          {group.panMissing}
-                        </td>
-                        <td className="tds-workings__col-exp-missing win-form__table-num">
-                          {group.expensesMissing}
-                        </td>
-                        <td className="tds-workings__col-amount win-form__table-num">
-                          {formatValue(group.amount)}
-                        </td>
-                      </tr>
-                    ))
+                    summaryRows.map((group) => {
+                      const payment = paymentsByHead[group.key]
+                      const paymentDateValue = displayPaymentDate(group.key)
+                      const pdfSource = effectivePdfSourceHead(group.key, paymentsByHead)
+                      const hasEffectivePdf = Boolean(pdfSource)
+                      const hasOwnPdf = hasOwnPaymentPdf(payment)
+                      const pdfBusy =
+                        paymentSavingKey === `${group.key}:pdf` ||
+                        paymentSavingKey === `${group.key}:pdf-del` ||
+                        paymentSavingKey === `${group.key}:view`
+                      return (
+                        <tr
+                          key={group.key}
+                          className="tds-workings__row-click"
+                          tabIndex={0}
+                          onClick={() => setTdsHead(group.key)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setTdsHead(group.key)
+                            }
+                          }}
+                          title="Click to view breakup"
+                        >
+                          <td className="tds-workings__col-head" title={group.tdsHead}>
+                            {group.tdsHead}
+                          </td>
+                          <td className="tds-workings__col-lines win-form__table-num">
+                            {group.lineCount}
+                          </td>
+                          <td className="tds-workings__col-pan-missing win-form__table-num">
+                            {group.panMissing}
+                          </td>
+                          <td className="tds-workings__col-exp-missing win-form__table-num">
+                            {group.expensesMissing}
+                          </td>
+                          <td className="tds-workings__col-amount win-form__table-num">
+                            {formatValue(group.amount)}
+                          </td>
+                          {showPaymentCols ? (
+                            <>
+                              <td
+                                className="tds-workings__col-pay-date"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                              >
+                                <FormInput
+                                  type="date"
+                                  value={paymentDateValue}
+                                  disabled={busy}
+                                  onChange={(e) =>
+                                    onPaymentDateInput(group.key, e.target.value)
+                                  }
+                                  onBlur={(e) =>
+                                    void commitPaymentDate(group.key, e.target.value)
+                                  }
+                                  aria-label={`Payment date for ${group.tdsHead}`}
+                                  title={
+                                    hasOwnPaymentDate(payment)
+                                      ? 'Individual payment date'
+                                      : 'Using common month payment date (edit to override)'
+                                  }
+                                />
+                              </td>
+                              <td
+                                className="tds-workings__col-pay-pdf"
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                              >
+                                <div className="tds-workings__pay-pdf">
+                                  <input
+                                    ref={(el) => {
+                                      paymentFileRefs.current[group.key] = el
+                                    }}
+                                    type="file"
+                                    accept="application/pdf,.pdf"
+                                    className="sr-only"
+                                    tabIndex={-1}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0]
+                                      e.target.value = ''
+                                      void onPaymentPdfSelected(group.key, file)
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="tds-workings__pay-pdf-btn"
+                                    disabled={busy || pdfBusy}
+                                    aria-label={
+                                      hasOwnPdf
+                                        ? `Replace payment PDF for ${group.tdsHead}`
+                                        : `Upload payment PDF for ${group.tdsHead}`
+                                    }
+                                    title={
+                                      hasOwnPdf
+                                        ? 'Replace individual PDF'
+                                        : 'Upload individual PDF (overrides common)'
+                                    }
+                                    onClick={() =>
+                                      paymentFileRefs.current[group.key]?.click()
+                                    }
+                                  >
+                                    {pdfBusy && paymentSavingKey === `${group.key}:pdf`
+                                      ? <ArrowPathIcon className="size-4 animate-spin" aria-hidden="true" />
+                                      : hasOwnPdf
+                                        ? <ArrowPathIcon className="size-4" aria-hidden="true" />
+                                        : <ArrowUpTrayIcon className="size-4" aria-hidden="true" />}
+                                  </button>
+                                  {hasEffectivePdf ? (
+                                    <button
+                                      type="button"
+                                      className="tds-workings__pay-pdf-btn"
+                                      disabled={busy || pdfBusy}
+                                      aria-label={`View payment PDF for ${group.tdsHead}`}
+                                      title={
+                                        hasOwnPdf
+                                          ? payment.pdf_filename || 'View PDF'
+                                          : 'View common month PDF'
+                                      }
+                                      onClick={() => void onViewPaymentPdf(group.key)}
+                                    >
+                                      <EyeIcon className="size-4" aria-hidden="true" />
+                                    </button>
+                                  ) : null}
+                                  {hasOwnPdf ? (
+                                    <button
+                                      type="button"
+                                      className="tds-workings__pay-pdf-btn tds-workings__pay-pdf-btn--danger"
+                                      disabled={busy || pdfBusy}
+                                      aria-label={`Remove payment PDF for ${group.tdsHead}`}
+                                      title="Remove individual PDF (common will apply if set)"
+                                      onClick={() => void onDeletePaymentPdf(group.key)}
+                                    >
+                                      <TrashIcon className="size-4" aria-hidden="true" />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </>
+                          ) : null}
+                        </tr>
+                      )
+                    })
                   )
                 ) : filteredRows.length === 0 ? (
                   <tr>
@@ -817,9 +1242,9 @@ export function TdsWorkingsPage() {
               onScroll={(event) => syncHorizontalScroll(event.currentTarget)}
             >
               <table className={tableClass}>
-                {isSummary ? summaryColGroup : detailColGroup}
+                {isSummary ? summaryCols : detailColGroup}
                 <thead aria-hidden="true" className="tds-workings__table-spacer">
-                  {isSummary ? <SummaryHeaderRow /> : <DetailHeaderRow />}
+                  {isSummary ? summaryHeader : <DetailHeaderRow />}
                 </thead>
                 <tbody>
                   {isSummary ? (
@@ -839,6 +1264,95 @@ export function TdsWorkingsPage() {
                       <td className="tds-workings__col-amount win-form__table-num">
                         {formatValue(totalAmount)}
                       </td>
+                      {showPaymentCols ? (
+                        <>
+                          <td className="tds-workings__col-pay-date">
+                            <FormInput
+                              type="date"
+                              value={displayPaymentDate(HEAD_COMMON)}
+                              disabled={busy}
+                              onChange={(e) =>
+                                onPaymentDateInput(HEAD_COMMON, e.target.value)
+                              }
+                              onBlur={(e) =>
+                                void commitPaymentDate(HEAD_COMMON, e.target.value)
+                              }
+                              aria-label="Common payment date for all TDS heads this month"
+                              title="Common for all heads (unless set individually)"
+                            />
+                          </td>
+                          <td className="tds-workings__col-pay-pdf">
+                            <div className="tds-workings__pay-pdf">
+                              <input
+                                ref={commonPaymentFileRef}
+                                type="file"
+                                accept="application/pdf,.pdf"
+                                className="sr-only"
+                                tabIndex={-1}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  e.target.value = ''
+                                  void onPaymentPdfSelected(HEAD_COMMON, file)
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="tds-workings__pay-pdf-btn"
+                                disabled={
+                                  busy ||
+                                  paymentSavingKey === `${HEAD_COMMON}:pdf` ||
+                                  paymentSavingKey === `${HEAD_COMMON}:pdf-del` ||
+                                  paymentSavingKey === `${HEAD_COMMON}:view`
+                                }
+                                aria-label={
+                                  paymentsByHead[HEAD_COMMON]?.has_pdf
+                                    ? 'Replace common payment PDF'
+                                    : 'Upload common payment PDF'
+                                }
+                                title="Upload common payment PDF for this month (max 1 MB)"
+                                onClick={() => commonPaymentFileRef.current?.click()}
+                              >
+                                {paymentSavingKey === `${HEAD_COMMON}:pdf`
+                                  ? <ArrowPathIcon className="size-4 animate-spin" aria-hidden="true" />
+                                  : paymentsByHead[HEAD_COMMON]?.has_pdf
+                                    ? <ArrowPathIcon className="size-4" aria-hidden="true" />
+                                    : <ArrowUpTrayIcon className="size-4" aria-hidden="true" />}
+                              </button>
+                              {paymentsByHead[HEAD_COMMON]?.has_pdf ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="tds-workings__pay-pdf-btn"
+                                    disabled={
+                                      busy || paymentSavingKey === `${HEAD_COMMON}:view`
+                                    }
+                                    aria-label="View common payment PDF"
+                                    title={
+                                      paymentsByHead[HEAD_COMMON]?.pdf_filename ||
+                                      'View common payment PDF'
+                                    }
+                                    onClick={() => void onViewPaymentPdf(HEAD_COMMON)}
+                                  >
+                                    <EyeIcon className="size-4" aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="tds-workings__pay-pdf-btn tds-workings__pay-pdf-btn--danger"
+                                    disabled={
+                                      busy || paymentSavingKey === `${HEAD_COMMON}:pdf-del`
+                                    }
+                                    aria-label="Remove common payment PDF"
+                                    title="Remove common payment PDF"
+                                    onClick={() => void onDeletePaymentPdf(HEAD_COMMON)}
+                                  >
+                                    <TrashIcon className="size-4" aria-hidden="true" />
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                          </td>
+                        </>
+                      ) : null}
                     </tr>
                   ) : (
                     <tr>

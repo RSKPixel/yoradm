@@ -4037,6 +4037,68 @@ body {
   width: 8.5rem;
 }
 
+.tds-workings__col-pay-date {
+  width: 8.5rem;
+  overflow: visible;
+}
+
+.tds-workings__col-pay-pdf {
+  width: 12rem;
+}
+
+.tds-workings__table--payment .tds-workings__col-head {
+  width: auto;
+}
+
+.tds-workings__col-pay-date .win-form__control {
+  min-height: 1.75rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  cursor: text;
+}
+
+.tds-workings__pay-pdf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tds-workings__pay-pdf-btn {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0;
+  cursor: pointer;
+}
+
+.tds-workings__pay-pdf-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.tds-workings__pay-pdf-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tds-workings__pay-pdf-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #c92a2a 14%, var(--surface));
+  border-color: color-mix(in srgb, #c92a2a 40%, var(--form-line, var(--line)));
+}
+
+.tds-workings__table-foot .tds-workings__col-pay-date .win-form__control {
+  min-height: 1.75rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  cursor: text;
+}
+
 .tds-workings__table th.tds-workings__col-amount,
 .tds-workings__table td.tds-workings__col-amount {
   padding-right: 0.85rem;

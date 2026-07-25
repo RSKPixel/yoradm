@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 from typing import List, Optional
+from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile, status
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.models.tally import (
@@ -34,6 +35,8 @@ from app.schemas.tally import (
     SaleInvoiceOptionOut,
     SaleOut,
     StockSummaryOut,
+    TdsHeadPaymentDateUpdate,
+    TdsHeadPaymentOut,
     TdsWorkingsOut,
     TdsExpenseMatchApplyIn,
     TdsExpenseMatchApplyOut,
@@ -41,7 +44,7 @@ from app.schemas.tally import (
     VendorOptionOut,
     VendorTdsStatusOut,
 )
-from app.services import tally_service
+from app.services import tally_service, tds_head_payment_service
 
 router = APIRouter(prefix="/tally", tags=["tally"])
 
@@ -233,6 +236,90 @@ def tds_workings_expense_match_apply(
                 detail=str(exc),
             ) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/tds-workings/payments", response_model=List[TdsHeadPaymentOut])
+def list_tds_head_payments(
+    _: CurrentUser,
+    db: DbSession,
+    fy_start: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+) -> List[TdsHeadPaymentOut]:
+    return tds_head_payment_service.list_payments(db, fy_start=fy_start, month=month)
+
+
+@router.patch("/tds-workings/payments/payment-date", response_model=TdsHeadPaymentOut)
+def update_tds_head_payment_date(
+    _: CurrentUser,
+    db: DbSession,
+    body: TdsHeadPaymentDateUpdate,
+) -> TdsHeadPaymentOut:
+    return tds_head_payment_service.update_payment_date(
+        db,
+        fy_start=body.fy_start,
+        month=body.month,
+        tds_head=body.tds_head,
+        payment_date=body.payment_date,
+    )
+
+
+@router.post("/tds-workings/payments/pdf", response_model=TdsHeadPaymentOut)
+async def upload_tds_head_payment_pdf(
+    _: CurrentUser,
+    db: DbSession,
+    fy_start: int = Form(..., ge=2000, le=2100),
+    month: int = Form(..., ge=1, le=12),
+    tds_head: str = Form(..., min_length=1, max_length=255),
+    file: UploadFile = File(...),
+) -> TdsHeadPaymentOut:
+    return tds_head_payment_service.upload_payment_pdf(
+        db,
+        fy_start=fy_start,
+        month=month,
+        tds_head=tds_head.strip(),
+        file=file,
+    )
+
+
+@router.get("/tds-workings/payments/pdf")
+def download_tds_head_payment_pdf(
+    _: CurrentUser,
+    db: DbSession,
+    fy_start: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    tds_head: str = Query(..., min_length=1),
+) -> Response:
+    data, filename, content_type = tds_head_payment_service.get_payment_pdf(
+        db,
+        fy_start=fy_start,
+        month=month,
+        tds_head=tds_head,
+    )
+    quoted = quote(filename)
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"inline; filename=\"{filename}\"; filename*=UTF-8''{quoted}",
+            "Content-Length": str(len(data)),
+        },
+    )
+
+
+@router.delete("/tds-workings/payments/pdf", response_model=TdsHeadPaymentOut)
+def delete_tds_head_payment_pdf(
+    _: CurrentUser,
+    db: DbSession,
+    fy_start: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    tds_head: str = Query(..., min_length=1),
+) -> TdsHeadPaymentOut:
+    return tds_head_payment_service.delete_payment_pdf(
+        db,
+        fy_start=fy_start,
+        month=month,
+        tds_head=tds_head,
+    )
 
 
 @router.get("/inventory-items", response_model=List[InventoryItemOptionOut])

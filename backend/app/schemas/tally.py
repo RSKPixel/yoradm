@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AccountMasterOut(BaseModel):
@@ -169,6 +169,31 @@ class TdsExpenseMatchApplyOut(BaseModel):
     saved: bool = False
     expenses_date: Optional[str] = None
     expenses_amount: Optional[float] = None
+
+
+class TdsHeadPaymentOut(BaseModel):
+    fy_start: int
+    month: int
+    tds_head: str
+    payment_date: Optional[date] = None
+    has_pdf: bool = False
+    pdf_filename: Optional[str] = None
+    pdf_size: Optional[int] = None
+
+
+class TdsHeadPaymentDateUpdate(BaseModel):
+    fy_start: int
+    month: int = Field(ge=1, le=12)
+    tds_head: str = Field(min_length=1, max_length=255)
+    payment_date: Optional[date] = None
+
+    @field_validator("tds_head")
+    @classmethod
+    def strip_head(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("must not be empty")
+        return trimmed
 
 
 class DaybookAvailabilityOut(BaseModel):

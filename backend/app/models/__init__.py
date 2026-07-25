@@ -9,6 +9,7 @@ from app.models.payroll_employee import PayrollEmployee
 from app.models.post_dated_cheque import PostDatedCheque, PostDatedChequeAllocation
 from app.models.refresh_token import RefreshToken
 from app.models.tds_working import TdsWorking
+from app.models.tds_head_payment import TdsHeadPayment
 from app.models.tally import (
     TallyAccountMaster,
     TallyCostCentre,
@@ -42,6 +43,7 @@ __all__ = [
     "PostDatedCheque",
     "PostDatedChequeAllocation",
     "TdsWorking",
+    "TdsHeadPayment",
     "TallyAccountMaster",
     "TallyCostCentre",
     "TallyDaybook",
