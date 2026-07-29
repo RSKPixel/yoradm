@@ -4130,6 +4130,14 @@ body {
   background: color-mix(in srgb, #2f9e44 26%, var(--panel));
 }
 
+.tds-workings__table-scroll .tds-workings__table tbody tr.tds-workings__row--missing td {
+  background: color-mix(in srgb, #e03131 16%, var(--panel));
+}
+
+.tds-workings__table-scroll .tds-workings__table tbody tr.tds-workings__row--missing:hover td {
+  background: color-mix(in srgb, #e03131 26%, var(--panel));
+}
+
 .tds-workings__table-scroll .tds-workings__table tbody tr.tds-workings__row--deleted td {
   background: color-mix(in srgb, #e03131 16%, var(--panel));
 }

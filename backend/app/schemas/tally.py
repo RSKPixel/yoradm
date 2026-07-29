@@ -115,7 +115,8 @@ class TdsWorkingsRow(BaseModel):
     expenses_date: Optional[str] = None
     expenses_amount: Optional[float] = None
     expense_source_id: Optional[int] = None
-    status: str = "matched"  # matched | new | deleted
+    status: str = "matched"  # matched | new | missing | deleted
+    in_daybook: bool = True
 
 
 class TdsWorkingsOut(BaseModel):

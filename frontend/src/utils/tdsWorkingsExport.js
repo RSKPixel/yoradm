@@ -20,7 +20,9 @@ function escapeHtml(value) {
 }
 
 function exportRows(rows) {
-  return (Array.isArray(rows) ? rows : []).filter((row) => row?.status !== 'deleted')
+  return (Array.isArray(rows) ? rows : []).filter(
+    (row) => row?.status !== 'deleted' && row?.status !== 'missing',
+  )
 }
 
 function quarterTitle(fyStart, quarter) {

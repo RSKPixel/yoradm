@@ -49,6 +49,7 @@ const HEAD_BLANK = '__blank__'
 const HEAD_COMMON = '__COMMON__'
 const STATUS_NEW = 'new'
 const STATUS_DELETED = 'deleted'
+const STATUS_MISSING = 'missing'
 const MAX_PAYMENT_PDF_BYTES = 1 * 1024 * 1024
 
 function currentMonthValue() {
@@ -89,7 +90,7 @@ function effectivePdfSourceHead(headKeyValue, paymentsByHead) {
 }
 
 function isActiveRow(row) {
-  return row?.status !== STATUS_DELETED
+  return row?.status !== STATUS_DELETED && row?.status !== STATUS_MISSING
 }
 
 function isExpensesMissing(row) {
@@ -134,8 +135,14 @@ function groupByTdsHead(rows) {
 
 function rowStatusClass(status) {
   if (status === STATUS_NEW) return 'tds-workings__row--new'
+  if (status === STATUS_MISSING) return 'tds-workings__row--missing'
   if (status === STATUS_DELETED) return 'tds-workings__row--deleted'
   return ''
+}
+
+function canMatchExpense(row) {
+  if (!row?.source_id || row.in_daybook === false) return false
+  return row.status !== STATUS_MISSING && row.status !== STATUS_DELETED
 }
 
 const summaryColGroup = (
@@ -678,7 +685,7 @@ export function TdsWorkingsPage() {
   }
 
   async function onMatchExpense(row) {
-    if (!row?.source_id || row.status === STATUS_DELETED || busy) return
+    if (!canMatchExpense(row) || busy) return
     setExpenseMatchOpen(true)
     setExpenseMatchLoading(true)
     setExpenseMatch(null)
@@ -888,7 +895,7 @@ export function TdsWorkingsPage() {
               disabled={busy || !hasDiff}
               title={
                 hasDiff
-                  ? 'Apply new and deleted lines to saved data'
+                  ? 'Apply new and missing lines to saved data'
                   : 'No changes to apply'
               }
               onClick={() => void onUpdate()}
@@ -1187,9 +1194,13 @@ export function TdsWorkingsPage() {
                       title={
                         row.status === STATUS_NEW
                           ? 'New in Tally — not saved yet'
-                          : row.status === STATUS_DELETED
-                            ? 'Deleted from Tally — still in saved data'
-                            : undefined
+                          : row.status === STATUS_MISSING
+                            ? 'Removed from Tally — expenses not matched'
+                            : row.status === STATUS_DELETED
+                              ? 'Deleted from Tally — still in saved data'
+                              : row.in_daybook === false
+                                ? 'Saved with matched expenses (no longer in Tally daybook)'
+                                : undefined
                       }
                     >
                       <td className="tds-workings__col-date">
@@ -1213,7 +1224,7 @@ export function TdsWorkingsPage() {
                         {formatValue(row.amount)}
                       </td>
                       <td className="tds-workings__col-action">
-                        {row.status === STATUS_DELETED || !row.source_id ? (
+                        {!canMatchExpense(row) ? (
                           '—'
                         ) : (
                           <button

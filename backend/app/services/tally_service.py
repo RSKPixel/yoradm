@@ -524,6 +524,7 @@ def _load_expense_refs(
 TDS_STATUS_MATCHED = "matched"
 TDS_STATUS_NEW = "new"
 TDS_STATUS_DELETED = "deleted"
+TDS_STATUS_MISSING = "missing"
 
 
 def _parse_iso_date(value: Optional[str]) -> Optional[date]:
@@ -536,7 +537,12 @@ def _parse_iso_date(value: Optional[str]) -> Optional[date]:
         return None
 
 
-def _tds_row_from_saved(row: TdsWorking, *, status: str) -> TdsWorkingsRow:
+def _tds_row_from_saved(
+    row: TdsWorking,
+    *,
+    status: str,
+    in_daybook: bool = False,
+) -> TdsWorkingsRow:
     return TdsWorkingsRow(
         source_id=int(row.source_id),
         voucher_date=row.voucher_date.isoformat() if row.voucher_date else None,
@@ -556,6 +562,7 @@ def _tds_row_from_saved(row: TdsWorking, *, status: str) -> TdsWorkingsRow:
             int(row.expense_source_id) if row.expense_source_id is not None else None
         ),
         status=status,
+        in_daybook=in_daybook,
     )
 
 
@@ -575,6 +582,24 @@ def _tds_entity_from_row(row: TdsWorkingsRow) -> TdsWorking:
         expenses_amount=(
             float(row.expenses_amount) if row.expenses_amount is not None else None
         ),
+        expense_source_id=row.expense_source_id,
+    )
+
+
+def _tds_entity_from_saved(row: TdsWorking) -> TdsWorking:
+    return TdsWorking(
+        source_id=int(row.source_id),
+        voucher_date=row.voucher_date,
+        voucher_no=row.voucher_no,
+        party=row.party,
+        pan=row.pan,
+        tds_head=row.tds_head,
+        amount=float(row.amount or 0.0),
+        narration=row.narration,
+        bill_no=row.bill_no,
+        bill_type=row.bill_type,
+        expenses_date=row.expenses_date,
+        expenses_amount=row.expenses_amount,
         expense_source_id=row.expense_source_id,
     )
 
@@ -1333,8 +1358,12 @@ def _merge_tds_workings(
             merged.append(live.model_copy(update={"status": TDS_STATUS_NEW}))
 
     for source_id, saved in saved_by_source.items():
-        if source_id not in matched_saved_ids:
-            merged.append(_tds_row_from_saved(saved, status=TDS_STATUS_DELETED))
+        if source_id in matched_saved_ids:
+            continue
+        if _saved_has_manual_expenses(saved):
+            merged.append(_tds_row_from_saved(saved, status=TDS_STATUS_MATCHED))
+        else:
+            merged.append(_tds_row_from_saved(saved, status=TDS_STATUS_MISSING))
 
     def sort_key(row: TdsWorkingsRow) -> Tuple:
         return (
@@ -1345,7 +1374,7 @@ def _merge_tds_workings(
 
     merged.sort(key=sort_key)
     new_count = sum(1 for row in merged if row.status == TDS_STATUS_NEW)
-    deleted_count = sum(1 for row in merged if row.status == TDS_STATUS_DELETED)
+    deleted_count = sum(1 for row in merged if row.status == TDS_STATUS_MISSING)
     return merged, new_count, deleted_count, bool(saved_rows)
 
 
@@ -1366,7 +1395,7 @@ def list_tds_workings(
     total_amount = sum(
         float(row.amount or 0.0)
         for row in merged
-        if row.status != TDS_STATUS_DELETED
+        if row.status not in {TDS_STATUS_DELETED, TDS_STATUS_MISSING}
     )
     return TdsWorkingsOut(
         date_from=start.isoformat(),
@@ -1410,6 +1439,9 @@ def save_tds_workings(
         TdsWorking.voucher_date <= end,
     ).delete(synchronize_session=False)
 
+    carried_saved_ids: Set[int] = set()
+    inserted_stable_keys: Set[TdsStableKey] = set()
+
     for row in live_rows:
         if row.source_id is None:
             continue
@@ -1420,8 +1452,22 @@ def save_tds_workings(
             if key is not None:
                 manual = manual_by_stable_key.get(key)
         if manual is not None:
+            carried_saved_ids.add(int(manual.source_id))
+            key = _tds_stable_key_from_live(row)
+            if key is not None:
+                inserted_stable_keys.add(key)
             _copy_manual_expenses_to_entity(db, entity, manual)
         db.add(entity)
+
+    for saved in existing_rows:
+        if not _saved_has_manual_expenses(saved):
+            continue
+        if int(saved.source_id) in carried_saved_ids:
+            continue
+        key = _tds_stable_key_from_saved(saved)
+        if key is not None and key in inserted_stable_keys:
+            continue
+        db.add(_tds_entity_from_saved(saved))
     db.commit()
 
     return list_tds_workings(db, date_from=start, date_to=end)
@@ -1480,8 +1526,11 @@ def update_tds_workings(
             db.add(_tds_entity_from_row(live))
 
     for source_id, saved in saved_by_source.items():
-        if source_id not in matched_saved_ids:
-            db.delete(saved)
+        if source_id in matched_saved_ids:
+            continue
+        if _saved_has_manual_expenses(saved):
+            continue
+        db.delete(saved)
 
     db.commit()
     return list_tds_workings(db, date_from=start, date_to=end)
