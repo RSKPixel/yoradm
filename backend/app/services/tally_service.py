@@ -616,6 +616,102 @@ def _expense_claim_from_saved(saved: TdsWorking) -> Dict[str, Any]:
     }
 
 
+TdsStableKey = Tuple[str, str, str, str, float]
+
+
+def _normalize_tds_party(value: Optional[str]) -> str:
+    return (value or "").strip().casefold()
+
+
+def _normalize_tds_head(value: Optional[str]) -> str:
+    return (value or "").strip().casefold()
+
+
+def _normalize_tds_amount(value: Optional[float]) -> float:
+    return round(float(value or 0.0), 2)
+
+
+def _tds_stable_key(
+    *,
+    voucher_no: Optional[str],
+    voucher_date: Any,
+    party: Optional[str],
+    tds_head: Optional[str],
+    amount: Optional[float],
+) -> Optional[TdsStableKey]:
+    vno = (voucher_no or "").strip()
+    if isinstance(voucher_date, date):
+        vdt = voucher_date.isoformat()
+    else:
+        vdt = str(voucher_date or "").strip()[:10]
+    if not vno or not vdt:
+        return None
+    return (
+        vno,
+        vdt,
+        _normalize_tds_party(party),
+        _normalize_tds_head(tds_head),
+        _normalize_tds_amount(amount),
+    )
+
+
+def _tds_stable_key_from_saved(row: TdsWorking) -> Optional[TdsStableKey]:
+    return _tds_stable_key(
+        voucher_no=row.voucher_no,
+        voucher_date=row.voucher_date,
+        party=row.party,
+        tds_head=row.tds_head,
+        amount=row.amount,
+    )
+
+
+def _tds_stable_key_from_live(row: TdsWorkingsRow) -> Optional[TdsStableKey]:
+    return _tds_stable_key(
+        voucher_no=row.voucher_no,
+        voucher_date=row.voucher_date,
+        party=row.party,
+        tds_head=row.tds_head,
+        amount=row.amount,
+    )
+
+
+def _pair_tds_by_stable_key(
+    saved_rows: Sequence[TdsWorking],
+    live_rows: Sequence[TdsWorkingsRow],
+    *,
+    exclude_saved_source_ids: Set[int],
+    exclude_live_source_ids: Set[int],
+) -> Dict[int, TdsWorking]:
+    """Map live source_id -> saved row when daybook ids changed after resync."""
+    saved_by_key: Dict[TdsStableKey, List[TdsWorking]] = defaultdict(list)
+    for row in saved_rows:
+        source_id = int(row.source_id)
+        if source_id in exclude_saved_source_ids:
+            continue
+        key = _tds_stable_key_from_saved(row)
+        if key is not None:
+            saved_by_key[key].append(row)
+
+    pairs: Dict[int, TdsWorking] = {}
+    for live in live_rows:
+        if live.source_id is None:
+            continue
+        live_id = int(live.source_id)
+        if live_id in exclude_live_source_ids:
+            continue
+        key = _tds_stable_key_from_live(live)
+        if key is None:
+            continue
+        bucket = saved_by_key.get(key)
+        if not bucket:
+            continue
+        saved = bucket.pop(0)
+        if not bucket:
+            del saved_by_key[key]
+        pairs[live_id] = saved
+    return pairs
+
+
 def _infer_expense_source_id(
     db: Session,
     *,
@@ -642,6 +738,46 @@ def _infer_expense_source_id(
     if len(ids) != 1:
         return None
     return ids[0]
+
+
+def _refresh_expense_source_id(
+    db: Session,
+    *,
+    party: Optional[str],
+    expenses_date: Optional[date],
+    expenses_amount: Optional[float],
+    expense_source_id: Optional[int],
+) -> Optional[int]:
+    if expense_source_id is not None:
+        exists = (
+            db.query(TallyDaybook2.id)
+            .filter(TallyDaybook2.id == int(expense_source_id))
+            .first()
+        )
+        if exists is not None:
+            return int(expense_source_id)
+    return _infer_expense_source_id(
+        db,
+        party=party,
+        expenses_date=expenses_date,
+        expenses_amount=expenses_amount,
+    )
+
+
+def _copy_manual_expenses_to_entity(
+    db: Session,
+    entity: TdsWorking,
+    manual: TdsWorking,
+) -> None:
+    entity.expenses_date = manual.expenses_date
+    entity.expenses_amount = manual.expenses_amount
+    entity.expense_source_id = _refresh_expense_source_id(
+        db,
+        party=manual.party or entity.party,
+        expenses_date=manual.expenses_date,
+        expenses_amount=manual.expenses_amount,
+        expense_source_id=manual.expense_source_id,
+    )
 
 
 def _other_claimed_expense_source_ids(
@@ -1163,6 +1299,8 @@ def _merge_tds_workings(
     live_by_source = {
         int(row.source_id): row for row in live_rows if row.source_id is not None
     }
+    matched_saved_ids: Set[int] = set()
+    matched_live_ids: Set[int] = set()
 
     merged: List[TdsWorkingsRow] = []
     for source_id, live in live_by_source.items():
@@ -1172,11 +1310,30 @@ def _merge_tds_workings(
             if _saved_has_manual_expenses(saved):
                 row = row.model_copy(update=_expense_claim_from_saved(saved))
             merged.append(row)
-        else:
+            matched_saved_ids.add(source_id)
+            matched_live_ids.add(source_id)
+
+    stable_pairs = _pair_tds_by_stable_key(
+        saved_rows,
+        live_rows,
+        exclude_saved_source_ids=matched_saved_ids,
+        exclude_live_source_ids=matched_live_ids,
+    )
+    for live_source_id, saved in stable_pairs.items():
+        live = live_by_source[live_source_id]
+        row = live.model_copy(update={"status": TDS_STATUS_MATCHED})
+        if _saved_has_manual_expenses(saved):
+            row = row.model_copy(update=_expense_claim_from_saved(saved))
+        merged.append(row)
+        matched_saved_ids.add(int(saved.source_id))
+        matched_live_ids.add(live_source_id)
+
+    for source_id, live in live_by_source.items():
+        if source_id not in matched_live_ids:
             merged.append(live.model_copy(update={"status": TDS_STATUS_NEW}))
 
     for source_id, saved in saved_by_source.items():
-        if source_id not in live_by_source:
+        if source_id not in matched_saved_ids:
             merged.append(_tds_row_from_saved(saved, status=TDS_STATUS_DELETED))
 
     def sort_key(row: TdsWorkingsRow) -> Tuple:
@@ -1239,6 +1396,13 @@ def save_tds_workings(
         for row in existing_rows
         if _saved_has_manual_expenses(row)
     }
+    manual_by_stable_key: Dict[TdsStableKey, TdsWorking] = {}
+    for row in existing_rows:
+        if not _saved_has_manual_expenses(row):
+            continue
+        key = _tds_stable_key_from_saved(row)
+        if key is not None:
+            manual_by_stable_key[key] = row
 
     db.query(TdsWorking).filter(
         TdsWorking.voucher_date.isnot(None),
@@ -1251,10 +1415,12 @@ def save_tds_workings(
             continue
         entity = _tds_entity_from_row(row)
         manual = manual_by_source.get(int(row.source_id))
+        if manual is None:
+            key = _tds_stable_key_from_live(row)
+            if key is not None:
+                manual = manual_by_stable_key.get(key)
         if manual is not None:
-            entity.expenses_date = manual.expenses_date
-            entity.expenses_amount = manual.expenses_amount
-            entity.expense_source_id = manual.expense_source_id
+            _copy_manual_expenses_to_entity(db, entity, manual)
         db.add(entity)
     db.commit()
 
@@ -1276,16 +1442,45 @@ def update_tds_workings(
     live_by_source = {
         int(row.source_id): row for row in live_rows if row.source_id is not None
     }
+    matched_saved_ids: Set[int] = set()
+    matched_live_ids: Set[int] = set()
 
     for source_id, live in live_by_source.items():
         existing = saved_by_source.get(source_id)
         if existing is None:
+            continue
+        _apply_live_fields(existing, live)
+        matched_saved_ids.add(source_id)
+        matched_live_ids.add(source_id)
+
+    stable_pairs = _pair_tds_by_stable_key(
+        saved_rows,
+        live_rows,
+        exclude_saved_source_ids=matched_saved_ids,
+        exclude_live_source_ids=matched_live_ids,
+    )
+    for live_source_id, saved in stable_pairs.items():
+        live = live_by_source[live_source_id]
+        original_saved_id = int(saved.source_id)
+        saved.source_id = live_source_id
+        _apply_live_fields(saved, live)
+        if _saved_has_manual_expenses(saved):
+            saved.expense_source_id = _refresh_expense_source_id(
+                db,
+                party=saved.party,
+                expenses_date=saved.expenses_date,
+                expenses_amount=saved.expenses_amount,
+                expense_source_id=saved.expense_source_id,
+            )
+        matched_saved_ids.add(original_saved_id)
+        matched_live_ids.add(live_source_id)
+
+    for source_id, live in live_by_source.items():
+        if source_id not in matched_live_ids:
             db.add(_tds_entity_from_row(live))
-        else:
-            _apply_live_fields(existing, live)
 
     for source_id, saved in saved_by_source.items():
-        if source_id not in live_by_source:
+        if source_id not in matched_saved_ids:
             db.delete(saved)
 
     db.commit()
