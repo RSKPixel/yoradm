@@ -4860,3 +4860,202 @@ body {
 .collection-party-modal__footer .win-form__button:hover {
   background: var(--hover);
 }
+
+/* —— Brokerage —— */
+.brokerage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.brokerage__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.brokerage__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem 0.85rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.brokerage__toolbar .brokerage__field {
+  margin-bottom: 0;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+}
+
+.brokerage__toolbar .brokerage__field--fy {
+  width: 8.5rem;
+}
+
+.brokerage__toolbar .brokerage__field--month {
+  width: 8rem;
+}
+
+.brokerage__toolbar .brokerage__field--broker {
+  flex: 0 1 auto;
+  width: max-content;
+  min-width: 12rem;
+  max-width: 100%;
+}
+
+.brokerage__count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.brokerage__table-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel, var(--surface));
+}
+
+.brokerage__table-head,
+.brokerage__table-foot {
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  background: var(--surface);
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+}
+
+.brokerage__table-head::-webkit-scrollbar,
+.brokerage__table-foot::-webkit-scrollbar {
+  display: none;
+}
+
+.brokerage__table-head {
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.brokerage__table-foot {
+  border-top: 1px solid var(--form-line, var(--line));
+}
+
+.brokerage__table-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  background: var(--panel, var(--surface));
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.brokerage__table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.brokerage__table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.brokerage__table {
+  width: 100%;
+  min-width: 44rem;
+  table-layout: fixed;
+}
+
+.brokerage__table th,
+.brokerage__table td {
+  padding: 0.4rem 0.5rem;
+  vertical-align: middle;
+}
+
+.brokerage__table thead th {
+  background: var(--surface);
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.brokerage__table-spacer {
+  visibility: hidden;
+  line-height: 0;
+}
+
+.brokerage__table-spacer th {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border: none !important;
+  height: 0 !important;
+  overflow: hidden;
+  color: transparent;
+}
+
+.brokerage__table tbody td {
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.brokerage__table-foot td {
+  border-bottom: none;
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.brokerage__table-foot tr + tr td {
+  border-top: 1px solid var(--form-line, var(--line));
+  font-weight: 500;
+}
+
+.brokerage__table-foot tr:last-child td {
+  font-weight: 650;
+}
+
+.brokerage__type-divider td {
+  padding: 0 !important;
+  height: 2px;
+  border-top: none;
+  border-bottom: none;
+  background: var(--form-accent, var(--accent));
+}
+
+.brokerage__col-type {
+  width: 6.5rem;
+}
+
+.brokerage__col-item {
+  width: auto;
+}
+
+.brokerage__col-qty,
+.brokerage__col-adjust,
+.brokerage__col-adj-qty,
+.brokerage__col-qtl,
+.brokerage__col-rate,
+.brokerage__col-amount {
+  width: 8rem;
+}
+
+.brokerage__col-adjust .win-form__control,
+.brokerage__col-rate .win-form__control {
+  min-height: 1.75rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+}
+
+.brokerage__total-label {
+  text-align: right;
+  color: var(--muted);
+}

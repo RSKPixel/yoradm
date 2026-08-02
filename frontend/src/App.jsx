@@ -6,6 +6,7 @@ import { SettingsProvider } from './components/settings/SettingsContext'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { OpenSettingsRoute } from './pages/OpenSettingsRoute'
+import { BrokeragePage } from './pages/BrokeragePage'
 import { CollectionAnalysisPage } from './pages/CollectionAnalysisPage'
 import { DeliveryChallanPage } from './pages/DeliveryChallanPage'
 import { GoodsReceiptPage } from './pages/GoodsReceiptPage'
@@ -53,7 +54,7 @@ export default function App() {
                     path="transactions/packing-material"
                     element={<PackingMaterialPage />}
                   />
-                  <Route path="transactions/brokerage" element={<PlaceholderPage title="Brokerage" />} />
+                  <Route path="transactions/brokerage" element={<BrokeragePage />} />
                   <Route
                     path="transactions/fixed-asset-register"
                     element={<PlaceholderPage title="Fixed Asset Register" />}

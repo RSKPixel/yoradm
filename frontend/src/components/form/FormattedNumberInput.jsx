@@ -7,27 +7,39 @@ function parseQty(value) {
   return Number.isFinite(n) ? n : NaN
 }
 
-/** Keep digits only; optional single decimal when decimals allowed. */
-function sanitizeNumericInput(value, { allowDecimal = true } = {}) {
+/** Keep digits only; optional leading minus and single decimal when allowed. */
+function sanitizeNumericInput(
+  value,
+  { allowDecimal = true, allowNegative = false } = {},
+) {
   let next = String(value ?? '').replace(/,/g, '')
+  const negative = allowNegative && next.trimStart().startsWith('-')
   next = next.replace(/[^\d.]/g, '')
   if (!allowDecimal) {
-    return next.replace(/\./g, '')
+    next = next.replace(/\./g, '')
+  } else {
+    const dot = next.indexOf('.')
+    if (dot !== -1) {
+      next = `${next.slice(0, dot + 1)}${next.slice(dot + 1).replace(/\./g, '')}`
+    }
   }
-  const dot = next.indexOf('.')
-  if (dot === -1) return next
-  return `${next.slice(0, dot + 1)}${next.slice(dot + 1).replace(/\./g, '')}`
+  if (negative) {
+    return next ? `-${next}` : '-'
+  }
+  return next
 }
 
 /**
  * Stores a raw numeric string (no commas).
  * Focused: plain digits. Blurred: comma-formatted display.
  * Digits only (and one decimal when fractionDigits > 0).
+ * Set allowNegative to accept a leading minus.
  */
 export function FormattedNumberInput({
   value = '',
   onChange,
   fractionDigits = 0,
+  allowNegative = false,
   className = '',
   inputMode,
   selectOnFocus = false,
@@ -39,7 +51,7 @@ export function FormattedNumberInput({
   const allowDecimal = Number(fractionDigits) > 0
   const resolvedInputMode = inputMode ?? (allowDecimal ? 'decimal' : 'numeric')
   const raw = String(value ?? '')
-  const hasValue = raw.trim() !== ''
+  const hasValue = raw.trim() !== '' && raw.trim() !== '-'
 
   const display = focused
     ? raw
@@ -63,7 +75,7 @@ export function FormattedNumberInput({
       }}
       onBlur={(e) => {
         setFocused(false)
-        if (!raw.trim()) {
+        if (!raw.trim() || raw.trim() === '-') {
           onChange?.('')
         } else {
           const n = parseQty(raw)
@@ -72,7 +84,9 @@ export function FormattedNumberInput({
         onBlur?.(e)
       }}
       onChange={(e) => {
-        onChange?.(sanitizeNumericInput(e.target.value, { allowDecimal }))
+        onChange?.(
+          sanitizeNumericInput(e.target.value, { allowDecimal, allowNegative }),
+        )
       }}
       {...rest}
     />

@@ -39,8 +39,9 @@ def update_general_settings(db: Session, payload: GeneralSettingsUpdate) -> Comp
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Save company profile first before updating general settings",
         )
-    company.tds_purchase_pct = payload.tds_purchase_pct
-    company.tds_threshold = payload.tds_threshold
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(company, key, value)
     db.commit()
     db.refresh(company)
     return company

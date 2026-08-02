@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     auth,
+    brokerage,
     company,
     delivery_challans,
     goods_receipts,
@@ -26,6 +27,7 @@ api_router.include_router(packing_material.router)
 api_router.include_router(payroll_employees.router)
 api_router.include_router(payroll_attendance.router)
 api_router.include_router(post_dated_cheques.router)
+api_router.include_router(brokerage.router)
 
 
 @api_router.get("/health", tags=["health"])

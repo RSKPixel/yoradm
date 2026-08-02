@@ -80,6 +80,7 @@ class CompanyOut(BaseModel):
     pan: Optional[str] = None
     tds_purchase_pct: Optional[float] = None
     tds_threshold: Optional[float] = None
+    brokerage_tds_pct: Optional[float] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -92,3 +93,4 @@ class CompanyOut(BaseModel):
 class GeneralSettingsUpdate(BaseModel):
     tds_purchase_pct: Optional[float] = Field(default=None, ge=0, le=100)
     tds_threshold: Optional[float] = Field(default=None, ge=0)
+    brokerage_tds_pct: Optional[float] = Field(default=None, ge=0, le=100)

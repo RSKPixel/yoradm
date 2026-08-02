@@ -286,6 +286,7 @@ export function AppLayout() {
     location.pathname.startsWith('/transactions/goods-receipt') ||
     location.pathname.startsWith('/transactions/post-dated-cheque') ||
     location.pathname.startsWith('/transactions/packing-material') ||
+    location.pathname.startsWith('/transactions/brokerage') ||
     location.pathname.startsWith('/payroll/') ||
     location.pathname.startsWith('/reports/receivables-analysis') ||
     location.pathname.startsWith('/reports/collection-analysis') ||

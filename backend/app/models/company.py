@@ -31,6 +31,7 @@ class Company(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tds_purchase_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     tds_threshold: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    brokerage_tds_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

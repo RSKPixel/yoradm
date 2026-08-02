@@ -1,3 +1,5 @@
+from app.models.brokerage_rate import BrokerageRate
+from app.models.brokerage_setting import BrokerageSetting
 from app.models.company import Company
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
 from app.models.goods_receipt import GoodsReceipt
@@ -28,6 +30,8 @@ __all__ = [
     "User",
     "UserRole",
     "RefreshToken",
+    "BrokerageRate",
+    "BrokerageSetting",
     "Company",
     "DeliveryChallan",
     "DeliveryChallanDetail",
