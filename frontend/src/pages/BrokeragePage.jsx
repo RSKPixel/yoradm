@@ -1,10 +1,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ListBulletIcon } from '@heroicons/react/24/outline'
 import {
   fetchBrokerage,
   fetchBrokerageBrokers,
-  saveBrokerageRates,
+  saveBrokerage,
 } from '../api/brokerage'
 import { fetchCompany } from '../api/company'
+import { BrokerageBuyersModal } from '../components/brokerage/BrokerageBuyersModal'
 import { PdfPreviewModal } from '../components/common/PdfPreviewModal'
 import { FormDropdown } from '../components/form/FormDropdown'
 import { FormattedNumberInput } from '../components/form/FormattedNumberInput'
@@ -166,6 +168,9 @@ export function BrokeragePage() {
   const [saving, setSaving] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [pdfPreview, setPdfPreview] = useState(null)
+  const [buyersOpen, setBuyersOpen] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [isSavedView, setIsSavedView] = useState(false)
 
   const headRef = useRef(null)
   const bodyRef = useRef(null)
@@ -247,7 +252,7 @@ export function BrokeragePage() {
     [rows, rateDrafts, adjustDrafts],
   )
 
-  const applyWorkings = useCallback((data, companyDefaultTds) => {
+  const applyWorkings = useCallback((data, companyDefaultTds, { markDirty } = {}) => {
     const nextSales = data?.sales || emptySection(SIDE_SALE)
     const nextPurchases = data?.purchases || emptySection(SIDE_PURCHASE)
     setSales(nextSales)
@@ -274,6 +279,17 @@ export function BrokeragePage() {
         ? rateDraftValue(savedTds)
         : rateDraftValue(fallbackTds),
     )
+    const savedView = Boolean(data?.is_saved)
+    setIsSavedView(savedView)
+    if (typeof markDirty === 'boolean') {
+      setDirty(markDirty)
+    } else if (savedView || data?.matches_saved) {
+      setDirty(false)
+    } else {
+      const lineCount =
+        (nextSales.rows?.length || 0) + (nextPurchases.rows?.length || 0)
+      setDirty(lineCount > 0)
+    }
   }, [defaultBrokerageTdsPct])
 
   const loadBrokers = useCallback(async () => {
@@ -296,33 +312,39 @@ export function BrokeragePage() {
     }
   }, [paymentFyStart, paymentMonth, showError])
 
-  const load = useCallback(async () => {
-    if (!broker) {
-      applyWorkings(null)
-      return
-    }
-    if (!Number.isFinite(paymentFyStart) || !Number.isFinite(paymentMonth)) return
-    setLoading(true)
-    try {
-      const [company, data] = await Promise.all([
-        fetchCompany().catch(() => null),
-        fetchBrokerage({
-          fyStart: paymentFyStart,
-          month: paymentMonth,
-          broker,
-        }),
-      ])
-      const companyDefault =
-        company?.brokerage_tds_pct == null ? null : company.brokerage_tds_pct
-      setDefaultBrokerageTdsPct(companyDefault)
-      applyWorkings(data, companyDefault)
-    } catch (err) {
-      applyWorkings(null)
-      showError(getApiErrorMessage(err, 'Unable to load brokerage'))
-    } finally {
-      setLoading(false)
-    }
-  }, [applyWorkings, broker, paymentFyStart, paymentMonth, showError])
+  const load = useCallback(
+    async ({ reload = false } = {}) => {
+      if (!broker) {
+        applyWorkings(null, undefined, { markDirty: false })
+        return
+      }
+      if (!Number.isFinite(paymentFyStart) || !Number.isFinite(paymentMonth)) return
+      setLoading(true)
+      try {
+        const [company, data] = await Promise.all([
+          fetchCompany().catch(() => null),
+          fetchBrokerage({
+            fyStart: paymentFyStart,
+            month: paymentMonth,
+            broker,
+            reload,
+          }),
+        ])
+        const companyDefault =
+          company?.brokerage_tds_pct == null ? null : company.brokerage_tds_pct
+        setDefaultBrokerageTdsPct(companyDefault)
+        applyWorkings(data, companyDefault, {
+          markDirty: reload ? !data?.matches_saved : undefined,
+        })
+      } catch (err) {
+        applyWorkings(null, undefined, { markDirty: false })
+        showError(getApiErrorMessage(err, 'Unable to load brokerage'))
+      } finally {
+        setLoading(false)
+      }
+    },
+    [applyWorkings, broker, paymentFyStart, paymentMonth, showError],
+  )
 
   useEffect(() => {
     void loadBrokers()
@@ -332,7 +354,12 @@ export function BrokeragePage() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (!broker) setBuyersOpen(false)
+  }, [broker])
+
   function onRateChange(side, stockItem, value) {
+    setDirty(true)
     setRateDrafts((prev) => ({
       ...prev,
       [rateKey(side, stockItem)]: value,
@@ -340,10 +367,16 @@ export function BrokeragePage() {
   }
 
   function onAdjustChange(side, stockItem, value) {
+    setDirty(true)
     setAdjustDrafts((prev) => ({
       ...prev,
       [rateKey(side, stockItem)]: value,
     }))
+  }
+
+  function onTdsPercentChange(value) {
+    setDirty(true)
+    setTdsPercentDraft(value)
   }
 
   function syncHorizontalScroll(source) {
@@ -402,35 +435,45 @@ export function BrokeragePage() {
   }
 
   async function onSave() {
-    if (!broker || busy) return
-    const rates = rows.map((row) => {
+    if (!broker || busy || !dirty) return
+    const tdsPercent = parseDraftNumber(tdsPercentDraft)
+    const lines = rows.map((row) => {
       const key = rateKey(row.side, row.stock_item)
-      const adjustRaw = adjustDrafts[key]
-      const adjust =
-        adjustRaw === '' || adjustRaw == null
-          ? null
-          : parseAdjustDraft(adjustRaw)
+      const adjust = parseAdjustDraft(adjustDrafts[key])
+      const rate = parseDraftNumber(rateDrafts[key])
+      const qty = Number(row.qty) || 0
+      const adjQty = adjustedQty(qty, adjust)
+      const quintals = effectiveQuintals(row, adjust)
+      const brokerage = rate != null ? quintals * rate : 0
+      const tdsAmount =
+        tdsPercent != null ? (brokerage * tdsPercent) / 100 : 0
       return {
         side: row.side,
         stock_item: row.stock_item,
-        rate_per_quintal: parseDraftNumber(rateDrafts[key]),
-        qty_adjust: adjust === 0 ? null : adjust,
+        qty,
+        qty_adjust: adjust,
+        adjusted_qty: adjQty,
+        quintals,
+        rate_per_quintal: rate,
+        brokerage_amount: brokerage,
+        tds_amount: tdsAmount,
+        net_amount: brokerage - tdsAmount,
       }
     })
 
     setSaving(true)
     try {
-      const data = await saveBrokerageRates({
+      const data = await saveBrokerage({
         fyStart: paymentFyStart,
         month: paymentMonth,
         broker,
-        rates,
-        tdsPercent: parseDraftNumber(tdsPercentDraft),
+        lines,
+        tdsPercent,
       })
-      applyWorkings(data, defaultBrokerageTdsPct)
-      showSuccess('Brokerage rates saved.')
+      applyWorkings(data, defaultBrokerageTdsPct, { markDirty: false })
+      showSuccess('Brokerage saved.')
     } catch (err) {
-      showError(getApiErrorMessage(err, 'Unable to save brokerage rates'))
+      showError(getApiErrorMessage(err, 'Unable to save brokerage'))
     } finally {
       setSaving(false)
     }
@@ -440,9 +483,12 @@ export function BrokeragePage() {
     ? 'Select a broker to calculate'
     : loading
       ? 'Loading…'
-      : `${rows.length} line${rows.length === 1 ? '' : 's'}`
+      : isSavedView && !dirty
+        ? `${rows.length} line${rows.length === 1 ? '' : 's'} · saved`
+        : `${rows.length} line${rows.length === 1 ? '' : 's'}`
 
   const tableClass = 'win-form__table brokerage__table'
+  const canSave = Boolean(broker && dirty && !busy)
 
   return (
     <PrimaryContentLayout
@@ -454,7 +500,7 @@ export function BrokeragePage() {
             type="button"
             className="win-form__button"
             disabled={busy || !broker}
-            onClick={() => void load()}
+            onClick={() => void load({ reload: true })}
           >
             Reload
           </button>
@@ -469,7 +515,7 @@ export function BrokeragePage() {
           <button
             type="button"
             className="win-form__button win-form__button--primary"
-            disabled={busy || !broker}
+            disabled={!canSave}
             onClick={() => void onSave()}
           >
             {saving ? 'Saving…' : 'Save'}
@@ -477,6 +523,14 @@ export function BrokeragePage() {
         </>
       }
     >
+      {buyersOpen && broker ? (
+        <BrokerageBuyersModal
+          fyStart={paymentFyStart}
+          month={paymentMonth}
+          broker={broker}
+          onClose={() => setBuyersOpen(false)}
+        />
+      ) : null}
       <PdfPreviewModal
         open={printing || Boolean(pdfPreview)}
         title="Brokerage"
@@ -510,14 +564,26 @@ export function BrokeragePage() {
               />
             </FormField>
             <FormField label="Broker" className="brokerage__field brokerage__field--broker">
-              <FormDropdown
-                options={brokerOptions}
-                value={broker}
-                onChange={setBroker}
-                disabled={busy}
-                placeholder={loadingBrokers ? 'Loading…' : 'Select broker'}
-                emptyMessage="No brokers in this month"
-              />
+              <div className="brokerage__broker-row">
+                <FormDropdown
+                  options={brokerOptions}
+                  value={broker}
+                  onChange={setBroker}
+                  disabled={busy}
+                  placeholder={loadingBrokers ? 'Loading…' : 'Select broker'}
+                  emptyMessage="No brokers in this month"
+                />
+                <button
+                  type="button"
+                  className="brokerage__buyers-btn"
+                  disabled={busy || !broker}
+                  title={broker ? 'View buyers' : 'Select a broker first'}
+                  aria-label="View buyers"
+                  onClick={() => setBuyersOpen(true)}
+                >
+                  <ListBulletIcon className="size-4" aria-hidden="true" />
+                </button>
+              </div>
             </FormField>
           </div>
           <p className="brokerage__count">{countLabel}</p>
@@ -685,7 +751,7 @@ export function BrokeragePage() {
                         selectOnFocus
                         aria-label="TDS percent"
                         title="TDS percent"
-                        onChange={setTdsPercentDraft}
+                        onChange={onTdsPercentChange}
                       />
                     </td>
                     <td className="brokerage__col-amount win-form__table-num">

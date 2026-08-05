@@ -4909,6 +4909,106 @@ body {
   max-width: 100%;
 }
 
+.brokerage__broker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.brokerage__broker-row .win-form__dropdown,
+.brokerage__broker-row > :first-child {
+  min-width: 12rem;
+  flex: 1 1 auto;
+}
+
+.brokerage__buyers-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--form-input-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--form-input-bg, var(--panel));
+  color: var(--form-ink, var(--ink));
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.brokerage__buyers-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--form-input-line, var(--line)));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.brokerage__buyers-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.brokerage-buyers-modal {
+  width: min(64rem, calc(100vw - 2rem));
+  max-width: min(64rem, calc(100vw - 2rem));
+  max-height: min(90vh, 48rem);
+  --form-bg: var(--panel);
+  --form-header: var(--surface);
+  --form-footer: var(--surface);
+  --form-ink: var(--ink);
+  --form-muted: var(--muted);
+  --form-line: var(--line);
+  --form-accent: var(--accent);
+  --form-accent-dark: var(--accent-dark);
+  --form-input-bg: var(--surface);
+  --form-input-ink: var(--ink);
+  --form-input-line: var(--line);
+}
+
+.brokerage-buyers-modal__body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 1rem;
+  background: var(--bg);
+}
+
+.brokerage-buyers-modal__count {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.brokerage-buyers-modal__error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #fca5a5;
+}
+
+.brokerage-buyers-modal__body .win-form__table-wrap {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.brokerage-buyers-modal__body .win-form__table {
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+.brokerage-buyers-modal__body .win-form__table th,
+.brokerage-buyers-modal__body .win-form__table td {
+  padding: 0.4rem 0.5rem;
+}
+
+.brokerage-buyers-modal__body .win-form__table-scroll tbody tr:hover td {
+  background: color-mix(in srgb, var(--form-accent, var(--accent)) 10%, transparent);
+}
+
+.brokerage-buyers-modal__col-num {
+  width: 8rem;
+}
+
 .brokerage__count {
   margin: 0;
   color: var(--muted);

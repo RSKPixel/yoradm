@@ -1,3 +1,4 @@
+from app.models.brokerage import Brokerage
 from app.models.brokerage_rate import BrokerageRate
 from app.models.brokerage_setting import BrokerageSetting
 from app.models.company import Company
@@ -30,6 +31,7 @@ __all__ = [
     "User",
     "UserRole",
     "RefreshToken",
+    "Brokerage",
     "BrokerageRate",
     "BrokerageSetting",
     "Company",

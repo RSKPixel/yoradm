@@ -10,8 +10,20 @@ export async function fetchBrokerageBrokers({ fyStart, month } = {}) {
   return data
 }
 
-export async function fetchBrokerage({ fyStart, month, broker } = {}) {
+export async function fetchBrokerage({ fyStart, month, broker, reload = false } = {}) {
   const { data } = await api.get('/brokerage', {
+    params: {
+      fy_start: fyStart,
+      month,
+      broker,
+      ...(reload ? { reload: true } : {}),
+    },
+  })
+  return data
+}
+
+export async function fetchBrokerageBuyers({ fyStart, month, broker } = {}) {
+  const { data } = await api.get('/brokerage/buyers', {
     params: {
       fy_start: fyStart,
       month,
@@ -21,18 +33,18 @@ export async function fetchBrokerage({ fyStart, month, broker } = {}) {
   return data
 }
 
-export async function saveBrokerageRates({
+export async function saveBrokerage({
   fyStart,
   month,
   broker,
-  rates,
+  lines,
   tdsPercent,
 } = {}) {
-  const { data } = await api.post('/brokerage/rates', {
+  const { data } = await api.post('/brokerage/save', {
     fy_start: fyStart,
     month,
     broker,
-    rates,
+    lines,
     tds_percent: tdsPercent ?? null,
   })
   return data
