@@ -4,14 +4,13 @@ from calendar import monthrange
 from datetime import date, datetime
 from typing import Dict, List, Optional, Sequence, Tuple, Type
 
-from sqlalchemy import and_, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.brokerage import Brokerage
 from app.models.brokerage_rate import BrokerageRate
 from app.models.brokerage_setting import BrokerageSetting
-from app.models.goods_receipt import GoodsReceipt
-from app.models.tally import TallyPurchase, TallyReceivable, TallySale
+from app.models.tally import TallyPurchase, TallySale
 from app.schemas.brokerage import (
     BrokerageBrokersOut,
     BrokerageBuyerRowOut,
@@ -57,163 +56,6 @@ def _round_money(value: float) -> float:
     return round(float(value or 0.0), 4)
 
 
-def _receivable_broker_subquery(db: Session, *, start_dt: datetime, end_dt: datetime):
-    """Map sale invoice + party → representative when sales.broker is blank."""
-    return (
-        db.query(
-            TallyReceivable.invoice_no.label("invoice_no"),
-            TallyReceivable.ledger_name.label("ledger_name"),
-            func.min(TallyReceivable.representative).label("representative"),
-        )
-        .filter(
-            TallyReceivable.invoice_date.isnot(None),
-            TallyReceivable.invoice_date >= start_dt,
-            TallyReceivable.invoice_date <= end_dt,
-            TallyReceivable.representative.isnot(None),
-            TallyReceivable.representative != "",
-        )
-        .group_by(TallyReceivable.invoice_no, TallyReceivable.ledger_name)
-        .subquery()
-    )
-
-
-def _goods_receipt_broker_subquery(
-    db: Session, *, date_from: date, date_to: date
-):
-    """Map purchase vendor + stock item + date → goods-receipt broker."""
-    return (
-        db.query(
-            GoodsReceipt.vendor.label("vendor"),
-            GoodsReceipt.stock_item.label("stock_item"),
-            GoodsReceipt.receipt_date.label("receipt_date"),
-            func.min(GoodsReceipt.broker).label("broker"),
-        )
-        .filter(
-            GoodsReceipt.receipt_date >= date_from,
-            GoodsReceipt.receipt_date <= date_to,
-            GoodsReceipt.broker.isnot(None),
-            GoodsReceipt.broker != "",
-        )
-        .group_by(
-            GoodsReceipt.vendor,
-            GoodsReceipt.stock_item,
-            GoodsReceipt.receipt_date,
-        )
-        .subquery()
-    )
-
-
-def _sale_broker_expr(recv_subq):
-    return func.coalesce(TallySale.broker, recv_subq.c.representative)
-
-
-def _purchase_broker_expr(gr_subq):
-    return func.coalesce(TallyPurchase.broker, gr_subq.c.broker)
-
-
-def _aggregate_sales_by_stock_item(
-    db: Session,
-    *,
-    date_from: date,
-    date_to: date,
-    broker: str,
-) -> List[Tuple[str, float, float]]:
-    start_dt = datetime.combine(date_from, datetime.min.time())
-    end_dt = datetime.combine(date_to, datetime.max.time())
-    recv = _receivable_broker_subquery(db, start_dt=start_dt, end_dt=end_dt)
-    effective_broker = _sale_broker_expr(recv)
-    packing_kg = func.coalesce(TallySale.packing, DEFAULT_PACKING_KG)
-    qty = func.coalesce(TallySale.qty, 0.0)
-    quintals = qty * packing_kg / 100.0
-
-    rows = (
-        db.query(
-            TallySale.stock_item,
-            func.coalesce(func.sum(qty), 0.0).label("qty"),
-            func.coalesce(func.sum(quintals), 0.0).label("quintals"),
-        )
-        .outerjoin(
-            recv,
-            and_(
-                recv.c.invoice_no == TallySale.voucher_no,
-                recv.c.ledger_name == TallySale.ledger_name,
-            ),
-        )
-        .filter(
-            TallySale.voucher_date.isnot(None),
-            TallySale.voucher_date >= start_dt,
-            TallySale.voucher_date <= end_dt,
-            _broker_filter(effective_broker, broker),
-            TallySale.stock_item.isnot(None),
-            TallySale.stock_item != "",
-        )
-        .group_by(TallySale.stock_item)
-        .order_by(TallySale.stock_item.asc())
-        .all()
-    )
-    return [
-        (
-            (stock_item or "").strip(),
-            float(qty_sum or 0.0),
-            float(quintal_sum or 0.0),
-        )
-        for stock_item, qty_sum, quintal_sum in rows
-        if (stock_item or "").strip()
-    ]
-
-
-def _aggregate_purchases_by_stock_item(
-    db: Session,
-    *,
-    date_from: date,
-    date_to: date,
-    broker: str,
-) -> List[Tuple[str, float, float]]:
-    start_dt = datetime.combine(date_from, datetime.min.time())
-    end_dt = datetime.combine(date_to, datetime.max.time())
-    gr = _goods_receipt_broker_subquery(db, date_from=date_from, date_to=date_to)
-    effective_broker = _purchase_broker_expr(gr)
-    packing_kg = func.coalesce(TallyPurchase.packing, DEFAULT_PACKING_KG)
-    qty = func.coalesce(TallyPurchase.qty, 0.0)
-    quintals = qty * packing_kg / 100.0
-
-    rows = (
-        db.query(
-            TallyPurchase.stock_item,
-            func.coalesce(func.sum(qty), 0.0).label("qty"),
-            func.coalesce(func.sum(quintals), 0.0).label("quintals"),
-        )
-        .outerjoin(
-            gr,
-            and_(
-                gr.c.vendor == TallyPurchase.ledger_name,
-                gr.c.stock_item == TallyPurchase.stock_item,
-                gr.c.receipt_date == func.date(TallyPurchase.voucher_date),
-            ),
-        )
-        .filter(
-            TallyPurchase.voucher_date.isnot(None),
-            TallyPurchase.voucher_date >= start_dt,
-            TallyPurchase.voucher_date <= end_dt,
-            _broker_filter(effective_broker, broker),
-            TallyPurchase.stock_item.isnot(None),
-            TallyPurchase.stock_item != "",
-        )
-        .group_by(TallyPurchase.stock_item)
-        .order_by(TallyPurchase.stock_item.asc())
-        .all()
-    )
-    return [
-        (
-            (stock_item or "").strip(),
-            float(qty_sum or 0.0),
-            float(quintal_sum or 0.0),
-        )
-        for stock_item, qty_sum, quintal_sum in rows
-        if (stock_item or "").strip()
-    ]
-
-
 def _aggregate_by_stock_item(
     db: Session,
     *,
@@ -222,113 +64,38 @@ def _aggregate_by_stock_item(
     date_to: date,
     broker: str,
 ) -> List[Tuple[str, float, float]]:
-    if model is TallySale:
-        return _aggregate_sales_by_stock_item(
-            db, date_from=date_from, date_to=date_to, broker=broker
-        )
-    return _aggregate_purchases_by_stock_item(
-        db, date_from=date_from, date_to=date_to, broker=broker
-    )
-
-
-def _aggregate_sales_by_buyer(
-    db: Session,
-    *,
-    date_from: date,
-    date_to: date,
-    broker: str,
-) -> List[Tuple[str, float, float]]:
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
-    recv = _receivable_broker_subquery(db, start_dt=start_dt, end_dt=end_dt)
-    effective_broker = _sale_broker_expr(recv)
-    packing_kg = func.coalesce(TallySale.packing, DEFAULT_PACKING_KG)
-    qty = func.coalesce(TallySale.qty, 0.0)
+    packing_kg = func.coalesce(model.packing, DEFAULT_PACKING_KG)
+    qty = func.coalesce(model.qty, 0.0)
     quintals = qty * packing_kg / 100.0
 
     rows = (
         db.query(
-            TallySale.ledger_name,
+            model.stock_item,
             func.coalesce(func.sum(qty), 0.0).label("qty"),
             func.coalesce(func.sum(quintals), 0.0).label("quintals"),
         )
-        .outerjoin(
-            recv,
-            and_(
-                recv.c.invoice_no == TallySale.voucher_no,
-                recv.c.ledger_name == TallySale.ledger_name,
-            ),
-        )
         .filter(
-            TallySale.voucher_date.isnot(None),
-            TallySale.voucher_date >= start_dt,
-            TallySale.voucher_date <= end_dt,
-            _broker_filter(effective_broker, broker),
-            TallySale.ledger_name.isnot(None),
-            TallySale.ledger_name != "",
+            model.voucher_date.isnot(None),
+            model.voucher_date >= start_dt,
+            model.voucher_date <= end_dt,
+            _broker_filter(model.broker, broker),
+            model.stock_item.isnot(None),
+            model.stock_item != "",
         )
-        .group_by(TallySale.ledger_name)
+        .group_by(model.stock_item)
+        .order_by(model.stock_item.asc())
         .all()
     )
     return [
         (
-            (buyer or "").strip(),
+            (stock_item or "").strip(),
             float(qty_sum or 0.0),
             float(quintal_sum or 0.0),
         )
-        for buyer, qty_sum, quintal_sum in rows
-        if (buyer or "").strip()
-    ]
-
-
-def _aggregate_purchases_by_buyer(
-    db: Session,
-    *,
-    date_from: date,
-    date_to: date,
-    broker: str,
-) -> List[Tuple[str, float, float]]:
-    start_dt = datetime.combine(date_from, datetime.min.time())
-    end_dt = datetime.combine(date_to, datetime.max.time())
-    gr = _goods_receipt_broker_subquery(db, date_from=date_from, date_to=date_to)
-    effective_broker = _purchase_broker_expr(gr)
-    packing_kg = func.coalesce(TallyPurchase.packing, DEFAULT_PACKING_KG)
-    qty = func.coalesce(TallyPurchase.qty, 0.0)
-    quintals = qty * packing_kg / 100.0
-
-    rows = (
-        db.query(
-            TallyPurchase.ledger_name,
-            func.coalesce(func.sum(qty), 0.0).label("qty"),
-            func.coalesce(func.sum(quintals), 0.0).label("quintals"),
-        )
-        .outerjoin(
-            gr,
-            and_(
-                gr.c.vendor == TallyPurchase.ledger_name,
-                gr.c.stock_item == TallyPurchase.stock_item,
-                gr.c.receipt_date == func.date(TallyPurchase.voucher_date),
-            ),
-        )
-        .filter(
-            TallyPurchase.voucher_date.isnot(None),
-            TallyPurchase.voucher_date >= start_dt,
-            TallyPurchase.voucher_date <= end_dt,
-            _broker_filter(effective_broker, broker),
-            TallyPurchase.ledger_name.isnot(None),
-            TallyPurchase.ledger_name != "",
-        )
-        .group_by(TallyPurchase.ledger_name)
-        .all()
-    )
-    return [
-        (
-            (buyer or "").strip(),
-            float(qty_sum or 0.0),
-            float(quintal_sum or 0.0),
-        )
-        for buyer, qty_sum, quintal_sum in rows
-        if (buyer or "").strip()
+        for stock_item, qty_sum, quintal_sum in rows
+        if (stock_item or "").strip()
     ]
 
 
@@ -340,13 +107,38 @@ def _aggregate_by_buyer(
     date_to: date,
     broker: str,
 ) -> List[Tuple[str, float, float]]:
-    if model is TallySale:
-        return _aggregate_sales_by_buyer(
-            db, date_from=date_from, date_to=date_to, broker=broker
+    start_dt = datetime.combine(date_from, datetime.min.time())
+    end_dt = datetime.combine(date_to, datetime.max.time())
+    packing_kg = func.coalesce(model.packing, DEFAULT_PACKING_KG)
+    qty = func.coalesce(model.qty, 0.0)
+    quintals = qty * packing_kg / 100.0
+
+    rows = (
+        db.query(
+            model.ledger_name,
+            func.coalesce(func.sum(qty), 0.0).label("qty"),
+            func.coalesce(func.sum(quintals), 0.0).label("quintals"),
         )
-    return _aggregate_purchases_by_buyer(
-        db, date_from=date_from, date_to=date_to, broker=broker
+        .filter(
+            model.voucher_date.isnot(None),
+            model.voucher_date >= start_dt,
+            model.voucher_date <= end_dt,
+            _broker_filter(model.broker, broker),
+            model.ledger_name.isnot(None),
+            model.ledger_name != "",
+        )
+        .group_by(model.ledger_name)
+        .all()
     )
+    return [
+        (
+            (buyer or "").strip(),
+            float(qty_sum or 0.0),
+            float(quintal_sum or 0.0),
+        )
+        for buyer, qty_sum, quintal_sum in rows
+        if (buyer or "").strip()
+    ]
 
 
 def _effective_quintals(*, qty: float, base_quintals: float, qty_adjust: float) -> float:
@@ -816,61 +608,23 @@ def list_brokers(
     end_dt = datetime.combine(date_to, datetime.max.time())
 
     names: set[str] = set()
-
-    recv = _receivable_broker_subquery(db, start_dt=start_dt, end_dt=end_dt)
-    sale_broker = _sale_broker_expr(recv)
-    sale_rows = (
-        db.query(sale_broker)
-        .select_from(TallySale)
-        .outerjoin(
-            recv,
-            and_(
-                recv.c.invoice_no == TallySale.voucher_no,
-                recv.c.ledger_name == TallySale.ledger_name,
-            ),
+    for model in (TallySale, TallyPurchase):
+        rows = (
+            db.query(model.broker)
+            .filter(
+                model.voucher_date.isnot(None),
+                model.voucher_date >= start_dt,
+                model.voucher_date <= end_dt,
+                model.broker.isnot(None),
+                model.broker != "",
+            )
+            .distinct()
+            .all()
         )
-        .filter(
-            TallySale.voucher_date.isnot(None),
-            TallySale.voucher_date >= start_dt,
-            TallySale.voucher_date <= end_dt,
-            sale_broker.isnot(None),
-            sale_broker != "",
-        )
-        .distinct()
-        .all()
-    )
-    for (raw,) in sale_rows:
-        name = _normalize_broker(raw)
-        if name and not _is_blank_broker(name):
-            names.add(name)
-
-    gr = _goods_receipt_broker_subquery(db, date_from=date_from, date_to=date_to)
-    purchase_broker = _purchase_broker_expr(gr)
-    purchase_rows = (
-        db.query(purchase_broker)
-        .select_from(TallyPurchase)
-        .outerjoin(
-            gr,
-            and_(
-                gr.c.vendor == TallyPurchase.ledger_name,
-                gr.c.stock_item == TallyPurchase.stock_item,
-                gr.c.receipt_date == func.date(TallyPurchase.voucher_date),
-            ),
-        )
-        .filter(
-            TallyPurchase.voucher_date.isnot(None),
-            TallyPurchase.voucher_date >= start_dt,
-            TallyPurchase.voucher_date <= end_dt,
-            purchase_broker.isnot(None),
-            purchase_broker != "",
-        )
-        .distinct()
-        .all()
-    )
-    for (raw,) in purchase_rows:
-        name = _normalize_broker(raw)
-        if name and not _is_blank_broker(name):
-            names.add(name)
+        for (raw,) in rows:
+            name = _normalize_broker(raw)
+            if name and not _is_blank_broker(name):
+                names.add(name)
 
     saved = (
         db.query(Brokerage.broker)
