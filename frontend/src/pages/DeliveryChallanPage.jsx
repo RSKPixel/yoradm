@@ -21,6 +21,7 @@ import { PrimaryContentLayout } from '../components/layout/PrimaryContentLayout'
 import { createDeliveryChallanPdfBlob } from '../utils/deliveryChallanPdf'
 import { formatDate, parseDisplayDate, toIsoDateInput, todayIsoDate } from '../utils/formatDate'
 import { getApiErrorMessage, validateDeliveryChallanForm } from '../utils/formValidation'
+import { tallyPackingOrNull } from '../utils/packingKg'
 
 /** Invoices older than this many days before delivery date are hidden from autocomplete. */
 const INVOICE_LOOKBACK_DAYS = 15
@@ -278,7 +279,7 @@ export function DeliveryChallanPage() {
         ledger_name: line.ledger_name || null,
         stock_item: line.stock_item || null,
         brand: line.brand || null,
-        packing: line.packing ?? null,
+        packing: tallyPackingOrNull(line.packing),
         qty: line.qty ?? null,
         amount: line.amount ?? null,
         discount: line.discount ?? null,
@@ -322,7 +323,7 @@ export function DeliveryChallanPage() {
           ledger_name: line.ledger_name,
           stock_item: line.stock_item,
           brand: line.brand,
-          packing: line.packing ?? null,
+          packing: tallyPackingOrNull(line.packing),
           qty: line.qty,
           amount: line.amount ?? null,
           discount: line.discount ?? null,
@@ -445,7 +446,7 @@ export function DeliveryChallanPage() {
         ledger_name: line.ledger_name,
         stock_item: line.stock_item,
         brand: line.brand,
-        packing: line.packing ?? null,
+        packing: tallyPackingOrNull(line.packing),
         qty: line.qty,
         amount: line.amount ?? null,
         discount: line.discount ?? null,

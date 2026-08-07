@@ -5,7 +5,7 @@ from math import ceil
 from typing import Optional, Tuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
@@ -18,9 +18,125 @@ from app.schemas.delivery_challan import (
     PendingDeliveryInvoiceOut,
     PendingDeliveryLineOut,
 )
+from app.utils.packing_kg import (
+    MissingPackingError,
+    STANDARD_BAG_KG,
+    bags_50_from_qty,
+    inventory_packing_map,
+    require_packing_kg,
+    require_packing_kg_from_db,
+    resolve_packing_kg_from_db,
+)
 
 # Ignore older invoices — project rolled out mid-stream; earlier ones are mostly delivered.
 PENDING_DELIVERY_FROM = date(2026, 7, 12)
+
+
+def _inventory_packing_subquery(db: Session):
+    return (
+        db.query(
+            TallyInventoryMaster.stock_item.label("stock_item"),
+            func.max(TallyInventoryMaster.packing).label("packing"),
+        )
+        .filter(
+            TallyInventoryMaster.stock_item.isnot(None),
+            TallyInventoryMaster.stock_item != "",
+        )
+        .group_by(TallyInventoryMaster.stock_item)
+        .subquery("inv_packing")
+    )
+
+
+def _packing_kg_expr(inventory_packing_subq):
+    return func.coalesce(
+        DeliveryChallanDetail.packing,
+        inventory_packing_subq.c.packing,
+    )
+
+
+def _bags_50_expr(packing_kg_expr):
+    return case(
+        (
+            packing_kg_expr.isnot(None),
+            (func.coalesce(DeliveryChallanDetail.qty, 0.0) * packing_kg_expr)
+            / STANDARD_BAG_KG,
+        ),
+        else_=None,
+    )
+
+
+def _http_missing_packing(error: MissingPackingError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=str(error),
+    )
+
+
+def _assert_batch_details_have_packing(
+    db: Session,
+    *,
+    batch_no: str,
+    stock_items: list[str],
+) -> None:
+    inv_packing = _inventory_packing_subquery(db)
+    packing_kg = _packing_kg_expr(inv_packing)
+    rows = (
+        db.query(
+            DeliveryChallanDetail.stock_item,
+            DeliveryChallanDetail.voucher_no,
+        )
+        .join(DeliveryChallan, DeliveryChallanDetail.challan_id == DeliveryChallan.id)
+        .outerjoin(
+            inv_packing,
+            DeliveryChallanDetail.stock_item == inv_packing.c.stock_item,
+        )
+        .filter(
+            func.trim(DeliveryChallan.batch_no) == batch_no,
+            DeliveryChallanDetail.stock_item.in_(stock_items),
+            packing_kg.is_(None),
+        )
+        .distinct()
+        .all()
+    )
+    if not rows:
+        return
+    item, voucher = rows[0]
+    raise _http_missing_packing(
+        MissingPackingError(stock_item=item, voucher_no=voucher),
+    )
+
+
+def backfill_delivery_detail_packing(
+    db: Session,
+    *,
+    reresolve_all: bool = False,
+) -> int:
+    """Persist Tally-resolved packing on DC lines (tally sale → inventory master)."""
+    inventory = inventory_packing_map(db)
+    query = db.query(DeliveryChallanDetail)
+    if not reresolve_all:
+        query = query.filter(DeliveryChallanDetail.packing.is_(None))
+    rows = query.all()
+    if not rows:
+        return 0
+
+    updated = 0
+    for detail in rows:
+        resolved = resolve_packing_kg_from_db(
+            db,
+            packing=None,
+            stock_item=detail.stock_item,
+            voucher_no=detail.voucher_no,
+            qty=detail.qty,
+            inventory_packing=inventory,
+        )
+        if resolved is None:
+            continue
+        if reresolve_all or detail.packing is None:
+            detail.packing = resolved
+            updated += 1
+    db.commit()
+    return updated
 
 
 def get_by_id(db: Session, challan_id: int) -> Optional[DeliveryChallan]:
@@ -59,6 +175,7 @@ def list_delivery_challans(
         .all()
     )
 
+    inventory_packing = inventory_packing_map(db)
     items: list[DeliveryChallanListItem] = []
     for row in rows:
         invoice_nos: set[str] = set()
@@ -66,8 +183,15 @@ def list_delivery_challans(
         for detail in row.details:
             if detail.voucher_no:
                 invoice_nos.add(detail.voucher_no)
-            if detail.qty is not None:
-                total_qty += float(detail.qty)
+            packing_kg = require_packing_kg_from_db(
+                db,
+                packing=detail.packing,
+                stock_item=detail.stock_item,
+                voucher_no=detail.voucher_no,
+                qty=detail.qty,
+                inventory_packing=inventory_packing,
+            )
+            total_qty += bags_50_from_qty(float(detail.qty or 0.0), packing_kg)
         items.append(
             DeliveryChallanListItem(
                 id=row.id,
@@ -107,7 +231,8 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
     """Pending sale lines (not on a DC), grouped by inventory stock group.
 
     Bag totals: (qty × packing) / 50 and (qty × packing) / 100.
-    Missing packing is treated as 50kg (same as delivery challan bags).
+    Packing resolves tally sale line → tally inventory master.
+    Raises if Tally packing is missing.
     """
     used_voucher_nos = (
         db.query(DeliveryChallanDetail.voucher_no)
@@ -119,6 +244,7 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
     )
     cutoff = datetime.combine(PENDING_DELIVERY_FROM, datetime.min.time())
     stock_group_by_item = _stock_group_by_item(db)
+    inventory_packing = inventory_packing_map(db)
 
     lines = (
         db.query(
@@ -163,9 +289,14 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
         qty = float(line.qty or 0.0)
         amount = float(line.amount or 0.0)
         packing_raw = float(line.packing) if line.packing is not None else None
-        packing = packing_raw if packing_raw is not None else 50.0
+        packing = require_packing_kg(
+            packing=packing_raw,
+            inventory_packing=inventory_packing.get(stock_item),
+            stock_item=stock_item,
+            voucher_no=voucher_no,
+        )
         weight = qty * packing
-        bags_50 = weight / 50.0
+        bags_50 = weight / STANDARD_BAG_KG
         bags_100 = weight / 100.0
         avg_rate = (amount / weight) * 100.0 if weight > 0 else 0.0
         detail = PendingDeliveryLineOut(
@@ -256,7 +387,8 @@ def today_deliveries_by_stock_group(
     """Delivery challan lines for a day or date range, grouped by stock group.
 
     Bag totals match pending: (qty × packing) / 50 and / 100.
-    Missing packing is treated as 50kg.
+    Packing resolves DC line → tally sale → tally inventory master.
+    Raises if Tally packing is missing.
     """
     if date_from is not None or date_to is not None:
         start = date_from or date_to or date.today()
@@ -267,6 +399,7 @@ def today_deliveries_by_stock_group(
         start, end = end, start
 
     stock_group_by_item = _stock_group_by_item(db)
+    inventory_packing = inventory_packing_map(db)
 
     lines = (
         db.query(DeliveryChallanDetail)
@@ -301,15 +434,22 @@ def today_deliveries_by_stock_group(
         qty = float(line.qty or 0.0)
         amount = float(line.amount or 0.0)
         packing_raw = float(line.packing) if line.packing is not None else None
-        packing = packing_raw if packing_raw is not None else 50.0
+        packing = require_packing_kg_from_db(
+            db,
+            packing=packing_raw,
+            stock_item=stock_item,
+            voucher_no=voucher_no,
+            qty=qty,
+            inventory_packing=inventory_packing,
+        )
         weight = qty * packing
-        bags_50 = weight / 50.0
+        bags_50 = weight / STANDARD_BAG_KG
         bags_100 = weight / 100.0
         avg_rate = (amount / weight) * 100.0 if weight > 0 else 0.0
         detail = PendingDeliveryLineOut(
             stock_item=stock_item,
             brand=(line.brand or "").strip() or None,
-            packing=packing_raw,
+            packing=packing_raw if packing_raw is not None else packing,
             qty=qty,
             amount=amount,
             weight=weight,
@@ -454,7 +594,9 @@ def sum_qty_by_batch(
 ) -> Tuple[float, float]:
     """Sum 50kg-bag qty and net line value for DC lines on batch + stock_group.
 
-    Bags per line: (qty × packing) / 50. Missing packing is treated as 50.
+    Bags per line: (qty × packing) / 50.
+    Packing resolves detail.packing → tally sale → tally inventory master.
+    Raises if any matching line lacks Tally packing.
     Value: sum(amount) + sum(discount). Discount is stored negative from sales.
     Returns (total_qty_50kg_bags, total_amount).
     """
@@ -467,15 +609,16 @@ def sum_qty_by_batch(
     if not stock_items:
         return 0.0, 0.0
 
+    _assert_batch_details_have_packing(db, batch_no=batch, stock_items=stock_items)
+
     detail_filter = (
         func.trim(DeliveryChallan.batch_no) == batch,
         DeliveryChallanDetail.stock_item.in_(stock_items),
     )
 
-    packing_kg = func.coalesce(DeliveryChallanDetail.packing, 50.0)
-    bag_expr = (
-        func.coalesce(DeliveryChallanDetail.qty, 0.0) * packing_kg
-    ) / 50.0
+    inv_packing = _inventory_packing_subquery(db)
+    packing_kg = _packing_kg_expr(inv_packing)
+    bag_expr = _bags_50_expr(packing_kg)
     net_amount_expr = func.coalesce(DeliveryChallanDetail.amount, 0.0) + func.coalesce(
         DeliveryChallanDetail.discount, 0.0
     )
@@ -486,6 +629,10 @@ def sum_qty_by_batch(
             func.coalesce(func.sum(net_amount_expr), 0.0),
         )
         .join(DeliveryChallan, DeliveryChallanDetail.challan_id == DeliveryChallan.id)
+        .outerjoin(
+            inv_packing,
+            DeliveryChallanDetail.stock_item == inv_packing.c.stock_item,
+        )
         .filter(*detail_filter)
         .one()
     )
@@ -509,10 +656,11 @@ def list_qty_by_batch_date(
     if not stock_items:
         return []
 
-    packing_kg = func.coalesce(DeliveryChallanDetail.packing, 50.0)
-    bag_expr = (
-        func.coalesce(DeliveryChallanDetail.qty, 0.0) * packing_kg
-    ) / 50.0
+    _assert_batch_details_have_packing(db, batch_no=batch, stock_items=stock_items)
+
+    inv_packing = _inventory_packing_subquery(db)
+    packing_kg = _packing_kg_expr(inv_packing)
+    bag_expr = _bags_50_expr(packing_kg)
 
     rows = (
         db.query(
@@ -520,6 +668,10 @@ def list_qty_by_batch_date(
             func.coalesce(func.sum(bag_expr), 0.0),
         )
         .join(DeliveryChallanDetail, DeliveryChallanDetail.challan_id == DeliveryChallan.id)
+        .outerjoin(
+            inv_packing,
+            DeliveryChallanDetail.stock_item == inv_packing.c.stock_item,
+        )
         .filter(
             func.trim(DeliveryChallan.batch_no) == batch,
             DeliveryChallanDetail.stock_item.in_(stock_items),
@@ -583,11 +735,25 @@ def _sale_money_for_line(db: Session, line) -> Tuple[Optional[float], Optional[f
     return amount, discount
 
 
+def _resolve_line_packing_kg(db: Session, line) -> float:
+    try:
+        return require_packing_kg_from_db(
+            db,
+            packing=line.packing,
+            stock_item=line.stock_item,
+            voucher_no=line.voucher_no,
+            qty=line.qty,
+        )
+    except MissingPackingError as error:
+        raise _http_missing_packing(error) from error
+
+
 def _replace_details(db: Session, challan: DeliveryChallan, payload: DeliveryChallanCreate) -> None:
     challan.details.clear()
     db.flush()
     for index, line in enumerate(payload.lines, start=1):
         amount, discount = _sale_money_for_line(db, line)
+        packing = _resolve_line_packing_kg(db, line)
         db.add(
             DeliveryChallanDetail(
                 challan_id=challan.id,
@@ -596,7 +762,7 @@ def _replace_details(db: Session, challan: DeliveryChallan, payload: DeliveryCha
                 ledger_name=line.ledger_name,
                 stock_item=line.stock_item,
                 brand=line.brand,
-                packing=line.packing,
+                packing=packing,
                 qty=line.qty,
                 amount=amount,
                 discount=discount,

@@ -24,6 +24,7 @@ from app.schemas.orid_dhall_production import (
     OridStockPositionOut,
 )
 from app.services import tally_service
+from app.utils.packing_kg import inventory_packing_map, resolve_packing_kg
 
 # Dashboard / picker stock groups for pending (unselected) purchases
 ORID_STOCK_GROUPS = (
@@ -358,6 +359,7 @@ def stock_position_unselected(db: Session) -> OridStockPositionOut:
     (same rules as the purchase line picker).
     """
     used = {no.strip() for no in list_used_voucher_nos(db) if no and str(no).strip()}
+    inventory_packing = inventory_packing_map(db)
     items: list[OridStockPositionItemOut] = []
     total_vouchers = 0
     grand_qty = 0.0
@@ -385,9 +387,14 @@ def stock_position_unselected(db: Session) -> OridStockPositionOut:
             qty = float(line.qty or 0.0)
             weight = float(line.weight or 0.0)
             amount = float(line.amount or 0.0)
-            packing = float(line.packing) if line.packing is not None else None
-            if weight <= 0 and qty > 0:
-                weight = qty * (packing if packing is not None else 50.0)
+            stock_item = (line.stock_item or "").strip()
+            packing_raw = float(line.packing) if line.packing is not None else None
+            packing = resolve_packing_kg(
+                packing=packing_raw,
+                inventory_packing=inventory_packing.get(stock_item),
+            )
+            if weight <= 0 and qty > 0 and packing is not None:
+                weight = qty * packing
             # Rate per quintal: (amount / weight) × 100
             rate = round((amount / weight) * 100.0, 2) if weight > 0 else None
 
