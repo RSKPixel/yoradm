@@ -5159,3 +5159,30 @@ body {
   text-align: right;
   color: var(--muted);
 }
+
+/* Tally Data sync */
+.tally-data {
+  min-height: 0;
+}
+
+.tally-data__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+}
+
+.tally-data__toolbar .dc-search-count {
+  padding-bottom: 0;
+}
+
+.tally-data__message {
+  margin: 0;
+  max-width: 100%;
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

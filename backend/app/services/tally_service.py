@@ -700,6 +700,17 @@ def _tds_stable_key_from_live(row: TdsWorkingsRow) -> Optional[TdsStableKey]:
     )
 
 
+def _tds_source_id_content_match(saved: TdsWorking, live: TdsWorkingsRow) -> bool:
+    """True when source_id overlap is the same voucher (not a reused Tally id)."""
+    saved_key = _tds_stable_key_from_saved(saved)
+    live_key = _tds_stable_key_from_live(live)
+    return (
+        saved_key is not None
+        and live_key is not None
+        and saved_key == live_key
+    )
+
+
 def _pair_tds_by_stable_key(
     saved_rows: Sequence[TdsWorking],
     live_rows: Sequence[TdsWorkingsRow],
@@ -1326,17 +1337,25 @@ def _merge_tds_workings(
     }
     matched_saved_ids: Set[int] = set()
     matched_live_ids: Set[int] = set()
+    merged_stable_keys: Set[TdsStableKey] = set()
 
     merged: List[TdsWorkingsRow] = []
     for source_id, live in live_by_source.items():
-        if source_id in saved_by_source:
-            saved = saved_by_source[source_id]
-            row = live.model_copy(update={"status": TDS_STATUS_MATCHED})
-            if _saved_has_manual_expenses(saved):
-                row = row.model_copy(update=_expense_claim_from_saved(saved))
-            merged.append(row)
-            matched_saved_ids.add(source_id)
-            matched_live_ids.add(source_id)
+        if source_id not in saved_by_source:
+            continue
+        saved = saved_by_source[source_id]
+        # Tally resync can reuse numeric ids for different vouchers.
+        if not _tds_source_id_content_match(saved, live):
+            continue
+        row = live.model_copy(update={"status": TDS_STATUS_MATCHED})
+        if _saved_has_manual_expenses(saved):
+            row = row.model_copy(update=_expense_claim_from_saved(saved))
+        merged.append(row)
+        matched_saved_ids.add(source_id)
+        matched_live_ids.add(source_id)
+        live_key = _tds_stable_key_from_live(live)
+        if live_key is not None:
+            merged_stable_keys.add(live_key)
 
     stable_pairs = _pair_tds_by_stable_key(
         saved_rows,
@@ -1352,16 +1371,28 @@ def _merge_tds_workings(
         merged.append(row)
         matched_saved_ids.add(int(saved.source_id))
         matched_live_ids.add(live_source_id)
+        live_key = _tds_stable_key_from_live(live)
+        if live_key is not None:
+            merged_stable_keys.add(live_key)
 
     for source_id, live in live_by_source.items():
         if source_id not in matched_live_ids:
             merged.append(live.model_copy(update={"status": TDS_STATUS_NEW}))
+            live_key = _tds_stable_key_from_live(live)
+            if live_key is not None:
+                merged_stable_keys.add(live_key)
 
     for source_id, saved in saved_by_source.items():
         if source_id in matched_saved_ids:
             continue
+        saved_key = _tds_stable_key_from_saved(saved)
+        # Drop stale duplicates kept only because expenses were filled earlier.
+        if saved_key is not None and saved_key in merged_stable_keys:
+            continue
         if _saved_has_manual_expenses(saved):
             merged.append(_tds_row_from_saved(saved, status=TDS_STATUS_MATCHED))
+            if saved_key is not None:
+                merged_stable_keys.add(saved_key)
         else:
             merged.append(_tds_row_from_saved(saved, status=TDS_STATUS_MISSING))
 
@@ -1447,6 +1478,8 @@ def save_tds_workings(
             continue
         entity = _tds_entity_from_row(row)
         manual = manual_by_source.get(int(row.source_id))
+        if manual is not None and not _tds_source_id_content_match(manual, row):
+            manual = None
         if manual is None:
             key = _tds_stable_key_from_live(row)
             if key is not None:
@@ -1490,14 +1523,20 @@ def update_tds_workings(
     }
     matched_saved_ids: Set[int] = set()
     matched_live_ids: Set[int] = set()
+    matched_stable_keys: Set[TdsStableKey] = set()
 
     for source_id, live in live_by_source.items():
         existing = saved_by_source.get(source_id)
         if existing is None:
             continue
+        if not _tds_source_id_content_match(existing, live):
+            continue
         _apply_live_fields(existing, live)
         matched_saved_ids.add(source_id)
         matched_live_ids.add(source_id)
+        live_key = _tds_stable_key_from_live(live)
+        if live_key is not None:
+            matched_stable_keys.add(live_key)
 
     stable_pairs = _pair_tds_by_stable_key(
         saved_rows,
@@ -1508,6 +1547,16 @@ def update_tds_workings(
     for live_source_id, saved in stable_pairs.items():
         live = live_by_source[live_source_id]
         original_saved_id = int(saved.source_id)
+        occupant = saved_by_source.get(live_source_id)
+        if (
+            occupant is not None
+            and int(occupant.source_id) != original_saved_id
+            and int(occupant.source_id) not in matched_saved_ids
+        ):
+            # Reused Tally id still held by a stale saved row.
+            db.delete(occupant)
+            matched_saved_ids.add(int(occupant.source_id))
+            db.flush()
         saved.source_id = live_source_id
         _apply_live_fields(saved, live)
         if _saved_has_manual_expenses(saved):
@@ -1520,13 +1569,23 @@ def update_tds_workings(
             )
         matched_saved_ids.add(original_saved_id)
         matched_live_ids.add(live_source_id)
+        live_key = _tds_stable_key_from_live(live)
+        if live_key is not None:
+            matched_stable_keys.add(live_key)
 
     for source_id, live in live_by_source.items():
         if source_id not in matched_live_ids:
             db.add(_tds_entity_from_row(live))
+            live_key = _tds_stable_key_from_live(live)
+            if live_key is not None:
+                matched_stable_keys.add(live_key)
 
     for source_id, saved in saved_by_source.items():
         if source_id in matched_saved_ids:
+            continue
+        saved_key = _tds_stable_key_from_saved(saved)
+        if saved_key is not None and saved_key in matched_stable_keys:
+            db.delete(saved)
             continue
         if _saved_has_manual_expenses(saved):
             continue

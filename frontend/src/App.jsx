@@ -18,6 +18,7 @@ import { PlaceholderPage } from './pages/PlaceholderPage'
 import { PostDatedChequePage } from './pages/PostDatedChequePage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
 import { TdsWorkingsPage } from './pages/TdsWorkingsPage'
+import { TallyDataPage } from './pages/TallyDataPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
 
 export default function App() {
@@ -55,6 +56,7 @@ export default function App() {
                     element={<PackingMaterialPage />}
                   />
                   <Route path="transactions/brokerage" element={<BrokeragePage />} />
+                  <Route path="transactions/tally-data" element={<TallyDataPage />} />
                   <Route
                     path="transactions/fixed-asset-register"
                     element={<PlaceholderPage title="Fixed Asset Register" />}

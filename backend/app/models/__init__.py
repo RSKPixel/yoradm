@@ -26,6 +26,9 @@ from app.models.tally import (
     TallyStockSummary,
 )
 from app.models.user import User, UserRole
+from app.models.yoradm_daybook2 import YoradmDaybook2
+from app.models.yoradm_purchase import YoradmPurchase
+from app.models.yoradm_sale import YoradmSale
 
 __all__ = [
     "User",
@@ -60,4 +63,7 @@ __all__ = [
     "TallySale",
     "TallyStockGroup",
     "TallyStockSummary",
+    "YoradmDaybook2",
+    "YoradmPurchase",
+    "YoradmSale",
 ]

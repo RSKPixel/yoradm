@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArchiveBoxIcon,
+  ArrowPathIcon,
   ArrowRightStartOnRectangleIcon,
   ArrowsRightLeftIcon,
   ChartBarSquareIcon,
@@ -62,6 +63,7 @@ const navSections = [
         icon: RectangleStackIcon,
       },
       { to: '/transactions/brokerage', label: 'Brokerage', icon: BanknotesIcon },
+      { to: '/transactions/tally-data', label: 'Tally Data', icon: ArrowPathIcon },
       { to: '/transactions/fixed-asset-register', label: 'Fixed Asset Register', icon: ArchiveBoxIcon },
     ],
   },
@@ -287,6 +289,7 @@ export function AppLayout() {
     location.pathname.startsWith('/transactions/post-dated-cheque') ||
     location.pathname.startsWith('/transactions/packing-material') ||
     location.pathname.startsWith('/transactions/brokerage') ||
+    location.pathname.startsWith('/transactions/tally-data') ||
     location.pathname.startsWith('/payroll/') ||
     location.pathname.startsWith('/reports/receivables-analysis') ||
     location.pathname.startsWith('/reports/collection-analysis') ||

@@ -12,6 +12,7 @@ from app.api.v1 import (
     payroll_employees,
     post_dated_cheques,
     tally,
+    tally_data,
     users,
 )
 
@@ -20,6 +21,7 @@ api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(company.router)
 api_router.include_router(tally.router)
+api_router.include_router(tally_data.router)
 api_router.include_router(delivery_challans.router)
 api_router.include_router(goods_receipts.router)
 api_router.include_router(orid_dhall_productions.router)
