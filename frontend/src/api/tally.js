@@ -224,6 +224,16 @@ export async function fetchCollectionPerformance({
   return data
 }
 
+export async function fetchStockAnalysisSales({ asOf, convertOridRaw } = {}) {
+  const { data } = await api.get('/tally/stock-analysis/sales', {
+    params: {
+      as_of: asOf || undefined,
+      convert_orid_raw: convertOridRaw ? true : undefined,
+    },
+  })
+  return data
+}
+
 export async function fetchCollectionAnalysis({
   asOf,
   period,

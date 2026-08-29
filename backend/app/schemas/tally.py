@@ -387,3 +387,30 @@ class ExpectedCollectionOut(BaseModel):
     party_count: int = 0
     performance_count: int = 0
     lines: List[ExpectedCollectionLineOut] = []
+
+
+class StockAnalysisSalesMetricsOut(BaseModel):
+    quintals: float = 0.0
+
+
+class StockAnalysisSalesRowOut(BaseModel):
+    stock_group: str
+    last_30_days: StockAnalysisSalesMetricsOut
+    avg_3_months: StockAnalysisSalesMetricsOut
+    closing: StockAnalysisSalesMetricsOut
+    closing_4w_ma: StockAnalysisSalesMetricsOut
+
+
+class StockAnalysisSalesOut(BaseModel):
+    as_of: str
+    last_30_days_from: str
+    last_30_days_to: str
+    avg_3_months_from: str
+    avg_3_months_to: str
+    avg_3_months_months: int = 3
+    orid_raw_converted: bool = False
+    rows: List[StockAnalysisSalesRowOut] = []
+    last_30_days_totals: StockAnalysisSalesMetricsOut
+    avg_3_months_totals: StockAnalysisSalesMetricsOut
+    closing_totals: StockAnalysisSalesMetricsOut
+    closing_4w_ma_totals: StockAnalysisSalesMetricsOut

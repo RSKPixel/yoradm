@@ -7,7 +7,10 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.models.post_dated_cheque import PostDatedChequeAllocation
+from app.constants.orid_raw_yield import (
+    ORID_RAW_STOCK_GROUP,
+    ORID_RAW_YIELD_BY_GROUP,
+)
 from app.models.party_collection_performance import PartyCollectionPerformance
 from app.models.tally import (
     TallyAccountMaster,
@@ -41,6 +44,9 @@ from app.schemas.tally import (
     ReceivablePartyAgeingOut,
     ReceivableRepresentativeOut,
     SaleInvoiceOptionOut,
+    StockAnalysisSalesMetricsOut,
+    StockAnalysisSalesOut,
+    StockAnalysisSalesRowOut,
     TdsWorkingsOut,
     TdsWorkingsRow,
     TdsExpenseMatchApplyOut,
@@ -2539,4 +2545,326 @@ def expected_collections(
         party_count=len(due_parties),
         performance_count=len(avg_by_party),
         lines=lines,
+    )
+
+
+STOCK_ANALYSIS_DEFAULT_PACKING_KG = 50.0
+STOCK_ANALYSIS_UNMAPPED_GROUP = "Unmapped"
+STOCK_ANALYSIS_AVG_MONTHS = 3
+STOCK_ANALYSIS_CLOSING_MA_WEEKS = 4
+
+
+def _aggregate_sales_by_stock_group(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+) -> Dict[str, float]:
+    """Map stock_group -> quintals from tallydata_sales joined to inventory master."""
+    start_dt = datetime.combine(date_from, datetime.min.time())
+    end_dt = datetime.combine(date_to, datetime.max.time())
+    packing_kg = func.coalesce(TallySale.packing, STOCK_ANALYSIS_DEFAULT_PACKING_KG)
+    qty_expr = func.coalesce(TallySale.qty, 0.0)
+    quintals_expr = qty_expr * packing_kg / 100.0
+    stock_item_key = func.lower(func.trim(TallySale.stock_item))
+    inventory_item_key = func.lower(func.trim(TallyInventoryMaster.stock_item))
+    group_expr = func.coalesce(
+        func.nullif(func.trim(TallyInventoryMaster.stock_group), ""),
+        STOCK_ANALYSIS_UNMAPPED_GROUP,
+    )
+
+    rows = (
+        db.query(
+            group_expr.label("stock_group"),
+            func.coalesce(func.sum(quintals_expr), 0.0).label("quintals"),
+        )
+        .outerjoin(TallyInventoryMaster, stock_item_key == inventory_item_key)
+        .filter(
+            TallySale.voucher_date.isnot(None),
+            TallySale.voucher_date >= start_dt,
+            TallySale.voucher_date <= end_dt,
+            TallySale.stock_item.isnot(None),
+            func.trim(TallySale.stock_item) != "",
+        )
+        .group_by(group_expr)
+        .all()
+    )
+    result: Dict[str, float] = {}
+    for stock_group, quintal_sum in rows:
+        name = (stock_group or "").strip() or STOCK_ANALYSIS_UNMAPPED_GROUP
+        result[name] = float(quintal_sum or 0.0)
+    return result
+
+
+def _stock_group_lookup(db: Session) -> Dict[str, str]:
+    """Lowercased stock_item → stock_group from inventory master."""
+    rows = (
+        db.query(TallyInventoryMaster.stock_item, TallyInventoryMaster.stock_group)
+        .filter(
+            TallyInventoryMaster.stock_item.isnot(None),
+            func.trim(TallyInventoryMaster.stock_item) != "",
+            TallyInventoryMaster.stock_group.isnot(None),
+            func.trim(TallyInventoryMaster.stock_group) != "",
+        )
+        .all()
+    )
+    lookup: Dict[str, str] = {}
+    for stock_item, stock_group in rows:
+        key = (stock_item or "").strip().casefold()
+        group = (stock_group or "").strip()
+        if key and group and key not in lookup:
+            lookup[key] = group
+    return lookup
+
+
+def _rollup_item_quintals_to_stock_group(
+    item_quintals: Dict[str, float],
+    stock_group_lookup: Dict[str, str],
+) -> Dict[str, float]:
+    grouped: Dict[str, float] = defaultdict(float)
+    for stock_item, quintals in item_quintals.items():
+        group = stock_group_lookup.get(stock_item.casefold()) or STOCK_ANALYSIS_UNMAPPED_GROUP
+        grouped[group] += float(quintals or 0.0)
+    return dict(grouped)
+
+
+def _closing_quintals_by_stock_item(
+    db: Session,
+    *,
+    as_of: date,
+) -> Dict[str, float]:
+    """Map stock_item -> closing quintals from tallydata_stocksummary."""
+    end_dt = datetime.combine(as_of, datetime.max.time())
+    packing_kg = func.coalesce(TallyStockSummary.packing, STOCK_ANALYSIS_DEFAULT_PACKING_KG)
+    opening = func.coalesce(TallyStockSummary.opening, 0.0)
+    inwards = func.coalesce(TallyStockSummary.inwards, 0.0)
+    outwards = func.coalesce(TallyStockSummary.outwards, 0.0)
+    closing_qty = opening + func.sum(inwards) - func.sum(outwards)
+    closing_quintals = closing_qty * packing_kg / 100.0
+
+    rows = (
+        db.query(
+            TallyStockSummary.stock_item,
+            closing_quintals.label("quintals"),
+        )
+        .filter(
+            TallyStockSummary.vdt.isnot(None),
+            TallyStockSummary.vdt <= end_dt,
+            TallyStockSummary.stock_item.isnot(None),
+            func.trim(TallyStockSummary.stock_item) != "",
+        )
+        .group_by(
+            TallyStockSummary.stock_item,
+            TallyStockSummary.opening,
+            TallyStockSummary.packing,
+        )
+        .all()
+    )
+    result: Dict[str, float] = {}
+    for stock_item, quintal_sum in rows:
+        name = (stock_item or "").strip()
+        if name:
+            result[name] = result.get(name, 0.0) + float(quintal_sum or 0.0)
+    return result
+
+
+def _closing_quintals_by_stock_group(
+    db: Session,
+    *,
+    as_of: date,
+) -> Dict[str, float]:
+    item_quintals = _closing_quintals_by_stock_item(db, as_of=as_of)
+    return _rollup_item_quintals_to_stock_group(item_quintals, _stock_group_lookup(db))
+
+
+def _closing_quintals_4w_moving_avg_by_stock_group(
+    db: Session,
+    *,
+    as_of: date,
+    weeks: int = STOCK_ANALYSIS_CLOSING_MA_WEEKS,
+) -> Dict[str, float]:
+    """Average closing quintals at weekly snapshots ending on as_of."""
+    week_count = max(int(weeks), 1)
+    snapshots: List[Dict[str, float]] = []
+    all_groups: set[str] = set()
+    for week_offset in range(week_count):
+        snapshot_date = as_of - timedelta(days=7 * week_offset)
+        snapshot = _closing_quintals_by_stock_group(db, as_of=snapshot_date)
+        snapshots.append(snapshot)
+        all_groups.update(snapshot)
+
+    return {
+        group: sum(snapshot.get(group, 0.0) for snapshot in snapshots) / week_count
+        for group in all_groups
+    }
+
+
+def _stock_analysis_metrics(quintals: float) -> StockAnalysisSalesMetricsOut:
+    return StockAnalysisSalesMetricsOut(quintals=round(float(quintals or 0.0), 4))
+
+
+def _average_monthly_quintals(
+    quintals: float,
+    *,
+    months: int = STOCK_ANALYSIS_AVG_MONTHS,
+) -> StockAnalysisSalesMetricsOut:
+    divisor = max(int(months), 1)
+    return _stock_analysis_metrics(float(quintals or 0.0) / divisor)
+
+
+def _metric_quintals(metric: StockAnalysisSalesMetricsOut) -> float:
+    return float(metric.quintals or 0.0)
+
+
+def _apply_orid_raw_yield_conversion(
+    rows: List[StockAnalysisSalesRowOut],
+) -> List[StockAnalysisSalesRowOut]:
+    """Allocate Orid Raw quintals into dhall / split / rejection / husk."""
+    raw_row = next((row for row in rows if row.stock_group == ORID_RAW_STOCK_GROUP), None)
+    if raw_row is None:
+        return rows
+
+    raw_closing = _metric_quintals(raw_row.closing)
+    raw_closing_4w = _metric_quintals(raw_row.closing_4w_ma)
+    raw_last_30 = _metric_quintals(raw_row.last_30_days)
+    raw_avg_3 = _metric_quintals(raw_row.avg_3_months)
+    if (
+        raw_closing == 0.0
+        and raw_closing_4w == 0.0
+        and raw_last_30 == 0.0
+        and raw_avg_3 == 0.0
+    ):
+        return [row for row in rows if row.stock_group != ORID_RAW_STOCK_GROUP]
+
+    by_group: Dict[str, StockAnalysisSalesRowOut] = {
+        row.stock_group: row
+        for row in rows
+        if row.stock_group != ORID_RAW_STOCK_GROUP
+    }
+
+    for group, pct in ORID_RAW_YIELD_BY_GROUP.items():
+        add_closing = raw_closing * pct
+        add_closing_4w = raw_closing_4w * pct
+        add_last_30 = raw_last_30 * pct
+        add_avg_3 = raw_avg_3 * pct
+        existing = by_group.get(group)
+        if existing is not None:
+            by_group[group] = StockAnalysisSalesRowOut(
+                stock_group=group,
+                closing=_stock_analysis_metrics(
+                    _metric_quintals(existing.closing) + add_closing
+                ),
+                closing_4w_ma=_stock_analysis_metrics(
+                    _metric_quintals(existing.closing_4w_ma) + add_closing_4w
+                ),
+                last_30_days=_stock_analysis_metrics(
+                    _metric_quintals(existing.last_30_days) + add_last_30
+                ),
+                avg_3_months=_stock_analysis_metrics(
+                    _metric_quintals(existing.avg_3_months) + add_avg_3
+                ),
+            )
+        else:
+            by_group[group] = StockAnalysisSalesRowOut(
+                stock_group=group,
+                closing=_stock_analysis_metrics(add_closing),
+                closing_4w_ma=_stock_analysis_metrics(add_closing_4w),
+                last_30_days=_stock_analysis_metrics(add_last_30),
+                avg_3_months=_stock_analysis_metrics(add_avg_3),
+            )
+
+    return sorted(
+        by_group.values(),
+        key=lambda row: (
+            -_metric_quintals(row.closing),
+            -_metric_quintals(row.last_30_days),
+            row.stock_group.casefold(),
+        ),
+    )
+
+
+def _stock_analysis_row_totals(
+    rows: Sequence[StockAnalysisSalesRowOut],
+) -> Tuple[float, float, float, float]:
+    closing = sum(_metric_quintals(row.closing) for row in rows)
+    closing_4w = sum(_metric_quintals(row.closing_4w_ma) for row in rows)
+    last_30 = sum(_metric_quintals(row.last_30_days) for row in rows)
+    avg_3 = sum(_metric_quintals(row.avg_3_months) for row in rows)
+    return closing, closing_4w, last_30, avg_3
+
+
+def stock_analysis_sales(
+    db: Session,
+    *,
+    as_of: Optional[date] = None,
+    convert_orid_raw: bool = False,
+) -> StockAnalysisSalesOut:
+    """Sales and closing stock by stock group."""
+    today = as_of or date.today()
+    last_30_start = today - timedelta(days=29)
+    avg_3_months_start = today - timedelta(days=89)
+
+    last_30_map = _aggregate_sales_by_stock_group(
+        db, date_from=last_30_start, date_to=today
+    )
+    avg_3_months_raw = _aggregate_sales_by_stock_group(
+        db, date_from=avg_3_months_start, date_to=today
+    )
+    closing_map = _closing_quintals_by_stock_group(db, as_of=today)
+    closing_4w_map = _closing_quintals_4w_moving_avg_by_stock_group(db, as_of=today)
+
+    last_30_totals = 0.0
+    avg_3_months_totals_raw = 0.0
+    closing_totals = 0.0
+    closing_4w_totals = 0.0
+    rows: List[StockAnalysisSalesRowOut] = []
+
+    for stock_group in sorted(
+        set(last_30_map) | set(avg_3_months_raw) | set(closing_map) | set(closing_4w_map),
+        key=lambda name: (
+            -closing_map.get(name, 0.0),
+            -last_30_map.get(name, 0.0),
+            name.casefold(),
+        ),
+    ):
+        last_30_quintals = last_30_map.get(stock_group, 0.0)
+        avg_3_months_quintals = avg_3_months_raw.get(stock_group, 0.0)
+        closing_quintals = closing_map.get(stock_group, 0.0)
+        closing_4w_quintals = closing_4w_map.get(stock_group, 0.0)
+        rows.append(
+            StockAnalysisSalesRowOut(
+                stock_group=stock_group,
+                last_30_days=_stock_analysis_metrics(last_30_quintals),
+                avg_3_months=_average_monthly_quintals(avg_3_months_quintals),
+                closing=_stock_analysis_metrics(closing_quintals),
+                closing_4w_ma=_stock_analysis_metrics(closing_4w_quintals),
+            )
+        )
+        last_30_totals += last_30_quintals
+        avg_3_months_totals_raw += avg_3_months_quintals
+        closing_totals += closing_quintals
+        closing_4w_totals += closing_4w_quintals
+
+    if convert_orid_raw:
+        rows = _apply_orid_raw_yield_conversion(rows)
+        closing_totals, closing_4w_totals, last_30_totals, avg_3_months_totals_sum = (
+            _stock_analysis_row_totals(rows)
+        )
+        avg_3_months_totals = _stock_analysis_metrics(avg_3_months_totals_sum)
+    else:
+        avg_3_months_totals = _average_monthly_quintals(avg_3_months_totals_raw)
+
+    return StockAnalysisSalesOut(
+        as_of=today.isoformat(),
+        last_30_days_from=last_30_start.isoformat(),
+        last_30_days_to=today.isoformat(),
+        avg_3_months_from=avg_3_months_start.isoformat(),
+        avg_3_months_to=today.isoformat(),
+        avg_3_months_months=STOCK_ANALYSIS_AVG_MONTHS,
+        orid_raw_converted=convert_orid_raw,
+        rows=rows,
+        last_30_days_totals=_stock_analysis_metrics(last_30_totals),
+        avg_3_months_totals=avg_3_months_totals,
+        closing_totals=_stock_analysis_metrics(closing_totals),
+        closing_4w_ma_totals=_stock_analysis_metrics(closing_4w_totals),
     )

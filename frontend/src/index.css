@@ -4736,6 +4736,115 @@ body {
   border-bottom: none;
 }
 
+.stock-analysis__table-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel, var(--surface));
+}
+
+.stock-analysis__table-head,
+.stock-analysis__table-foot {
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  background: var(--surface);
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+}
+
+.stock-analysis__table-head::-webkit-scrollbar,
+.stock-analysis__table-foot::-webkit-scrollbar {
+  display: none;
+}
+
+.stock-analysis__table-head {
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.stock-analysis__table-foot {
+  border-top: 1px solid var(--form-line, var(--line));
+}
+
+.stock-analysis__table-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  background: var(--panel, var(--surface));
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.stock-analysis__table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.stock-analysis__table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.stock-analysis__table {
+  width: 100%;
+  min-width: 48rem;
+  table-layout: fixed;
+}
+
+.stock-analysis__table th,
+.stock-analysis__table td {
+  padding: 0.55rem 0.65rem;
+  vertical-align: middle;
+}
+
+.stock-analysis__table thead th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.stock-analysis__col-group {
+  width: auto;
+}
+
+.stock-analysis__col-conv {
+  width: 5.5rem;
+}
+
+.stock-analysis__col-qtl {
+  width: 8rem;
+}
+
+.stock-analysis__col-days {
+  width: 8.5rem;
+}
+
+.stock-analysis__group {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-analysis__conversion .win-form__control {
+  min-height: 1.75rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+}
+
+.stock-analysis__table-foot td {
+  background: var(--surface);
+  font-weight: 600;
+  border-bottom: none;
+}
+
 /* Party pending bills modal */
 .collection-party-modal {
   width: min(56rem, 94vw);

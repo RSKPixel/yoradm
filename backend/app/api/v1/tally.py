@@ -34,6 +34,7 @@ from app.schemas.tally import (
     SaleInvoiceLineOut,
     SaleInvoiceOptionOut,
     SaleOut,
+    StockAnalysisSalesOut,
     StockSummaryOut,
     TdsHeadPaymentDateUpdate,
     TdsHeadPaymentOut,
@@ -445,6 +446,20 @@ def daybook_collection_performance(
         date_from=date_from,
         date_to=date_to,
         representative=rep,
+    )
+
+
+@router.get("/stock-analysis/sales", response_model=StockAnalysisSalesOut)
+def stock_analysis_sales(
+    _: CurrentUser,
+    db: DbSession,
+    as_of: Optional[date] = Query(default=None),
+    convert_orid_raw: bool = Query(default=False),
+) -> StockAnalysisSalesOut:
+    return tally_service.stock_analysis_sales(
+        db,
+        as_of=as_of,
+        convert_orid_raw=convert_orid_raw,
     )
 
 

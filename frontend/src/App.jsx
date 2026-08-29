@@ -17,6 +17,7 @@ import { PayrollEmployeesPage } from './pages/PayrollEmployeesPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { PostDatedChequePage } from './pages/PostDatedChequePage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
+import { StockAnalysisPage } from './pages/StockAnalysisPage'
 import { TdsWorkingsPage } from './pages/TdsWorkingsPage'
 import { TallyDataPage } from './pages/TallyDataPage'
 import { AdminRoute, ProtectedRoute } from './routes/guards'
@@ -71,6 +72,7 @@ export default function App() {
                     element={<CollectionAnalysisPage />}
                   />
                   <Route path="reports/tds-workings" element={<TdsWorkingsPage />} />
+                  <Route path="reports/stock-analysis" element={<StockAnalysisPage />} />
 
                   <Route path="settings" element={<OpenSettingsRoute />} />
                   <Route path="company" element={<OpenSettingsRoute tab="company" />} />
