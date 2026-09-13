@@ -55,9 +55,12 @@ App: http://localhost:5175
 
 MySQL is **not** included — point Compose at your existing MySQL host.
 
+`docker/.env` is **gitignored** and is never uploaded with the repo. On every new server you must create it first:
+
 ```bash
-cd docker
-cp .env.example .env   # set MYSQL_* and JWT_SECRET_KEY
+cd /path/to/yoradm/docker          # use the real path on that server
+cp .env.example .env
+nano .env                          # set MYSQL_*, JWT_SECRET_KEY, CORS_ORIGINS, YORADM_PORT
 docker compose up --build -d
 docker compose exec backend python scripts/seed_admin.py   # first run only
 ```
@@ -67,6 +70,7 @@ App: http://localhost:8001 (or `YORADM_PORT` from `.env`)
 - `frontend` — nginx serves the SPA and proxies `/api` → backend
 - `backend` — Alembic migrate on start, then uvicorn on port 8003 (internal)
 - Use `MYSQL_HOST=host.docker.internal` if MySQL runs on the Docker host; otherwise use the remote host/IP reachable from the container
+- Do not copy your laptop path into the server — always `cd` into the server’s `yoradm/docker` directory before `docker compose`
 
 ## Auth & security
 
