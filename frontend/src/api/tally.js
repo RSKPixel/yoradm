@@ -234,6 +234,23 @@ export async function fetchStockAnalysisSales({ asOf, convertOridRaw } = {}) {
   return data
 }
 
+export async function fetchPurchaseAnalysis({
+  dateFrom,
+  dateTo,
+  party,
+  stockItem,
+} = {}) {
+  const { data } = await api.get('/tally/purchase-analysis', {
+    params: {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+      party: party || undefined,
+      stock_item: stockItem || undefined,
+    },
+  })
+  return data
+}
+
 export async function fetchCollectionAnalysis({
   asOf,
   period,

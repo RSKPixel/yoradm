@@ -414,3 +414,37 @@ class StockAnalysisSalesOut(BaseModel):
     avg_3_months_totals: StockAnalysisSalesMetricsOut
     closing_totals: StockAnalysisSalesMetricsOut
     closing_4w_ma_totals: StockAnalysisSalesMetricsOut
+
+
+class PurchaseProductionYieldOut(BaseModel):
+    orid_dhall_pct: Optional[float] = None
+    orid_dhall_split_pct: Optional[float] = None
+    orid_rejection_pct: Optional[float] = None
+    orid_husk_pct: Optional[float] = None
+    split_rate: Optional[float] = None
+    rejection_rate: Optional[float] = None
+    husk_rate: Optional[float] = None
+
+
+class PurchaseReportRowOut(BaseModel):
+    id: int
+    voucher_date: Optional[datetime] = None
+    ledger_name: Optional[str] = None
+    stock_item: Optional[str] = None
+    qty: Optional[float] = None
+    weight: Optional[float] = None
+    rate: Optional[float] = None
+    amount: Optional[float] = None
+    production_status: Optional[str] = None
+    production_yield: Optional[PurchaseProductionYieldOut] = None
+    orid_dhall_rate: Optional[float] = None
+    orid_dhall_value: Optional[float] = None
+
+
+class PurchaseReportOut(BaseModel):
+    date_from: str
+    date_to: str
+    rows: List[PurchaseReportRowOut] = []
+    stock_items: List[str] = []
+    total_amount: float = 0.0
+    row_count: int = 0

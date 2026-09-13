@@ -5,12 +5,13 @@ from math import ceil
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.constants.orid_raw_yield import (
     ORID_RAW_STOCK_GROUP,
     ORID_RAW_YIELD_BY_GROUP,
 )
+from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
 from app.models.party_collection_performance import PartyCollectionPerformance
 from app.models.tally import (
     TallyAccountMaster,
@@ -44,6 +45,9 @@ from app.schemas.tally import (
     ReceivablePartyAgeingOut,
     ReceivableRepresentativeOut,
     SaleInvoiceOptionOut,
+    PurchaseReportOut,
+    PurchaseReportRowOut,
+    PurchaseProductionYieldOut,
     StockAnalysisSalesMetricsOut,
     StockAnalysisSalesOut,
     StockAnalysisSalesRowOut,
@@ -2552,6 +2556,7 @@ STOCK_ANALYSIS_DEFAULT_PACKING_KG = 50.0
 STOCK_ANALYSIS_UNMAPPED_GROUP = "Unmapped"
 STOCK_ANALYSIS_AVG_MONTHS = 3
 STOCK_ANALYSIS_CLOSING_MA_WEEKS = 4
+PURCHASE_PRODUCTION_STATUS_GROUPS = frozenset({"Orid Raw"})
 
 
 def _aggregate_sales_by_stock_group(
@@ -2867,4 +2872,245 @@ def stock_analysis_sales(
         avg_3_months_totals=avg_3_months_totals,
         closing_totals=_stock_analysis_metrics(closing_totals),
         closing_4w_ma_totals=_stock_analysis_metrics(closing_4w_totals),
+    )
+
+
+def _orid_production_link_maps(
+    db: Session,
+) -> Tuple[
+    Dict[int, Tuple[str, Optional[PurchaseProductionYieldOut]]],
+    Dict[str, Tuple[str, Optional[PurchaseProductionYieldOut]]],
+]:
+    """Map TallyPurchase.id / voucher_no → (status, yield breakdown)."""
+    from app.services.orid_dhall_production_service import _list_summary, _parse_qty
+
+    link_rows = (
+        db.query(
+            OridDhallProductionLine.purchase_id,
+            OridDhallProductionLine.voucher_no,
+            OridDhallProduction.id,
+            OridDhallProduction.status,
+        )
+        .join(
+            OridDhallProduction,
+            OridDhallProductionLine.production_id == OridDhallProduction.id,
+        )
+        .order_by(OridDhallProduction.id.asc())
+        .all()
+    )
+
+    closed_ids = {
+        int(production_id)
+        for _purchase_id, _voucher_no, production_id, status in link_rows
+        if (status or "").strip() == "Closed"
+    }
+    yield_by_production: Dict[int, PurchaseProductionYieldOut] = {}
+    if closed_ids:
+        closed_rows = (
+            db.query(OridDhallProduction)
+            .options(joinedload(OridDhallProduction.lines))
+            .filter(OridDhallProduction.id.in_(closed_ids))
+            .all()
+        )
+        for production in closed_rows:
+            summary = _list_summary(production)
+            split_rate = (
+                _parse_qty(production.split_rate)
+                if str(production.split_rate or "").strip()
+                else None
+            )
+            rejection_rate = (
+                _parse_qty(production.sortex_rate)
+                if str(production.sortex_rate or "").strip()
+                else None
+            )
+            husk_rate = (
+                _parse_qty(production.husk_rate)
+                if str(production.husk_rate or "").strip()
+                else None
+            )
+            yield_by_production[int(production.id)] = PurchaseProductionYieldOut(
+                orid_dhall_pct=summary.get("orid_dhall_pct"),
+                orid_dhall_split_pct=summary.get("orid_dhall_split_pct"),
+                orid_rejection_pct=summary.get("orid_rejection_pct"),
+                orid_husk_pct=summary.get("orid_husk_pct"),
+                split_rate=split_rate if split_rate else None,
+                rejection_rate=rejection_rate if rejection_rate else None,
+                husk_rate=husk_rate if husk_rate else None,
+            )
+
+    by_purchase_id: Dict[int, Tuple[str, Optional[PurchaseProductionYieldOut]]] = {}
+    by_voucher_no: Dict[str, Tuple[str, Optional[PurchaseProductionYieldOut]]] = {}
+    for purchase_id, voucher_no, production_id, status in link_rows:
+        status_label = (status or "").strip() or None
+        if not status_label:
+            continue
+        yield_info = (
+            yield_by_production.get(int(production_id))
+            if status_label == "Closed"
+            else None
+        )
+        link = (status_label, yield_info)
+        if purchase_id is not None:
+            by_purchase_id[int(purchase_id)] = link
+        voucher_key = (voucher_no or "").strip()
+        if voucher_key:
+            by_voucher_no[voucher_key] = link
+    return by_purchase_id, by_voucher_no
+
+
+def _orid_dhall_rate_value_from_purchase(
+    *,
+    amount: float,
+    weight: Optional[float],
+    yield_info: Optional[PurchaseProductionYieldOut],
+) -> Tuple[Optional[float], Optional[float]]:
+    """Residual Orid Dhall rate/value after byproduct values at production rates."""
+    if yield_info is None:
+        return None, None
+    weight_kg = float(weight or 0.0)
+    if weight_kg <= 0:
+        return None, None
+
+    raw_qtl = weight_kg / 100.0
+    dhall_pct = float(yield_info.orid_dhall_pct or 0.0)
+    split_pct = float(yield_info.orid_dhall_split_pct or 0.0)
+    rejection_pct = float(yield_info.orid_rejection_pct or 0.0)
+    husk_pct = float(yield_info.orid_husk_pct or 0.0)
+    dhall_qtl = raw_qtl * (dhall_pct / 100.0)
+    if dhall_qtl <= 0:
+        return None, None
+
+    byproduct_value = 0.0
+    if yield_info.split_rate is not None and split_pct:
+        byproduct_value += raw_qtl * (split_pct / 100.0) * float(yield_info.split_rate)
+    if yield_info.rejection_rate is not None and rejection_pct:
+        byproduct_value += (
+            raw_qtl * (rejection_pct / 100.0) * float(yield_info.rejection_rate)
+        )
+    if yield_info.husk_rate is not None and husk_pct:
+        byproduct_value += raw_qtl * (husk_pct / 100.0) * float(yield_info.husk_rate)
+
+    dhall_value = round(float(amount or 0.0) - byproduct_value, 2)
+    dhall_rate = round(dhall_value / dhall_qtl, 2)
+    return dhall_rate, dhall_value
+
+
+def purchase_report(
+    db: Session,
+    *,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    party: Optional[str] = None,
+    stock_item: Optional[str] = None,
+) -> PurchaseReportOut:
+    """Line-level purchases: date, party, stock item, rate, value."""
+    end = date_to or date.today()
+    start = date_from or (end - timedelta(days=29))
+    if start > end:
+        start, end = end, start
+
+    start_dt = datetime.combine(start, datetime.min.time())
+    end_dt = datetime.combine(end, datetime.max.time())
+    party_key = (party or "").strip()
+    item_key = (stock_item or "").strip()
+
+    base_query = db.query(TallyPurchase).filter(
+        TallyPurchase.voucher_date.isnot(None),
+        TallyPurchase.voucher_date >= start_dt,
+        TallyPurchase.voucher_date <= end_dt,
+        TallyPurchase.stock_item.isnot(None),
+        func.trim(TallyPurchase.stock_item) != "",
+    )
+    if party_key:
+        base_query = base_query.filter(TallyPurchase.ledger_name.ilike(f"%{party_key}%"))
+
+    stock_item_rows = (
+        base_query.with_entities(TallyPurchase.stock_item)
+        .distinct()
+        .order_by(TallyPurchase.stock_item.asc())
+        .all()
+    )
+    stock_items = sorted(
+        {
+            (row[0] or "").strip()
+            for row in stock_item_rows
+            if (row[0] or "").strip()
+        },
+        key=lambda name: name.casefold(),
+    )
+
+    query = base_query
+    if item_key:
+        query = query.filter(
+            func.lower(func.trim(TallyPurchase.stock_item)) == item_key.casefold()
+        )
+
+    lines = query.order_by(
+        TallyPurchase.voucher_date.desc(),
+        TallyPurchase.id.desc(),
+    ).all()
+
+    stock_group_lookup = _stock_group_lookup(db)
+    link_by_purchase_id, link_by_voucher = _orid_production_link_maps(db)
+
+    rows: List[PurchaseReportRowOut] = []
+    total_amount = 0.0
+    for line in lines:
+        amount = float(line.amount or 0.0)
+        total_amount += amount
+        qty = float(line.qty) if line.qty is not None else None
+        weight = float(line.weight) if line.weight is not None else None
+        weight_for_rate = float(weight or 0.0)
+        rate = (
+            round(amount / weight_for_rate * 100.0, 2) if weight_for_rate > 0 else None
+        )
+        item_name = (line.stock_item or "").strip() or None
+        stock_group = (
+            stock_group_lookup.get(item_name.casefold()) if item_name else None
+        )
+        production_status = None
+        production_yield = None
+        orid_dhall_rate = None
+        orid_dhall_value = None
+        if stock_group in PURCHASE_PRODUCTION_STATUS_GROUPS:
+            link = link_by_purchase_id.get(int(line.id))
+            if link is None:
+                voucher_key = (line.voucher_no or "").strip()
+                if voucher_key:
+                    link = link_by_voucher.get(voucher_key)
+            if link is None:
+                production_status = "Pending"
+            else:
+                production_status, production_yield = link
+                if production_status == "Closed":
+                    orid_dhall_rate, orid_dhall_value = _orid_dhall_rate_value_from_purchase(
+                        amount=amount,
+                        weight=weight,
+                        yield_info=production_yield,
+                    )
+        rows.append(
+            PurchaseReportRowOut(
+                id=int(line.id),
+                voucher_date=line.voucher_date,
+                ledger_name=(line.ledger_name or "").strip() or None,
+                stock_item=item_name,
+                qty=qty,
+                weight=weight,
+                rate=rate,
+                amount=amount,
+                production_status=production_status,
+                production_yield=production_yield,
+                orid_dhall_rate=orid_dhall_rate,
+                orid_dhall_value=orid_dhall_value,
+            )
+        )
+
+    return PurchaseReportOut(
+        date_from=start.isoformat(),
+        date_to=end.isoformat(),
+        rows=rows,
+        stock_items=stock_items,
+        total_amount=round(total_amount, 2),
+        row_count=len(rows),
     )

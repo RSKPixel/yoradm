@@ -21,6 +21,7 @@ import {
   RectangleStackIcon,
   ReceiptPercentIcon,
   ScaleIcon,
+  ShoppingCartIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../auth/AuthContext'
 import { fetchCompany } from '../api/company'
@@ -86,6 +87,7 @@ const navSections = [
       { to: '/reports/collection-analysis', label: 'Collection Analysis', icon: ClockIcon },
       { to: '/reports/tds-workings', label: 'TDS Workings', icon: ReceiptPercentIcon },
       { to: '/reports/stock-analysis', label: 'Stock Analysis', icon: CubeTransparentIcon },
+      { to: '/reports/purchases', label: 'Purchases', icon: ShoppingCartIcon },
     ],
   },
 ]
@@ -295,7 +297,8 @@ export function AppLayout() {
     location.pathname.startsWith('/reports/receivables-analysis') ||
     location.pathname.startsWith('/reports/collection-analysis') ||
     location.pathname.startsWith('/reports/tds-workings') ||
-    location.pathname.startsWith('/reports/stock-analysis')
+    location.pathname.startsWith('/reports/stock-analysis') ||
+    location.pathname.startsWith('/reports/purchases')
   const isFillMain = isPrimaryContentPage || isDashboardPage
 
   return (

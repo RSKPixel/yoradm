@@ -28,6 +28,7 @@ from app.schemas.tally import (
     InventoryItemOptionOut,
     InventoryMasterOut,
     PurchaseOut,
+    PurchaseReportOut,
     ReceivableAnalysisOut,
     ReceivableOut,
     ReceivableRepresentativeOut,
@@ -460,6 +461,24 @@ def stock_analysis_sales(
         db,
         as_of=as_of,
         convert_orid_raw=convert_orid_raw,
+    )
+
+
+@router.get("/purchase-analysis", response_model=PurchaseReportOut)
+def purchase_analysis(
+    _: CurrentUser,
+    db: DbSession,
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+    party: Optional[str] = Query(default=None),
+    stock_item: Optional[str] = Query(default=None),
+) -> PurchaseReportOut:
+    return tally_service.purchase_report(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        party=party,
+        stock_item=stock_item,
     )
 
 

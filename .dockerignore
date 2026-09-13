@@ -1,0 +1,29 @@
+# Git / IDE
+.git
+.cursor
+.gitignore
+**/.DS_Store
+
+# Env and secrets (never bake into images)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/venv
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+
+# Node
+**/node_modules
+**/dist
+**/dist-ssr
+
+# Docs / plans not needed in image
+**/*.md

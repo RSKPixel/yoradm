@@ -14,6 +14,7 @@ Full-stack ERP foundation with JWT auth, role-based access, and read-only access
 yoradm/
 ├── backend/          # FastAPI API
 ├── frontend/         # React SPA
+├── docker/           # Docker Compose + Dockerfiles
 └── README.md
 ```
 
@@ -50,6 +51,23 @@ npm run dev
 
 App: http://localhost:5175
 
+## Docker (production)
+
+MySQL is **not** included — point Compose at your existing MySQL host.
+
+```bash
+cd docker
+cp .env.example .env   # set MYSQL_* and JWT_SECRET_KEY
+docker compose up --build -d
+docker compose exec backend python scripts/seed_admin.py   # first run only
+```
+
+App: http://localhost:8001 (or `YORADM_PORT` from `.env`)
+
+- `frontend` — nginx serves the SPA and proxies `/api` → backend
+- `backend` — Alembic migrate on start, then uvicorn on port 8003 (internal)
+- Use `MYSQL_HOST=host.docker.internal` if MySQL runs on the Docker host; otherwise use the remote host/IP reachable from the container
+
 ## Auth & security
 
 - Access tokens (short-lived) + refresh tokens (rotated, stored hashed)
@@ -74,6 +92,5 @@ App: http://localhost:5175
 
 ## Notes
 
-- Never commit `backend/.env` or `frontend/.env`
+- Never commit `backend/.env`, `frontend/.env`, or `docker/.env`
 - Alembic only manages `yoradm_*` tables; Tally tables are never migrated by this app
-# yoradm

@@ -1,0 +1,25 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+    restart: unless-stopped
+    # MySQL runs separately; ensure MYSQL_HOST is reachable from this container
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: /api/v1
+    ports:
+      - "${YORADM_PORT:-8001}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

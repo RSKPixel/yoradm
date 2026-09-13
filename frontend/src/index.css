@@ -4845,6 +4845,204 @@ body {
   border-bottom: none;
 }
 
+.purchases-report__table-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel, var(--surface));
+}
+
+.purchases-report__table-head,
+.purchases-report__table-foot {
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  background: var(--surface);
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+}
+
+.purchases-report__table-head::-webkit-scrollbar,
+.purchases-report__table-foot::-webkit-scrollbar {
+  display: none;
+}
+
+.purchases-report__table-head {
+  border-bottom: 1px solid var(--form-line, var(--line));
+}
+
+.purchases-report__table-foot {
+  border-top: 1px solid var(--form-line, var(--line));
+}
+
+.purchases-report__table-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  background: var(--panel, var(--surface));
+  padding-right: 0.85rem;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.purchases-report__table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.purchases-report__table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.purchases-report__table {
+  width: 100%;
+  min-width: 56rem;
+  table-layout: fixed;
+}
+
+.purchases-report__table th,
+.purchases-report__table td {
+  padding: 0.55rem 0.65rem;
+  vertical-align: middle;
+}
+
+.purchases-report__table-scroll .purchases-report__table tbody tr:hover td {
+  background: color-mix(in srgb, var(--form-accent, var(--accent)) 10%, var(--panel, var(--surface)));
+}
+
+.purchases-report__table thead th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.purchases-report__col-date {
+  width: 7.5rem;
+}
+
+.purchases-report__col-party {
+  width: auto;
+}
+
+.purchases-report__col-item {
+  width: 14rem;
+}
+
+.purchases-report__col-num {
+  width: 8rem;
+}
+
+.purchases-report__col-status {
+  width: 8.5rem;
+}
+
+.purchases-report__status-button {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--form-accent, var(--accent));
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.purchases-report__status-button:hover,
+.purchases-report__status-button:focus-visible {
+  color: var(--ink);
+}
+
+.purchases-report__party,
+.purchases-report__item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.purchases-report__table-foot td {
+  background: var(--surface);
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.purchases-yield-modal {
+  width: min(44rem, 94vw);
+  max-height: min(88vh, 36rem);
+  display: flex;
+  flex-direction: column;
+  --form-bg: var(--panel);
+  --form-header: var(--surface);
+  --form-footer: var(--surface);
+  --form-ink: var(--ink);
+  --form-muted: var(--muted);
+  --form-line: var(--line);
+  --form-accent: var(--accent);
+  --form-accent-soft: var(--accent-soft);
+}
+
+.purchases-yield-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 0.5rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.purchases-yield-modal__subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.purchases-yield-modal__table-wrap {
+  overflow: auto;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.4rem;
+}
+
+.purchases-yield-modal__table {
+  width: 100%;
+  min-width: 34rem;
+  table-layout: fixed;
+}
+
+.purchases-yield-modal__table th,
+.purchases-yield-modal__table td {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+}
+
+.purchases-yield-modal__table thead th {
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.purchases-yield-modal__table tfoot td {
+  font-weight: 600;
+  background: var(--surface);
+}
+
+.purchases-yield-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--form-line, var(--line));
+}
+
 /* Party pending bills modal */
 .collection-party-modal {
   width: min(56rem, 94vw);
