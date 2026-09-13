@@ -11,6 +11,18 @@ services:
     # MySQL runs separately; ensure MYSQL_HOST is reachable from this container
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/api/v1/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
   frontend:
     build:
@@ -21,5 +33,6 @@ services:
     ports:
       - "${YORADM_PORT:-8001}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
