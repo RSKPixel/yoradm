@@ -11,6 +11,7 @@ from app.api.v1 import (
     payroll_attendance,
     payroll_employees,
     post_dated_cheques,
+    reports,
     tally,
     tally_data,
     users,
@@ -30,6 +31,7 @@ api_router.include_router(payroll_employees.router)
 api_router.include_router(payroll_attendance.router)
 api_router.include_router(post_dated_cheques.router)
 api_router.include_router(brokerage.router)
+api_router.include_router(reports.router)
 
 
 @api_router.get("/health", tags=["health"])

@@ -4976,6 +4976,56 @@ body {
   border-bottom: none;
 }
 
+.monthly-summary__block {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  margin-top: 0.75rem;
+  overflow: auto;
+}
+
+.monthly-summary__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel, var(--surface));
+}
+
+.monthly-summary__table {
+  min-width: 98rem;
+}
+
+.monthly-summary__col-label {
+  width: 12rem;
+}
+
+.monthly-summary__col-pct {
+  width: 4.5rem;
+}
+
+.monthly-summary__group {
+  text-align: center;
+}
+
+.monthly-summary__total-row td {
+  font-weight: 600;
+  border-top: 2px solid var(--border, #cbd5e1);
+}
+
+.monthly-summary__qty {
+  display: block;
+}
+
+.monthly-summary__pct,
+.monthly-summary__value {
+  display: block;
+}
+
+.monthly-summary__pct {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .purchases-yield-modal {
   width: min(44rem, 94vw);
   max-height: min(88vh, 36rem);
