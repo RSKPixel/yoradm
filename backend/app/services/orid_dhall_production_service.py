@@ -361,19 +361,6 @@ def _add_optional(*values: Optional[float]) -> Optional[float]:
     return round(total, 2) if any_value else None
 
 
-def _residual_value(
-    base: Optional[float], *deductions: Optional[float]
-) -> Optional[float]:
-    """base − sum(deductions); null terms count as 0 when any term is present."""
-    terms = (base, *deductions)
-    if not any(value is not None for value in terms):
-        return None
-    total = float(base or 0)
-    for value in deductions:
-        total -= float(value or 0)
-    return round(total, 2)
-
-
 def _avg_line_weight_kg(line: OridDhallProductionLine) -> float:
     """Weight for Average purchase lines: stored weight, else qty × packing."""
     if line.weight is not None:
@@ -418,7 +405,9 @@ def _club_avg_purchase_totals(rows: list[OridDhallProduction]) -> dict:
     value_n = round(value, 2) if value else None
     return {
         "qty": bags_50 if bags_50 else None,
-        "rate": _rate_from_value_quintal(value_n, round(quintal, 2) if quintal else None),
+        "rate": _rate_from_value_quintal(
+            value_n, round(quintal, 2) if quintal else None
+        ),
         "value": value_n,
     }
 
@@ -431,10 +420,7 @@ def _month_trade_by_stock_group(
     date_to: date,
     include_discount: bool = False,
 ) -> Dict[str, dict]:
-    """Sum tally sales/purchases for the month by inventory stock_group.
-
-    Returns stock_group -> {bags, quintal, value}. Bags use 50 kg units.
-    """
+    """Sum Tally sales/purchases for the month by inventory stock_group (50kg bags)."""
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
     item_key = func.lower(func.trim(model.stock_item))
@@ -492,26 +478,21 @@ def _month_trade_by_stock_group(
 
 
 def _trade_fields_from_group(
-    by_group: Dict[str, dict],
-    stock_group: str,
-    *,
-    qty_key: str = "bags",
+    by_group: Dict[str, dict], stock_group: str
 ) -> dict:
     row = by_group.get(stock_group)
     if not row:
         return {"qty": None, "rate": None, "value": None}
-    qty = row.get(qty_key)
     value = row.get("value")
-    quintal = row.get("quintal")
     return {
-        "qty": qty,
-        "rate": _rate_from_value_quintal(value, quintal),
+        "qty": row.get("bags"),
+        "rate": _rate_from_value_quintal(value, row.get("quintal")),
         "value": value,
     }
 
 
 def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> dict:
-    """Combine Closed Orid productions whose production date falls in the month."""
+    """Club Closed Orid productions for a calendar month, plus purchase rows."""
     last_day = monthrange(year, month)[1]
     start = date(year, month, 1)
     end = date(year, month, last_day)
@@ -536,64 +517,25 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
         unique_rows.append(row)
 
     summaries = [_list_summary(row) for row in unique_rows]
-    dhall_pct = _weighted_pct(summaries, "orid_dhall_pct")
-    split_pct = _weighted_pct(summaries, "orid_dhall_split_pct")
-    rejection_pct = _weighted_pct(summaries, "orid_rejection_pct")
-    husk_pct = _weighted_pct(summaries, "orid_husk_pct")
     raw_value = _sum_optional(summaries, "orid_raw_value")
+    dhall_value = _sum_optional(summaries, "orid_dhall_value")
     split_value = _sum_optional(summaries, "orid_dhall_split_value")
     rejection_value = _sum_optional(summaries, "orid_rejection_value")
-    husk_value = _sum_optional(summaries, "orid_husk_value")
-    # Production Orid Dhall value:
-    # Orid Raw − Orid Dhall Rejection − Orid Dhall Split (husk excluded)
-    dhall_value = _residual_value(raw_value, rejection_value, split_value)
     raw_quintal = _sum_optional(summaries, "orid_raw_quintal")
     dhall_quintal = _sum_optional(summaries, "orid_dhall_quintal")
     split_quintal = _sum_optional(summaries, "orid_dhall_split_quintal")
     rejection_quintal = _sum_optional(summaries, "orid_rejection_quintal")
-    husk_quintal = _sum_optional(summaries, "orid_husk_quintal")
-    # Orid Raw qty stays in quintals; other production qtys are 50kg bags.
+    # Orid Raw qty in quintals; other qtys in 50kg bags.
     raw_qty = round(raw_quintal, 2) if raw_quintal is not None else None
     dhall_qty = _bags_50_from_quintal(dhall_quintal)
     split_qty = _bags_50_from_quintal(split_quintal)
     rejection_qty = _bags_50_from_quintal(rejection_quintal)
-    husk_qty = _bags_50_from_quintal(husk_quintal)
     overall_value = _add_optional(dhall_value, split_value, rejection_value)
     overall_quintal = _add_optional(dhall_quintal, split_quintal, rejection_quintal)
-    overall_qty = _bags_50_from_quintal(overall_quintal)
-    opening_value = _sum_optional(summaries, "opening_value")
-    opening_quintal = _sum_optional(summaries, "opening_quintal")
-    opening_qty = _bags_50_from_quintal(opening_quintal)
-    sales_by_group = _month_trade_by_stock_group(
-        db,
-        model=TallySale,
-        date_from=start,
-        date_to=end,
-        include_discount=True,
-    )
-    sales_raw = _trade_fields_from_group(sales_by_group, "Orid Raw")
-    sales_dhall = _trade_fields_from_group(sales_by_group, "Orid Dhall")
-    sales_split = _trade_fields_from_group(sales_by_group, "Orid Dhall Split")
-    sales_rejection = _trade_fields_from_group(sales_by_group, "Orid Dhall Rejection")
-    sales_husk = _trade_fields_from_group(sales_by_group, "Orid Husk")
-    sales_overall_qty = _add_optional(
-        sales_dhall["qty"], sales_split["qty"], sales_rejection["qty"]
-    )
-    sales_overall_value = _add_optional(
-        sales_dhall["value"], sales_split["value"], sales_rejection["value"]
-    )
-    sales_overall_quintal = _add_optional(
-        (sales_by_group.get("Orid Dhall") or {}).get("quintal"),
-        (sales_by_group.get("Orid Dhall Split") or {}).get("quintal"),
-        (sales_by_group.get("Orid Dhall Rejection") or {}).get("quintal"),
-    )
-    sales_overall = {
-        "qty": sales_overall_qty,
-        "rate": _rate_from_value_quintal(sales_overall_value, sales_overall_quintal),
-        "value": sales_overall_value,
-    }
-    # Orid Dhall purchase = Average lines from closed lots.
-    # Orid Dhall Split purchase = month Tally purchases for that stock group.
+    dhall_pct = _weighted_pct(summaries, "orid_dhall_pct")
+    split_pct = _weighted_pct(summaries, "orid_dhall_split_pct")
+    rejection_pct = _weighted_pct(summaries, "orid_rejection_pct")
+
     purchase_dhall = _club_avg_purchase_totals(unique_rows)
     purchase_by_group = _month_trade_by_stock_group(
         db,
@@ -602,11 +544,19 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
         date_to=end,
     )
     purchase_split = _trade_fields_from_group(purchase_by_group, "Orid Dhall Split")
-    purchase_empty = {"qty": None, "rate": None, "value": None}
-    purchase_raw = purchase_empty
-    purchase_rejection = purchase_empty
-    purchase_husk = purchase_empty
-    purchase_overall = purchase_empty
+
+    sales_by_group = _month_trade_by_stock_group(
+        db,
+        model=TallySale,
+        date_from=start,
+        date_to=end,
+    )
+    sales_dhall = _trade_fields_from_group(sales_by_group, "Orid Dhall")
+    sales_split = _trade_fields_from_group(sales_by_group, "Orid Dhall Split")
+    sales_rejection = _trade_fields_from_group(
+        sales_by_group, "Orid Dhall Rejection"
+    )
+
     return {
         "lot_count": len(unique_rows),
         "orid_raw_qty": raw_qty,
@@ -624,22 +574,19 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
         "orid_rejection_qty": rejection_qty,
         "orid_rejection_pct": rejection_pct,
         "orid_rejection_value": rejection_value,
-        "orid_rejection_rate": _rate_from_value_quintal(rejection_value, rejection_quintal),
-        "orid_husk_qty": husk_qty,
-        "orid_husk_pct": husk_pct,
-        "orid_husk_value": husk_value,
-        "orid_husk_rate": _rate_from_value_quintal(husk_value, husk_quintal),
-        "overall_qty": overall_qty,
+        "orid_rejection_rate": _rate_from_value_quintal(
+            rejection_value, rejection_quintal
+        ),
+        "overall_qty": _bags_50_from_quintal(overall_quintal),
         "overall_pct": _add_optional(dhall_pct, split_pct, rejection_pct),
         "overall_value": overall_value,
         "overall_rate": _rate_from_value_quintal(overall_value, overall_quintal),
-        "net_value": _sum_optional(summaries, "net_value"),
-        "opening_qty": opening_qty,
-        "opening_rate": _rate_from_value_quintal(opening_value, opening_quintal),
-        "opening_value": opening_value,
-        "sales_orid_raw_qty": sales_raw["qty"],
-        "sales_orid_raw_rate": sales_raw["rate"],
-        "sales_orid_raw_value": sales_raw["value"],
+        "purchase_orid_dhall_qty": purchase_dhall["qty"],
+        "purchase_orid_dhall_rate": purchase_dhall["rate"],
+        "purchase_orid_dhall_value": purchase_dhall["value"],
+        "purchase_orid_dhall_split_qty": purchase_split["qty"],
+        "purchase_orid_dhall_split_rate": purchase_split["rate"],
+        "purchase_orid_dhall_split_value": purchase_split["value"],
         "sales_orid_dhall_qty": sales_dhall["qty"],
         "sales_orid_dhall_rate": sales_dhall["rate"],
         "sales_orid_dhall_value": sales_dhall["value"],
@@ -649,30 +596,6 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
         "sales_orid_rejection_qty": sales_rejection["qty"],
         "sales_orid_rejection_rate": sales_rejection["rate"],
         "sales_orid_rejection_value": sales_rejection["value"],
-        "sales_orid_husk_qty": sales_husk["qty"],
-        "sales_orid_husk_rate": sales_husk["rate"],
-        "sales_orid_husk_value": sales_husk["value"],
-        "sales_overall_qty": sales_overall["qty"],
-        "sales_overall_rate": sales_overall["rate"],
-        "sales_overall_value": sales_overall["value"],
-        "purchase_orid_raw_qty": purchase_raw["qty"],
-        "purchase_orid_raw_rate": purchase_raw["rate"],
-        "purchase_orid_raw_value": purchase_raw["value"],
-        "purchase_orid_dhall_qty": purchase_dhall["qty"],
-        "purchase_orid_dhall_rate": purchase_dhall["rate"],
-        "purchase_orid_dhall_value": purchase_dhall["value"],
-        "purchase_orid_dhall_split_qty": purchase_split["qty"],
-        "purchase_orid_dhall_split_rate": purchase_split["rate"],
-        "purchase_orid_dhall_split_value": purchase_split["value"],
-        "purchase_orid_rejection_qty": purchase_rejection["qty"],
-        "purchase_orid_rejection_rate": purchase_rejection["rate"],
-        "purchase_orid_rejection_value": purchase_rejection["value"],
-        "purchase_orid_husk_qty": purchase_husk["qty"],
-        "purchase_orid_husk_rate": purchase_husk["rate"],
-        "purchase_orid_husk_value": purchase_husk["value"],
-        "purchase_overall_qty": purchase_overall["qty"],
-        "purchase_overall_rate": purchase_overall["rate"],
-        "purchase_overall_value": purchase_overall["value"],
     }
 
 

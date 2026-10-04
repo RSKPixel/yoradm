@@ -11,7 +11,7 @@ import {
 import { formatCommaNumber } from '../utils/formatNumber'
 import { getApiErrorMessage } from '../utils/formValidation'
 
-const COL_COUNT = 14
+const COL_COUNT = 7
 const BAG_TO_QUINTAL = 50 / 100
 
 function calendarYearFor(fyStart, month) {
@@ -25,45 +25,30 @@ function numOrZero(value) {
   return Number.isFinite(x) ? x : 0
 }
 
-function hasAnyFinite(...values) {
-  return values.some(
-    (value) => value != null && value !== '' && Number.isFinite(Number(value)),
-  )
-}
-
-/** Cost = purchase + production (nulls as 0 if any term exists). */
-function costBalance(purchase, production) {
-  if (!hasAnyFinite(purchase, production)) return null
-  return numOrZero(purchase) + numOrZero(production)
-}
-
-/** P&L = cost − sales (nulls as 0 if any term exists). */
-function plBalance(cost, sales) {
-  if (!hasAnyFinite(cost, sales)) return null
-  return numOrZero(cost) - numOrZero(sales)
-}
-
 function sumOptional(...values) {
-  if (!hasAnyFinite(...values)) return null
+  if (
+    !values.some(
+      (value) => value != null && value !== '' && Number.isFinite(Number(value)),
+    )
+  ) {
+    return null
+  }
   return values.reduce((total, value) => total + numOrZero(value), 0)
-}
-
-function rowPlValue({ value, purchaseValue, salesValue, hidePl = false }) {
-  if (hidePl) return null
-  return plBalance(costBalance(purchaseValue, value), salesValue)
-}
-
-function rateFromQuintalValue(quintal, value) {
-  const q = Number(quintal)
-  const amount = Number(value)
-  if (!Number.isFinite(q) || q === 0 || !Number.isFinite(amount)) return null
-  return Math.round((amount / q) * 100) / 100
 }
 
 function rateFromBagsValue(bags, value) {
   const qty = Number(bags)
-  if (!Number.isFinite(qty)) return null
-  return rateFromQuintalValue(qty * BAG_TO_QUINTAL, value)
+  const amount = Number(value)
+  if (!Number.isFinite(qty) || qty === 0 || !Number.isFinite(amount)) return null
+  return Math.round((amount / (qty * BAG_TO_QUINTAL)) * 100) / 100
+}
+
+/** Diff % = (sales rate − cost price) / cost price × 100. */
+function diffPctFromRates(rate, costPrice) {
+  const selling = Number(rate)
+  const cost = Number(costPrice)
+  if (!Number.isFinite(selling) || !Number.isFinite(cost) || cost === 0) return null
+  return Math.round(((selling - cost) / cost) * 10000) / 100
 }
 
 function formatQty(qty) {
@@ -81,75 +66,59 @@ function formatMoney(value) {
   return formatCommaNumber(value, 2)
 }
 
-function QtyCell({ qty }) {
-  return <td className="win-form__table-num">{formatQty(qty)}</td>
-}
-
-function PctCell({ pct }) {
-  return <td className="win-form__table-num">{formatPct(pct)}</td>
-}
-
-function ValueCell({ value }) {
-  return <td className="win-form__table-num">{formatMoney(value)}</td>
-}
-
 function MetricRow({
   label,
   qty,
   pct,
+  costPrice,
   rate,
+  diffPct,
   value,
-  purchaseQty,
-  purchaseRate,
-  purchaseValue,
-  salesQty,
-  salesRate,
-  salesValue,
-  productionQtyIsQuintal = false,
-  hidePl = false,
+  emphasis = false,
 }) {
-  // Orid Raw production qty is quintal; Cost/Sales qty use 50kg bags.
-  const productionBags = productionQtyIsQuintal
-    ? qty == null || qty === ''
-      ? null
-      : Number(qty) * 2
-    : qty
-  const costQty = costBalance(purchaseQty, productionBags)
-  const costValue = costBalance(purchaseValue, value)
-  const costRate = rateFromBagsValue(costQty, costValue)
-  const plValue = hidePl ? null : plBalance(costValue, salesValue)
-  const plRate = hidePl ? null : rateFromBagsValue(salesQty, plValue)
-
   return (
-    <tr>
+    <tr className={emphasis ? 'monthly-summary__total-row' : undefined}>
       <td>{label}</td>
-      <QtyCell qty={qty} />
-      <PctCell pct={pct} />
-      <ValueCell value={rate} />
-      <ValueCell value={value} />
-      <QtyCell qty={purchaseQty} />
-      <ValueCell value={purchaseRate} />
-      <QtyCell qty={costQty} />
-      <ValueCell value={costRate} />
-      <ValueCell value={costValue} />
-      <QtyCell qty={salesQty} />
-      <ValueCell value={salesRate} />
-      <ValueCell value={plRate} />
-      <ValueCell value={plValue} />
+      <td className="win-form__table-num">{formatQty(qty)}</td>
+      <td className="win-form__table-num">{formatPct(pct)}</td>
+      <td className="win-form__table-num">{formatMoney(costPrice)}</td>
+      <td className="win-form__table-num">{formatMoney(rate)}</td>
+      <td
+        className={[
+          'win-form__table-num',
+          diffPct == null || diffPct === ''
+            ? ''
+            : Number(diffPct) >= 0
+              ? 'monthly-summary__diff--pos'
+              : 'monthly-summary__diff--neg',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {formatPct(diffPct)}
+      </td>
+      <td className="win-form__table-num">{formatMoney(value)}</td>
     </tr>
   )
 }
 
-function hasTrade(orid) {
-  if (!orid) return false
-  return [
-    orid.sales_orid_raw_qty,
-    orid.sales_orid_dhall_qty,
-    orid.sales_orid_dhall_split_qty,
-    orid.sales_orid_rejection_qty,
-    orid.purchase_orid_dhall_qty,
-    orid.purchase_orid_dhall_split_qty,
-  ].some((value) => value != null && Number(value) !== 0)
+/** Weighted cost rate from production + purchase qty/value (50kg bags). */
+function costPriceFromSources(...pairs) {
+  const qtys = []
+  const values = []
+  for (const [qty, value] of pairs) {
+    qtys.push(qty)
+    values.push(value)
+  }
+  return rateFromBagsValue(sumOptional(...qtys), sumOptional(...values))
+}
+
+function SectionRow({ label }) {
+  return (
+    <tr className="monthly-summary__section-row">
+      <td colSpan={COL_COUNT}>{label}</td>
+    </tr>
+  )
 }
 
 export function MonthlySummaryPage() {
@@ -163,29 +132,72 @@ export function MonthlySummaryPage() {
   const calendarYear = calendarYearFor(financialYear, month)
   const orid = summary?.orid_production
   const lotCount = Number(orid?.lot_count) || 0
-  const showRows = lotCount > 0 || hasTrade(orid)
-
-  const productionTotalValue = sumOptional(
-    orid?.orid_dhall_value,
-    orid?.orid_dhall_split_value,
+  const hasPurchases = [
+    orid?.purchase_orid_dhall_qty,
+    orid?.purchase_orid_dhall_split_qty,
+  ].some((value) => value != null && Number(value) !== 0)
+  const hasSales = [
+    orid?.sales_orid_dhall_qty,
+    orid?.sales_orid_dhall_split_qty,
+    orid?.sales_orid_rejection_qty,
+  ].some((value) => value != null && Number(value) !== 0)
+  const showRows = lotCount > 0 || hasPurchases || hasSales
+  const purchaseTotalQty = sumOptional(
+    orid?.purchase_orid_dhall_qty,
+    orid?.purchase_orid_dhall_split_qty,
+  )
+  const purchaseTotalValue = sumOptional(
+    orid?.purchase_orid_dhall_value,
+    orid?.purchase_orid_dhall_split_value,
+  )
+  const purchaseTotalRate = rateFromBagsValue(purchaseTotalQty, purchaseTotalValue)
+  const purchaseTotalDiffPct = diffPctFromRates(
+    orid?.overall_rate,
+    purchaseTotalRate,
+  )
+  const salesTotalQty = sumOptional(
+    orid?.sales_orid_dhall_qty,
+    orid?.sales_orid_dhall_split_qty,
+    orid?.sales_orid_rejection_qty,
+  )
+  const salesTotalValue = sumOptional(
+    orid?.sales_orid_dhall_value,
+    orid?.sales_orid_dhall_split_value,
+    orid?.sales_orid_rejection_value,
+  )
+  const salesTotalRate = rateFromBagsValue(salesTotalQty, salesTotalValue)
+  const salesDhallCostPrice = costPriceFromSources(
+    [orid?.orid_dhall_qty, orid?.orid_dhall_value],
+    [orid?.purchase_orid_dhall_qty, orid?.purchase_orid_dhall_value],
+  )
+  const salesSplitCostPrice = costPriceFromSources(
+    [orid?.orid_dhall_split_qty, orid?.orid_dhall_split_value],
+    [orid?.purchase_orid_dhall_split_qty, orid?.purchase_orid_dhall_split_value],
+  )
+  const salesRejectionCostPrice = costPriceFromSources([
+    orid?.orid_rejection_qty,
     orid?.orid_rejection_value,
+  ])
+  const salesTotalCostPrice = costPriceFromSources(
+    [orid?.orid_dhall_qty, orid?.orid_dhall_value],
+    [orid?.purchase_orid_dhall_qty, orid?.purchase_orid_dhall_value],
+    [orid?.orid_dhall_split_qty, orid?.orid_dhall_split_value],
+    [orid?.purchase_orid_dhall_split_qty, orid?.purchase_orid_dhall_split_value],
+    [orid?.orid_rejection_qty, orid?.orid_rejection_value],
   )
-  const plTotalValue = sumOptional(
-    rowPlValue({
-      value: orid?.orid_dhall_value,
-      purchaseValue: orid?.purchase_orid_dhall_value,
-      salesValue: orid?.sales_orid_dhall_value,
-    }),
-    rowPlValue({
-      value: orid?.orid_dhall_split_value,
-      purchaseValue: orid?.purchase_orid_dhall_split_value,
-      salesValue: orid?.sales_orid_dhall_split_value,
-    }),
-    rowPlValue({
-      value: orid?.orid_rejection_value,
-      salesValue: orid?.sales_orid_rejection_value,
-    }),
+  const salesDhallDiffPct = diffPctFromRates(
+    orid?.sales_orid_dhall_rate,
+    salesDhallCostPrice,
   )
+  const salesSplitDiffPct = diffPctFromRates(
+    orid?.sales_orid_dhall_split_rate,
+    salesSplitCostPrice,
+  )
+  const salesRejectionDiffPct = diffPctFromRates(
+    orid?.sales_orid_rejection_rate,
+    salesRejectionCostPrice,
+  )
+  const salesTotalDiffPct = diffPctFromRates(salesTotalRate, salesTotalCostPrice)
 
   useEffect(() => {
     let cancelled = false
@@ -253,65 +265,26 @@ export function MonthlySummaryPage() {
               <col className="monthly-summary__col-pct" />
               <col />
               <col />
-              <col />
-              <col />
-              <col />
-              <col />
-              <col />
-              <col />
-              <col />
-              <col />
+              <col className="monthly-summary__col-pct" />
               <col />
             </colgroup>
             <thead>
               <tr>
-                <th rowSpan={2} />
-                <th className="monthly-summary__group" colSpan={4}>
-                  Production
-                </th>
-                <th className="monthly-summary__group" colSpan={2}>
-                  Purchase
-                </th>
-                <th className="monthly-summary__group" colSpan={3}>
-                  Cost
-                </th>
-                <th className="monthly-summary__group" colSpan={2}>
-                  Sales
-                </th>
-                <th className="monthly-summary__group" colSpan={2}>
-                  P&amp;L
-                </th>
-              </tr>
-              <tr>
+                <th />
                 <th className="win-form__table-num">Qty</th>
                 <th className="win-form__table-num">%</th>
-                <th className="win-form__table-num">Rate</th>
                 <th className="win-form__table-num">
-                  Total
+                  Cost
                   <br />
-                  Value
-                </th>
-                <th className="win-form__table-num">Qty</th>
-                <th className="win-form__table-num">Rate</th>
-                <th className="win-form__table-num">
-                  Qty
-                  <br />
-                  50kg
+                  Price
                 </th>
                 <th className="win-form__table-num">Rate</th>
+                <th className="win-form__table-num">
+                  Diff
+                  <br />
+                  %
+                </th>
                 <th className="win-form__table-num">Value</th>
-                <th className="win-form__table-num">
-                  Qty
-                  <br />
-                  50kg
-                </th>
-                <th className="win-form__table-num">Rate</th>
-                <th className="win-form__table-num">Rate</th>
-                <th className="win-form__table-num">
-                  Total
-                  <br />
-                  Value
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -329,17 +302,47 @@ export function MonthlySummaryPage() {
                 </tr>
               ) : (
                 <>
+                  <SectionRow label="Sales" />
+                  <MetricRow
+                    label="Orid Dhall"
+                    qty={orid.sales_orid_dhall_qty}
+                    costPrice={salesDhallCostPrice}
+                    rate={orid.sales_orid_dhall_rate}
+                    diffPct={salesDhallDiffPct}
+                    value={orid.sales_orid_dhall_value}
+                  />
+                  <MetricRow
+                    label="Orid Dhall Split"
+                    qty={orid.sales_orid_dhall_split_qty}
+                    costPrice={salesSplitCostPrice}
+                    rate={orid.sales_orid_dhall_split_rate}
+                    diffPct={salesSplitDiffPct}
+                    value={orid.sales_orid_dhall_split_value}
+                  />
+                  <MetricRow
+                    label="Orid Dhall Rejection"
+                    qty={orid.sales_orid_rejection_qty}
+                    costPrice={salesRejectionCostPrice}
+                    rate={orid.sales_orid_rejection_rate}
+                    diffPct={salesRejectionDiffPct}
+                    value={orid.sales_orid_rejection_value}
+                  />
+                  <MetricRow
+                    label="Sales Total"
+                    qty={salesTotalQty}
+                    costPrice={salesTotalCostPrice}
+                    rate={salesTotalRate}
+                    diffPct={salesTotalDiffPct}
+                    value={salesTotalValue}
+                    emphasis
+                  />
+                  <SectionRow label="Production" />
                   <MetricRow
                     label="Orid Raw"
                     qty={orid.orid_raw_qty}
                     pct={orid.orid_raw_pct}
                     rate={orid.orid_raw_rate}
                     value={orid.orid_raw_value}
-                    salesQty={orid.sales_orid_raw_qty}
-                    salesRate={orid.sales_orid_raw_rate}
-                    salesValue={orid.sales_orid_raw_value}
-                    productionQtyIsQuintal
-                    hidePl
                   />
                   <MetricRow
                     label="Orid Dhall"
@@ -347,12 +350,6 @@ export function MonthlySummaryPage() {
                     pct={orid.orid_dhall_pct}
                     rate={orid.orid_dhall_rate}
                     value={orid.orid_dhall_value}
-                    purchaseQty={orid.purchase_orid_dhall_qty}
-                    purchaseRate={orid.purchase_orid_dhall_rate}
-                    purchaseValue={orid.purchase_orid_dhall_value}
-                    salesQty={orid.sales_orid_dhall_qty}
-                    salesRate={orid.sales_orid_dhall_rate}
-                    salesValue={orid.sales_orid_dhall_value}
                   />
                   <MetricRow
                     label="Orid Dhall Split"
@@ -360,12 +357,6 @@ export function MonthlySummaryPage() {
                     pct={orid.orid_dhall_split_pct}
                     rate={orid.orid_dhall_split_rate}
                     value={orid.orid_dhall_split_value}
-                    purchaseQty={orid.purchase_orid_dhall_split_qty}
-                    purchaseRate={orid.purchase_orid_dhall_split_rate}
-                    purchaseValue={orid.purchase_orid_dhall_split_value}
-                    salesQty={orid.sales_orid_dhall_split_qty}
-                    salesRate={orid.sales_orid_dhall_split_rate}
-                    salesValue={orid.sales_orid_dhall_split_value}
                   />
                   <MetricRow
                     label="Orid Dhall Rejection"
@@ -373,37 +364,36 @@ export function MonthlySummaryPage() {
                     pct={orid.orid_rejection_pct}
                     rate={orid.orid_rejection_rate}
                     value={orid.orid_rejection_value}
-                    salesQty={orid.sales_orid_rejection_qty}
-                    salesRate={orid.sales_orid_rejection_rate}
-                    salesValue={orid.sales_orid_rejection_value}
                   />
                   <MetricRow
-                    label="Yield"
+                    label="Net Dhall Yield"
                     qty={orid.overall_qty}
                     pct={orid.overall_pct}
                     rate={orid.overall_rate}
                     value={orid.overall_value}
-                    salesQty={orid.sales_overall_qty}
-                    salesRate={orid.sales_overall_rate}
-                    salesValue={orid.sales_overall_value}
-                    hidePl
+                    emphasis
                   />
-                  <tr className="monthly-summary__total-row">
-                    <td>Total</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <ValueCell value={productionTotalValue} />
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <td className="win-form__table-num">—</td>
-                    <ValueCell value={plTotalValue} />
-                  </tr>
+                  <SectionRow label="Purchases" />
+                  <MetricRow
+                    label="Orid Dhall Purchase"
+                    qty={orid.purchase_orid_dhall_qty}
+                    rate={orid.purchase_orid_dhall_rate}
+                    value={orid.purchase_orid_dhall_value}
+                  />
+                  <MetricRow
+                    label="Orid Dhall Split Purchase"
+                    qty={orid.purchase_orid_dhall_split_qty}
+                    rate={orid.purchase_orid_dhall_split_rate}
+                    value={orid.purchase_orid_dhall_split_value}
+                  />
+                  <MetricRow
+                    label="Purchase Total"
+                    qty={purchaseTotalQty}
+                    rate={purchaseTotalRate}
+                    diffPct={purchaseTotalDiffPct}
+                    value={purchaseTotalValue}
+                    emphasis
+                  />
                 </>
               )}
             </tbody>

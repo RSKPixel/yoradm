@@ -4981,49 +4981,60 @@ body {
   min-height: 0;
   min-width: 0;
   margin-top: 0.75rem;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .monthly-summary__table-wrap {
-  overflow-x: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   border: 1px solid var(--form-line, var(--line));
   border-radius: 0.5rem;
   background: var(--panel, var(--surface));
 }
 
 .monthly-summary__table {
-  min-width: 98rem;
+  min-width: 48rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.monthly-summary__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel, var(--surface));
+  box-shadow: 0 1px 0 var(--form-line, var(--line));
 }
 
 .monthly-summary__col-label {
-  width: 12rem;
+  width: 14rem;
 }
 
 .monthly-summary__col-pct {
-  width: 4.5rem;
+  width: 5rem;
 }
 
-.monthly-summary__group {
-  text-align: center;
+.monthly-summary__section-row td {
+  font-weight: 600;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 55%, var(--panel));
+  border-top: 1px solid var(--form-line, var(--line));
 }
 
 .monthly-summary__total-row td {
   font-weight: 600;
-  border-top: 2px solid var(--border, #cbd5e1);
+  border-top: 1px solid color-mix(in srgb, var(--muted) 75%, var(--text, #e8e4dc));
 }
 
-.monthly-summary__qty {
-  display: block;
+.monthly-summary__diff--pos {
+  color: #3d9a6a;
 }
 
-.monthly-summary__pct,
-.monthly-summary__value {
-  display: block;
-}
-
-.monthly-summary__pct {
-  color: var(--muted);
-  font-size: 0.8rem;
+.monthly-summary__diff--neg {
+  color: #d15b5b;
 }
 
 .purchases-yield-modal {
