@@ -415,6 +415,10 @@ def today_deliveries_by_stock_group(
         )
         .all()
     )
+    tally_dates = _tally_voucher_dates(
+        db,
+        {(line.voucher_no or "").strip() for line in lines},
+    )
 
     by_group: dict[str, PendingDeliveryByStockGroupOut] = {}
     invoice_map: dict[tuple[str, str], PendingDeliveryInvoiceOut] = {}
@@ -465,7 +469,8 @@ def today_deliveries_by_stock_group(
 
         inv_key = (stock_group, voucher_no)
         invoice = invoice_map.get(inv_key)
-        voucher_dt = _parse_optional_datetime(line.voucher_date)
+        # Stored challan dates mix dd-mm-yyyy and mm-dd-yyyy. Tally's date is unambiguous.
+        voucher_dt = tally_dates.get(voucher_no) or _parse_optional_datetime(line.voucher_date)
         if invoice is None:
             invoice = PendingDeliveryInvoiceOut(
                 voucher_no=voucher_no,
@@ -523,6 +528,28 @@ def today_deliveries_by_stock_group(
         weight=grand_weight,
         avg_rate=round((grand_amount / grand_weight) * 100.0, 2) if grand_weight > 0 else 0.0,
     )
+
+
+def _tally_voucher_dates(db: Session, voucher_nos: set[str]) -> dict[str, datetime]:
+    """Earliest tallydata_sales voucher_date for each voucher number."""
+    numbers = [no for no in voucher_nos if no]
+    if not numbers:
+        return {}
+    rows = (
+        db.query(TallySale.voucher_no, func.min(TallySale.voucher_date))
+        .filter(
+            TallySale.voucher_no.in_(numbers),
+            TallySale.voucher_date.isnot(None),
+        )
+        .group_by(TallySale.voucher_no)
+        .all()
+    )
+    lookup: dict[str, datetime] = {}
+    for voucher_no, voucher_date in rows:
+        key = (voucher_no or "").strip()
+        if key and voucher_date is not None and key not in lookup:
+            lookup[key] = voucher_date
+    return lookup
 
 
 def _parse_optional_datetime(value: Optional[str | datetime | date]) -> Optional[datetime]:
