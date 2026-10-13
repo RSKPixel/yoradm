@@ -150,3 +150,60 @@ class TallyStockSummary(Base):
     vtype: Mapped[Optional[str]] = mapped_column("VTYPE", Text)
     outwards: Mapped[Optional[float]] = mapped_column("OUTWARDS", Float)
     inwards: Mapped[Optional[float]] = mapped_column("INWARDS", Float)
+
+
+class TallySyncSale(Base):
+    """Tally sales sync (includes stock_group + qty_alt)."""
+
+    __tablename__ = "tallysync_sales"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    voucher_no: Mapped[Optional[str]] = mapped_column(Text)
+    voucher_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    ledger_name: Mapped[Optional[str]] = mapped_column(Text)
+    broker: Mapped[Optional[str]] = mapped_column(Text)
+    item_count: Mapped[Optional[float]] = mapped_column(Float)
+    item_no: Mapped[Optional[float]] = mapped_column(Float)
+    stock_item: Mapped[Optional[str]] = mapped_column(Text)
+    brand: Mapped[Optional[str]] = mapped_column(Text)
+    packing: Mapped[Optional[float]] = mapped_column(Float)
+    qty: Mapped[Optional[float]] = mapped_column(Float)
+    rate: Mapped[Optional[float]] = mapped_column(Float)
+    amount: Mapped[Optional[float]] = mapped_column(Float)
+    discount: Mapped[Optional[float]] = mapped_column(Float)
+    cartage: Mapped[Optional[float]] = mapped_column(Float)
+    qty_alt: Mapped[Optional[float]] = mapped_column(Float)
+    alternate_unit: Mapped[Optional[str]] = mapped_column(Text)
+    conversion: Mapped[Optional[float]] = mapped_column(Float)
+    stock_group: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class TallySyncStockSummary(Base):
+    """Tally stock summary sync (closing qty / rate / value by stock group)."""
+
+    __tablename__ = "tallysync_stocksummary"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    period_from: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    period_to: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    line_no: Mapped[Optional[float]] = mapped_column(Float)
+    stock_group: Mapped[Optional[str]] = mapped_column(Text)
+    stock_item: Mapped[Optional[str]] = mapped_column(Text)
+    opening: Mapped[Optional[str]] = mapped_column(Text)
+    opening_rate: Mapped[Optional[float]] = mapped_column(Float)
+    opening_value: Mapped[Optional[float]] = mapped_column(Float)
+    inwards: Mapped[Optional[str]] = mapped_column(Text)
+    inward_rate: Mapped[Optional[float]] = mapped_column(Float)
+    inward_value: Mapped[Optional[float]] = mapped_column(Float)
+    outwards: Mapped[Optional[str]] = mapped_column(Text)
+    outward_rate: Mapped[Optional[float]] = mapped_column(Float)
+    outward_value: Mapped[Optional[float]] = mapped_column(Float)
+    closing: Mapped[Optional[str]] = mapped_column(Text)
+    closing_rate: Mapped[Optional[float]] = mapped_column(Float)
+    closing_value: Mapped[Optional[float]] = mapped_column(Float)
+    alternate_unit: Mapped[Optional[str]] = mapped_column(Text)
+    conversion: Mapped[Optional[float]] = mapped_column(Float)
+    opening_alt: Mapped[Optional[float]] = mapped_column(Float)
+    inwards_alt: Mapped[Optional[float]] = mapped_column(Float)
+    outwards_alt: Mapped[Optional[float]] = mapped_column(Float)
+    closing_alt: Mapped[Optional[float]] = mapped_column(Float)

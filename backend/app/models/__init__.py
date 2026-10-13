@@ -5,6 +5,9 @@ from app.models.company import Company
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
 from app.models.goods_receipt import GoodsReceipt
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
+from app.models.orid_stock_costing import OridStockCosting
+from app.models.orid_stock_pending import OridStockPending
+from app.models.orid_stock_workings import OridStockWorkings
 from app.models.packing_material import PackingPurchase, PackingSku, PackingStockFy
 from app.models.party_collection_performance import PartyCollectionPerformance
 from app.models.payroll_attendance import PayrollAttendance
@@ -24,6 +27,8 @@ from app.models.tally import (
     TallySale,
     TallyStockGroup,
     TallyStockSummary,
+    TallySyncSale,
+    TallySyncStockSummary,
 )
 from app.models.user import User, UserRole
 from app.models.yoradm_daybook2 import YoradmDaybook2
@@ -43,6 +48,9 @@ __all__ = [
     "GoodsReceipt",
     "OridDhallProduction",
     "OridDhallProductionLine",
+    "OridStockCosting",
+    "OridStockPending",
+    "OridStockWorkings",
     "PackingPurchase",
     "PackingSku",
     "PackingStockFy",
@@ -63,6 +71,8 @@ __all__ = [
     "TallySale",
     "TallyStockGroup",
     "TallyStockSummary",
+    "TallySyncSale",
+    "TallySyncStockSummary",
     "YoradmDaybook2",
     "YoradmPurchase",
     "YoradmSale",

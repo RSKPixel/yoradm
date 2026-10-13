@@ -87,6 +87,11 @@ const navSections = [
       { to: '/reports/collection-analysis', label: 'Collection Analysis', icon: ClockIcon },
       { to: '/reports/tds-workings', label: 'TDS Workings', icon: ReceiptPercentIcon },
       { to: '/reports/stock-analysis', label: 'Stock Analysis', icon: CubeTransparentIcon },
+      {
+        to: '/reports/orid-stock-analysis',
+        label: 'Orid Stock Analysis',
+        icon: ArchiveBoxIcon,
+      },
       { to: '/reports/purchases', label: 'Purchases', icon: ShoppingCartIcon },
       { to: '/reports/monthly-summary', label: 'Monthly Summary', icon: ChartBarSquareIcon },
     ],
@@ -299,6 +304,7 @@ export function AppLayout() {
     location.pathname.startsWith('/reports/collection-analysis') ||
     location.pathname.startsWith('/reports/tds-workings') ||
     location.pathname.startsWith('/reports/stock-analysis') ||
+    location.pathname.startsWith('/reports/orid-stock-analysis') ||
     location.pathname.startsWith('/reports/purchases') ||
     location.pathname.startsWith('/reports/monthly-summary')
   const isFillMain = isPrimaryContentPage || isDashboardPage

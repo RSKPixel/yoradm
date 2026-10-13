@@ -4815,10 +4815,6 @@ body {
   width: auto;
 }
 
-.stock-analysis__col-conv {
-  width: 5.5rem;
-}
-
 .stock-analysis__col-qtl {
   width: 8rem;
 }
@@ -4833,16 +4829,302 @@ body {
   white-space: nowrap;
 }
 
-.stock-analysis__conversion .win-form__control {
-  min-height: 1.75rem;
-  padding: 0.15rem 0.35rem;
-  font-size: 0.75rem;
-}
-
 .stock-analysis__table-foot td {
   background: var(--surface);
   font-weight: 600;
   border-bottom: none;
+}
+
+.stock-analysis__orid {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 0.25rem;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel, var(--surface));
+}
+
+.stock-analysis__tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  border-bottom: 1px solid var(--form-line, var(--line));
+  background: var(--surface);
+  padding: 0 0.75rem;
+}
+
+.stock-analysis__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.stock-analysis__tab {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+
+.stock-analysis__tab:hover {
+  color: var(--ink);
+}
+
+.stock-analysis__tab--active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.stock-analysis__tab--active:hover {
+  color: var(--accent);
+}
+
+.stock-analysis__tab-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: auto;
+  background: var(--panel, var(--surface));
+}
+
+.stock-analysis__workings {
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.75rem;
+}
+
+.stock-analysis__workings-table {
+  min-width: 48rem;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.stock-analysis__workings-table th,
+.stock-analysis__workings-table td {
+  padding: 0.45rem 0.5rem;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-analysis__workings-table thead th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.stock-analysis__workings-col-particulars {
+  width: 11.5rem;
+}
+
+.stock-analysis__workings-col-num {
+  width: 6.5rem;
+}
+
+.stock-analysis__workings-total td {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.stock-analysis__workings-sales-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  min-height: 1.85rem;
+}
+
+.stock-analysis__workings-sales-mode {
+  max-width: 100%;
+}
+
+.stock-analysis__workings-sales-mode .win-form__dropdown-trigger {
+  width: 100%;
+  height: 1.85rem;
+  min-height: 1.85rem;
+  max-height: 1.85rem;
+  box-sizing: border-box;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.stock-analysis__workings-sales-mode .win-form__dropdown-label {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: nowrap;
+}
+
+.stock-analysis__workings-sales-mode .win-form__dropdown-chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.stock-analysis__workings-sales-list {
+  white-space: nowrap;
+}
+
+.stock-analysis__workings-label-end {
+  text-align: right;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.stock-analysis__workings-table tbody td {
+  height: calc(1.85rem + 0.9rem);
+}
+
+.stock-analysis__workings-table .win-form__table-readonly {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 1.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.stock-analysis__workings-table .win-form__control {
+  width: 100%;
+  min-width: 0;
+  height: 1.85rem;
+  min-height: 1.85rem;
+  max-height: 1.85rem;
+  box-sizing: border-box;
+  padding: 0 0.35rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.stock-analysis__pendings {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.stock-analysis__pendings-block {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.stock-analysis__pendings-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.stock-analysis__pendings-table {
+  min-width: 48rem;
+  table-layout: fixed;
+}
+
+.stock-analysis__pendings-table th,
+.stock-analysis__pendings-table td {
+  padding: 0.45rem 0.55rem;
+  vertical-align: middle;
+}
+
+.stock-analysis__pendings-table thead th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stock-analysis__pendings-col-broker {
+  width: auto;
+}
+
+.stock-analysis__pendings-col-date {
+  width: 9.5rem;
+}
+
+.stock-analysis__pendings-col-num {
+  width: 6.75rem;
+}
+
+.stock-analysis__pendings-col-status {
+  width: 10.5rem;
+}
+
+.stock-analysis__pendings-table .win-form__table-select,
+.stock-analysis__pendings-table .win-form__control {
+  width: 100%;
+  min-height: 1.85rem;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.8125rem;
+}
+
+.stock-analysis__costing {
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.stock-analysis__costing-table {
+  min-width: 36rem;
+  table-layout: fixed;
+}
+
+.stock-analysis__costing-table th,
+.stock-analysis__costing-table td {
+  padding: 0.45rem 0.55rem;
+  vertical-align: middle;
+}
+
+.stock-analysis__costing-table thead th {
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stock-analysis__costing-col-item {
+  width: auto;
+}
+
+.stock-analysis__costing-col-pct {
+  width: 7.5rem;
+}
+
+.stock-analysis__costing-col-num {
+  width: 8rem;
+}
+
+.stock-analysis__costing-raw td {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.stock-analysis__costing-table .win-form__control {
+  width: 100%;
+  min-height: 1.85rem;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.8125rem;
 }
 
 .purchases-report__table-wrap {

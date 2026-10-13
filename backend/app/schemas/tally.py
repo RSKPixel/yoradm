@@ -416,6 +416,31 @@ class StockAnalysisSalesOut(BaseModel):
     closing_4w_ma_totals: StockAnalysisSalesMetricsOut
 
 
+class OridWorkingsMetricOut(BaseModel):
+    qty: Optional[float] = None
+    rate: Optional[float] = None
+    value: Optional[float] = None
+
+
+class OridWorkingsRowOut(BaseModel):
+    id: str
+    orid: OridWorkingsMetricOut = OridWorkingsMetricOut()
+    orid_dhall: OridWorkingsMetricOut = OridWorkingsMetricOut()
+
+
+class OridWorkingsOut(BaseModel):
+    as_of: str
+    rows: List[OridWorkingsRowOut] = []
+
+
+class OridDhallSales50kgOut(BaseModel):
+    as_of: str
+    stock_group: str = "Orid Dhall"
+    last_30_days: Optional[float] = None
+    last_month: Optional[float] = None
+    last_3_months_avg: Optional[float] = None
+
+
 class PurchaseProductionYieldOut(BaseModel):
     orid_dhall_pct: Optional[float] = None
     orid_dhall_split_pct: Optional[float] = None

@@ -7,6 +7,9 @@ from app.api.v1 import (
     delivery_challans,
     goods_receipts,
     orid_dhall_productions,
+    orid_stock_costing,
+    orid_stock_pendings,
+    orid_stock_workings,
     packing_material,
     payroll_attendance,
     payroll_employees,
@@ -26,6 +29,9 @@ api_router.include_router(tally_data.router)
 api_router.include_router(delivery_challans.router)
 api_router.include_router(goods_receipts.router)
 api_router.include_router(orid_dhall_productions.router)
+api_router.include_router(orid_stock_costing.router)
+api_router.include_router(orid_stock_pendings.router)
+api_router.include_router(orid_stock_workings.router)
 api_router.include_router(packing_material.router)
 api_router.include_router(payroll_employees.router)
 api_router.include_router(payroll_attendance.router)

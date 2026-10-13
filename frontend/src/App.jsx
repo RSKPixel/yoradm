@@ -17,7 +17,7 @@ import { PayrollEmployeesPage } from './pages/PayrollEmployeesPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { PostDatedChequePage } from './pages/PostDatedChequePage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
-import { StockAnalysisPage } from './pages/StockAnalysisPage'
+import { OridStockAnalysisPage, StockAnalysisPage } from './pages/StockAnalysisPage'
 import { MonthlySummaryPage } from './pages/MonthlySummaryPage'
 import { PurchasesPage } from './pages/PurchasesPage'
 import { TdsWorkingsPage } from './pages/TdsWorkingsPage'
@@ -75,6 +75,10 @@ export default function App() {
                   />
                   <Route path="reports/tds-workings" element={<TdsWorkingsPage />} />
                   <Route path="reports/stock-analysis" element={<StockAnalysisPage />} />
+                  <Route
+                    path="reports/orid-stock-analysis"
+                    element={<OridStockAnalysisPage />}
+                  />
                   <Route path="reports/purchases" element={<PurchasesPage />} />
                   <Route path="reports/monthly-summary" element={<MonthlySummaryPage />} />
 

@@ -35,6 +35,8 @@ from app.schemas.tally import (
     SaleInvoiceLineOut,
     SaleInvoiceOptionOut,
     SaleOut,
+    OridDhallSales50kgOut,
+    OridWorkingsOut,
     StockAnalysisSalesOut,
     StockSummaryOut,
     TdsHeadPaymentDateUpdate,
@@ -462,6 +464,27 @@ def stock_analysis_sales(
         as_of=as_of,
         convert_orid_raw=convert_orid_raw,
     )
+
+
+@router.get("/stock-analysis/orid-workings", response_model=OridWorkingsOut)
+def stock_analysis_orid_workings(
+    _: CurrentUser,
+    db: DbSession,
+    as_of: Optional[date] = Query(default=None),
+) -> OridWorkingsOut:
+    return tally_service.orid_stock_analysis_workings(db, as_of=as_of)
+
+
+@router.get(
+    "/stock-analysis/orid-dhall-sales",
+    response_model=OridDhallSales50kgOut,
+)
+def stock_analysis_orid_dhall_sales(
+    _: CurrentUser,
+    db: DbSession,
+    as_of: Optional[date] = Query(default=None),
+) -> OridDhallSales50kgOut:
+    return tally_service.orid_dhall_sales_50kg(db, as_of=as_of)
 
 
 @router.get("/purchase-analysis", response_model=PurchaseReportOut)

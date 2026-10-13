@@ -234,6 +234,24 @@ export async function fetchStockAnalysisSales({ asOf, convertOridRaw } = {}) {
   return data
 }
 
+export async function fetchOridStockAnalysisWorkings({ asOf } = {}) {
+  const { data } = await api.get('/tally/stock-analysis/orid-workings', {
+    params: {
+      as_of: asOf || undefined,
+    },
+  })
+  return data
+}
+
+export async function fetchOridDhallSales50kg({ asOf } = {}) {
+  const { data } = await api.get('/tally/stock-analysis/orid-dhall-sales', {
+    params: {
+      as_of: asOf || undefined,
+    },
+  })
+  return data
+}
+
 export async function fetchPurchaseAnalysis({
   dateFrom,
   dateTo,

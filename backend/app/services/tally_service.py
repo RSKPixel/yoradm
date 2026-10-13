@@ -2,6 +2,7 @@ from calendar import monthrange
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from math import ceil
+import re
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type
 
 from sqlalchemy import func, or_
@@ -22,6 +23,8 @@ from app.models.tally import (
     TallyReceivable,
     TallySale,
     TallyStockSummary,
+    TallySyncSale,
+    TallySyncStockSummary,
 )
 from app.models.tds_working import TdsWorking
 from app.schemas import DashboardStats
@@ -48,6 +51,10 @@ from app.schemas.tally import (
     PurchaseReportOut,
     PurchaseReportRowOut,
     PurchaseProductionYieldOut,
+    OridDhallSales50kgOut,
+    OridWorkingsMetricOut,
+    OridWorkingsOut,
+    OridWorkingsRowOut,
     StockAnalysisSalesMetricsOut,
     StockAnalysisSalesOut,
     StockAnalysisSalesRowOut,
@@ -2873,6 +2880,173 @@ def stock_analysis_sales(
         closing_totals=_stock_analysis_metrics(closing_totals),
         closing_4w_ma_totals=_stock_analysis_metrics(closing_4w_totals),
     )
+
+
+ORID_WORKINGS_ORID_GROUP = ORID_RAW_STOCK_GROUP  # UI "Orid" column
+ORID_WORKINGS_DHALL_GROUP = "Orid Dhall"
+_STOCK_QTY_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*")
+
+
+def _parse_stock_qty_text(value: Optional[str]) -> Optional[float]:
+    if value is None:
+        return None
+    match = _STOCK_QTY_RE.match(str(value))
+    if not match:
+        return None
+    qty = float(match.group(1))
+    return qty if qty == qty else None  # NaN guard
+
+
+def _closing_quintals_from_sync_row(row: TallySyncStockSummary) -> Optional[float]:
+    """Prefer closing_alt (kg) → quintals; else bags × conversion / 100."""
+    if row.closing_alt is not None:
+        return float(row.closing_alt) / 100.0
+    bags = _parse_stock_qty_text(row.closing)
+    if bags is None:
+        return None
+    conversion = float(row.conversion) if row.conversion is not None else None
+    if conversion is not None and conversion > 0:
+        return bags * conversion / 100.0
+    return bags
+
+
+def _aggregate_sync_closing_metrics(
+    rows: Sequence[TallySyncStockSummary],
+) -> OridWorkingsMetricOut:
+    """Roll closing qty/rate/value for one stock group.
+
+    Qty is quintals (closing_alt kg / 100). Tally stores inventory value as a
+    debit (negative); we flip the sign so positive stock shows positive value.
+    Rate = value / qty when qty is non-zero.
+    """
+    qty_sum = 0.0
+    value_sum = 0.0
+    has_qty = False
+    has_value = False
+
+    for row in rows:
+        quintals = _closing_quintals_from_sync_row(row)
+        if quintals is not None:
+            qty_sum += quintals
+            has_qty = True
+        if row.closing_value is not None:
+            value_sum += float(row.closing_value)
+            has_value = True
+
+    if not has_qty and not has_value:
+        return OridWorkingsMetricOut()
+
+    qty = round(qty_sum, 4) if has_qty else None
+    # Flip Tally debit sign for display.
+    value = round(-value_sum, 2) if has_value else None
+    rate = None
+    if qty is not None and value is not None and qty != 0:
+        rate = round(value / qty, 2)
+
+    return OridWorkingsMetricOut(qty=qty, rate=rate, value=value)
+
+
+def _previous_calendar_month_range(as_of: date) -> Tuple[date, date]:
+    if as_of.month == 1:
+        year, month = as_of.year - 1, 12
+    else:
+        year, month = as_of.year, as_of.month - 1
+    start = date(year, month, 1)
+    end = date(year, month, monthrange(year, month)[1])
+    return start, end
+
+
+def _orid_dhall_qty_alt_bags50(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+) -> float:
+    """Sum tallysync_sales.qty_alt for Orid Dhall, convert kg → 50kg bags."""
+    start_dt = datetime.combine(date_from, datetime.min.time())
+    end_dt = datetime.combine(date_to, datetime.max.time())
+    total_alt = (
+        db.query(func.coalesce(func.sum(TallySyncSale.qty_alt), 0.0))
+        .filter(
+            TallySyncSale.stock_group == ORID_WORKINGS_DHALL_GROUP,
+            TallySyncSale.voucher_date.isnot(None),
+            TallySyncSale.voucher_date >= start_dt,
+            TallySyncSale.voucher_date <= end_dt,
+        )
+        .scalar()
+    )
+    return round(float(total_alt or 0.0) / 50.0, 2)
+
+
+def orid_dhall_sales_50kg(
+    db: Session,
+    *,
+    as_of: Optional[date] = None,
+) -> OridDhallSales50kgOut:
+    """Orid Dhall sales in 50kg bags from tallysync_sales (qty_alt / 50)."""
+    today = as_of or date.today()
+    last_30_start = today - timedelta(days=29)
+    last_month_start, last_month_end = _previous_calendar_month_range(today)
+    avg_3_start = today - timedelta(days=89)
+
+    last_30 = _orid_dhall_qty_alt_bags50(db, date_from=last_30_start, date_to=today)
+    last_month = _orid_dhall_qty_alt_bags50(
+        db, date_from=last_month_start, date_to=last_month_end
+    )
+    last_90 = _orid_dhall_qty_alt_bags50(db, date_from=avg_3_start, date_to=today)
+    last_3_avg = round(last_90 / float(STOCK_ANALYSIS_AVG_MONTHS), 2)
+
+    return OridDhallSales50kgOut(
+        as_of=today.isoformat(),
+        stock_group=ORID_WORKINGS_DHALL_GROUP,
+        last_30_days=last_30,
+        last_month=last_month,
+        last_3_months_avg=last_3_avg,
+    )
+
+
+def orid_stock_analysis_workings(
+    db: Session,
+    *,
+    as_of: Optional[date] = None,
+) -> OridWorkingsOut:
+    """Orid Workings rows — In Stock from tallysync_stocksummary."""
+    today = as_of or date.today()
+    as_of_dt = datetime.combine(today, datetime.max.time())
+
+    sync_rows = (
+        db.query(TallySyncStockSummary)
+        .filter(
+            TallySyncStockSummary.stock_group.in_(
+                [ORID_WORKINGS_ORID_GROUP, ORID_WORKINGS_DHALL_GROUP]
+            ),
+            or_(
+                TallySyncStockSummary.period_from.is_(None),
+                TallySyncStockSummary.period_from <= as_of_dt,
+            ),
+            or_(
+                TallySyncStockSummary.period_to.is_(None),
+                TallySyncStockSummary.period_to >= datetime.combine(today, datetime.min.time()),
+            ),
+        )
+        .all()
+    )
+
+    by_group: Dict[str, List[TallySyncStockSummary]] = defaultdict(list)
+    for row in sync_rows:
+        group = (row.stock_group or "").strip()
+        if group:
+            by_group[group].append(row)
+
+    in_stock = OridWorkingsRowOut(
+        id="in_stock",
+        orid=_aggregate_sync_closing_metrics(by_group.get(ORID_WORKINGS_ORID_GROUP, [])),
+        orid_dhall=_aggregate_sync_closing_metrics(
+            by_group.get(ORID_WORKINGS_DHALL_GROUP, [])
+        ),
+    )
+
+    return OridWorkingsOut(as_of=today.isoformat(), rows=[in_stock])
 
 
 def _orid_production_link_maps(
