@@ -671,9 +671,9 @@ function OridWorkingsTable({
             <td
               colSpan={4}
               className="stock-analysis__workings-label-end"
-              title="Estimated days"
+              title="Estimated Holding Period"
             >
-              Estimated days
+              Estimated Holding Period
             </td>
             <OridWorkingsNumCell value={estimatedDays} />
             <td colSpan={2} className="win-form__table-num" />
