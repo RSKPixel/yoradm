@@ -2956,26 +2956,49 @@ def _previous_calendar_month_range(as_of: date) -> Tuple[date, date]:
     return start, end
 
 
-def _orid_dhall_qty_alt_bags50(
+def _orid_dhall_sales_bags50(
     db: Session,
     *,
     date_from: date,
     date_to: date,
 ) -> float:
-    """Sum tallysync_sales.qty_alt for Orid Dhall, convert kg → 50kg bags."""
+    """Orid Dhall sales in 50kg bags from tallysync_sales.
+
+    Prefer qty_alt (kg) / 50. When qty_alt is blank (common after sync), use
+    qty × packing as kg. Resolve stock group from the sales row when present,
+    otherwise from tallydata_inventorymaster.
+    """
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
-    total_alt = (
-        db.query(func.coalesce(func.sum(TallySyncSale.qty_alt), 0.0))
+    stock_item_key = func.lower(func.trim(TallySyncSale.stock_item))
+    inventory_item_key = func.lower(func.trim(TallyInventoryMaster.stock_item))
+    group_expr = func.coalesce(
+        func.nullif(func.trim(TallySyncSale.stock_group), ""),
+        func.nullif(func.trim(TallyInventoryMaster.stock_group), ""),
+    )
+    packing_kg = func.coalesce(
+        TallySyncSale.packing,
+        TallyInventoryMaster.packing,
+        STOCK_ANALYSIS_DEFAULT_PACKING_KG,
+    )
+    kg_expr = func.coalesce(
+        TallySyncSale.qty_alt,
+        func.coalesce(TallySyncSale.qty, 0.0) * packing_kg,
+    )
+    total_kg = (
+        db.query(func.coalesce(func.sum(kg_expr), 0.0))
+        .outerjoin(TallyInventoryMaster, stock_item_key == inventory_item_key)
         .filter(
-            TallySyncSale.stock_group == ORID_WORKINGS_DHALL_GROUP,
+            group_expr == ORID_WORKINGS_DHALL_GROUP,
             TallySyncSale.voucher_date.isnot(None),
             TallySyncSale.voucher_date >= start_dt,
             TallySyncSale.voucher_date <= end_dt,
+            TallySyncSale.stock_item.isnot(None),
+            func.trim(TallySyncSale.stock_item) != "",
         )
         .scalar()
     )
-    return round(float(total_alt or 0.0) / 50.0, 2)
+    return round(float(total_kg or 0.0) / 50.0, 2)
 
 
 def orid_dhall_sales_50kg(
@@ -2983,17 +3006,17 @@ def orid_dhall_sales_50kg(
     *,
     as_of: Optional[date] = None,
 ) -> OridDhallSales50kgOut:
-    """Orid Dhall sales in 50kg bags from tallysync_sales (qty_alt / 50)."""
+    """Orid Dhall sales in 50kg bags from tallysync_sales."""
     today = as_of or date.today()
     last_30_start = today - timedelta(days=29)
     last_month_start, last_month_end = _previous_calendar_month_range(today)
     avg_3_start = today - timedelta(days=89)
 
-    last_30 = _orid_dhall_qty_alt_bags50(db, date_from=last_30_start, date_to=today)
-    last_month = _orid_dhall_qty_alt_bags50(
+    last_30 = _orid_dhall_sales_bags50(db, date_from=last_30_start, date_to=today)
+    last_month = _orid_dhall_sales_bags50(
         db, date_from=last_month_start, date_to=last_month_end
     )
-    last_90 = _orid_dhall_qty_alt_bags50(db, date_from=avg_3_start, date_to=today)
+    last_90 = _orid_dhall_sales_bags50(db, date_from=avg_3_start, date_to=today)
     last_3_avg = round(last_90 / float(STOCK_ANALYSIS_AVG_MONTHS), 2)
 
     return OridDhallSales50kgOut(
@@ -3005,32 +3028,67 @@ def orid_dhall_sales_50kg(
     )
 
 
+def _sync_period_covers(row: TallySyncStockSummary, as_of: date) -> bool:
+    """True when the sync row's period includes as_of (open-ended sides allowed)."""
+    start = row.period_from.date() if row.period_from is not None else None
+    end = row.period_to.date() if row.period_to is not None else None
+    if start is not None and as_of < start:
+        return False
+    if end is not None and as_of > end:
+        return False
+    return True
+
+
+def _latest_sync_rows_by_group(
+    rows: Sequence[TallySyncStockSummary],
+) -> List[TallySyncStockSummary]:
+    """Keep rows from the newest period_to within each stock_group."""
+    best_end: Dict[str, datetime] = {}
+    for row in rows:
+        group = (row.stock_group or "").strip()
+        if not group:
+            continue
+        end = row.period_to or datetime.min
+        prev = best_end.get(group)
+        if prev is None or end > prev:
+            best_end[group] = end
+
+    picked: List[TallySyncStockSummary] = []
+    for row in rows:
+        group = (row.stock_group or "").strip()
+        if not group:
+            continue
+        end = row.period_to or datetime.min
+        if best_end.get(group) == end:
+            picked.append(row)
+    return picked
+
+
 def orid_stock_analysis_workings(
     db: Session,
     *,
     as_of: Optional[date] = None,
 ) -> OridWorkingsOut:
-    """Orid Workings rows — In Stock from tallysync_stocksummary."""
-    today = as_of or date.today()
-    as_of_dt = datetime.combine(today, datetime.max.time())
+    """Orid Workings rows — In Stock from tallysync_stocksummary.
 
-    sync_rows = (
+    Prefer a period that covers as_of/today. If the sync snapshot's period_to
+    has lagged behind the calendar (common between syncs), fall back to the
+    latest available period per stock group so In Stock does not go blank.
+    """
+    today = as_of or date.today()
+
+    candidates = (
         db.query(TallySyncStockSummary)
         .filter(
             TallySyncStockSummary.stock_group.in_(
                 [ORID_WORKINGS_ORID_GROUP, ORID_WORKINGS_DHALL_GROUP]
             ),
-            or_(
-                TallySyncStockSummary.period_from.is_(None),
-                TallySyncStockSummary.period_from <= as_of_dt,
-            ),
-            or_(
-                TallySyncStockSummary.period_to.is_(None),
-                TallySyncStockSummary.period_to >= datetime.combine(today, datetime.min.time()),
-            ),
         )
         .all()
     )
+
+    covering = [row for row in candidates if _sync_period_covers(row, today)]
+    sync_rows = covering if covering else _latest_sync_rows_by_group(candidates)
 
     by_group: Dict[str, List[TallySyncStockSummary]] = defaultdict(list)
     for row in sync_rows:

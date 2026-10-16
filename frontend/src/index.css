@@ -5120,6 +5120,43 @@ body {
   font-weight: 600;
 }
 
+.stock-analysis__costing-raw-cell {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.stock-analysis__costing-raw-sources {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.stock-analysis__costing-raw-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.stock-analysis__costing-raw-source.is-active {
+  color: var(--ink);
+}
+
+.stock-analysis__costing-raw-source input {
+  margin: 0;
+  accent-color: var(--form-accent, var(--accent));
+}
+
 .stock-analysis__costing-table .win-form__control {
   width: 100%;
   min-height: 1.85rem;

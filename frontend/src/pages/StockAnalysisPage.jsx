@@ -112,6 +112,16 @@ const ORID_COSTING_BYPRODUCTS = [
 ]
 const ORID_COSTING_PCT_ITEMS = [ORID_COSTING_DHALL, ...ORID_COSTING_BYPRODUCTS]
 
+const COSTING_RAW_QTY_SOURCES = [
+  { value: 'in_stock', label: 'In Stock' },
+  { value: 'pendings', label: 'Pendings' },
+  { value: 'both', label: 'Both' },
+]
+
+const COSTING_RAW_QTY_SOURCE_KEYS = new Set(
+  COSTING_RAW_QTY_SOURCES.map((item) => item.value),
+)
+
 const ORID_COSTING_ROWS = [
   { id: 'orid_raw', label: ORID_RAW_STOCK_GROUP, kind: 'raw' },
   { id: 'orid_dhall', label: ORID_COSTING_DHALL, kind: 'dhall' },
@@ -142,12 +152,18 @@ function defaultCostingRateDrafts() {
   return drafts
 }
 
+function normalizeCostingRawQtySource(value) {
+  const source = String(value || '').trim()
+  return COSTING_RAW_QTY_SOURCE_KEYS.has(source) ? source : 'both'
+}
+
 function applyCostingApiToDrafts(row) {
   const pctDrafts = defaultCostingPctDrafts()
   const rateDrafts = defaultCostingRateDrafts()
   let expensesPctDraft = ''
+  let rawQtySource = 'both'
   if (!row) {
-    return { pctDrafts, rateDrafts, expensesPctDraft }
+    return { pctDrafts, rateDrafts, expensesPctDraft, rawQtySource }
   }
   pctDrafts[ORID_COSTING_DHALL] = draftFromNumber(row.orid_dhall_pct)
   pctDrafts['Orid Dhall Split'] = draftFromNumber(row.orid_dhall_split_pct)
@@ -163,11 +179,13 @@ function applyCostingApiToDrafts(row) {
   rateDrafts['Orid Dhall Rejection'] = draftFromNumber(row.rejection_rate)
   rateDrafts['Orid Husk'] = draftFromNumber(row.husk_rate)
   expensesPctDraft = draftFromNumber(row.expenses_pct)
-  return { pctDrafts, rateDrafts, expensesPctDraft }
+  rawQtySource = normalizeCostingRawQtySource(row.raw_qty_source)
+  return { pctDrafts, rateDrafts, expensesPctDraft, rawQtySource }
 }
 
-function costingSavePayload(pctDrafts, rateDrafts, expensesPctDraft) {
+function costingSavePayload(pctDrafts, rateDrafts, expensesPctDraft, rawQtySource) {
   return {
+    raw_qty_source: normalizeCostingRawQtySource(rawQtySource),
     orid_dhall_pct: parsePendingNumber(pctDrafts[ORID_COSTING_DHALL]),
     orid_dhall_split_pct: parsePendingNumber(pctDrafts['Orid Dhall Split']),
     orid_rejection_pct: parsePendingNumber(pctDrafts['Orid Dhall Rejection']),
@@ -177,6 +195,16 @@ function costingSavePayload(pctDrafts, rateDrafts, expensesPctDraft) {
     rejection_rate: parsePendingNumber(rateDrafts['Orid Dhall Rejection']),
     husk_rate: parsePendingNumber(rateDrafts['Orid Husk']),
   }
+}
+
+function resolveCostingRawOrid(workingsRows, rawQtySource) {
+  const source = normalizeCostingRawQtySource(rawQtySource)
+  const inStock = workingsRows.find((row) => row.id === 'in_stock')?.orid
+  const purchases = workingsRows.find((row) => row.id === 'pending_purchases')?.orid
+  const arrivals = workingsRows.find((row) => row.id === 'pending_arrivals')?.orid
+  if (source === 'in_stock') return inStock || {}
+  if (source === 'pendings') return sumWorkingsMetrics([purchases, arrivals])
+  return sumWorkingsMetrics([inStock, purchases, arrivals])
 }
 
 function qtyFromRawPercent(rawQty, pctDraft) {
@@ -821,7 +849,9 @@ function OridPendingGroupTable({
 }
 
 function OridCostingTable({
-  closingOrid,
+  rawOrid,
+  rawQtySource = 'both',
+  onRawQtySourceChange,
   pctDrafts,
   rateDrafts,
   expensesPctDraft,
@@ -832,14 +862,14 @@ function OridCostingTable({
   const rows = useMemo(
     () =>
       buildOridCostingRows({
-        rawQty: closingOrid?.qty ?? null,
-        rawRate: closingOrid?.rate ?? null,
-        rawValue: closingOrid?.value ?? null,
+        rawQty: rawOrid?.qty ?? null,
+        rawRate: rawOrid?.rate ?? null,
+        rawValue: rawOrid?.value ?? null,
         pctDrafts,
         rateDrafts,
         expensesPctDraft,
       }),
-    [closingOrid, pctDrafts, rateDrafts, expensesPctDraft],
+    [rawOrid, pctDrafts, rateDrafts, expensesPctDraft],
   )
 
   return (
@@ -876,7 +906,44 @@ function OridCostingTable({
                 key={row.id}
                 className={row.kind === 'raw' ? 'stock-analysis__costing-raw' : undefined}
               >
-                <td>{row.label}</td>
+                <td>
+                  {row.kind === 'raw' ? (
+                    <div className="stock-analysis__costing-raw-cell">
+                      <span>{row.label}</span>
+                      <div
+                        className="stock-analysis__costing-raw-sources"
+                        role="radiogroup"
+                        aria-label="Orid Raw quantity source"
+                      >
+                        {COSTING_RAW_QTY_SOURCES.map((opt) => {
+                          const checked = rawQtySource === opt.value
+                          return (
+                            <label
+                              key={opt.value}
+                              className={`stock-analysis__costing-raw-source${
+                                checked ? ' is-active' : ''
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="orid-costing-raw-qty-source"
+                                value={opt.value}
+                                checked={checked}
+                                autoComplete="off"
+                                data-1p-ignore
+                                data-lpignore="true"
+                                onChange={() => onRawQtySourceChange?.(opt.value)}
+                              />
+                              <span>{opt.label}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    row.label
+                  )}
+                </td>
                 <td className="win-form__table-num">
                   {row.kind === 'raw' ? (
                     <span className="win-form__table-readonly">—</span>
@@ -949,6 +1016,9 @@ function OridReportTabs({
   onAddPendingLine,
   onChangePendingLine,
   pendingBusy = false,
+  costingRawOrid,
+  costingRawQtySource,
+  onCostingRawQtySourceChange,
   costingPctDrafts,
   costingRateDrafts,
   costingExpensesPctDraft,
@@ -957,7 +1027,6 @@ function OridReportTabs({
   onCostingExpensesPctChange,
 }) {
   const pendingTab = ORID_PENDING_TABS.find((tab) => tab.id === activeTab)
-  const closingOrid = workingsRows.find((row) => row.id === 'closing')?.orid
 
   return (
     <div className="stock-analysis__orid">
@@ -998,7 +1067,9 @@ function OridReportTabs({
         ) : null}
         {activeTab === 'costing' ? (
           <OridCostingTable
-            closingOrid={closingOrid}
+            rawOrid={costingRawOrid}
+            rawQtySource={costingRawQtySource}
+            onRawQtySourceChange={onCostingRawQtySourceChange}
             pctDrafts={costingPctDrafts}
             rateDrafts={costingRateDrafts}
             expensesPctDraft={costingExpensesPctDraft}
@@ -1158,6 +1229,7 @@ export function StockAnalysisPage({ oridOnly = false }) {
   const [costingPctDrafts, setCostingPctDrafts] = useState(defaultCostingPctDrafts)
   const [costingRateDrafts, setCostingRateDrafts] = useState(defaultCostingRateDrafts)
   const [costingExpensesPctDraft, setCostingExpensesPctDraft] = useState('')
+  const [costingRawQtySource, setCostingRawQtySource] = useState('both')
   const [costingHydrated, setCostingHydrated] = useState(false)
   const [estimatedSalesMode, setEstimatedSalesMode] = useState('manual')
   const [estimatedSales50kg, setEstimatedSales50kg] = useState('')
@@ -1174,6 +1246,7 @@ export function StockAnalysisPage({ oridOnly = false }) {
   const costingPctRef = useRef(costingPctDrafts)
   const costingRateRef = useRef(costingRateDrafts)
   const costingExpensesRef = useRef(costingExpensesPctDraft)
+  const costingRawQtySourceRef = useRef(costingRawQtySource)
   const workingsSaveTimer = useRef(null)
   const estimatedSalesModeRef = useRef(estimatedSalesMode)
   const estimatedSalesRef = useRef(estimatedSales50kg)
@@ -1190,7 +1263,8 @@ export function StockAnalysisPage({ oridOnly = false }) {
     costingPctRef.current = costingPctDrafts
     costingRateRef.current = costingRateDrafts
     costingExpensesRef.current = costingExpensesPctDraft
-  }, [costingPctDrafts, costingRateDrafts, costingExpensesPctDraft])
+    costingRawQtySourceRef.current = costingRawQtySource
+  }, [costingPctDrafts, costingRateDrafts, costingExpensesPctDraft, costingRawQtySource])
 
   useEffect(() => {
     estimatedSalesModeRef.current = estimatedSalesMode
@@ -1277,6 +1351,7 @@ export function StockAnalysisPage({ oridOnly = false }) {
           costingPctRef.current,
           costingRateRef.current,
           costingExpensesRef.current,
+          costingRawQtySourceRef.current,
         ),
       ).catch((err) => {
         showError(getApiErrorMessage(err, 'Unable to save costing'))
@@ -1305,6 +1380,13 @@ export function StockAnalysisPage({ oridOnly = false }) {
   function changeCostingExpensesPct(value) {
     costingExpensesRef.current = value
     setCostingExpensesPctDraft(value)
+    scheduleCostingSave()
+  }
+
+  function changeCostingRawQtySource(value) {
+    const next = normalizeCostingRawQtySource(value)
+    costingRawQtySourceRef.current = next
+    setCostingRawQtySource(next)
     scheduleCostingSave()
   }
 
@@ -1354,13 +1436,16 @@ export function StockAnalysisPage({ oridOnly = false }) {
     [oridWorkings, pendingLines],
   )
 
-  const costingClosingOrid = baseWorkingsRows.find((row) => row.id === 'closing')?.orid
+  const costingRawOrid = useMemo(
+    () => resolveCostingRawOrid(baseWorkingsRows, costingRawQtySource),
+    [baseWorkingsRows, costingRawQtySource],
+  )
 
   const manufacturingDhall = useMemo(() => {
     const rows = buildOridCostingRows({
-      rawQty: costingClosingOrid?.qty ?? null,
-      rawRate: costingClosingOrid?.rate ?? null,
-      rawValue: costingClosingOrid?.value ?? null,
+      rawQty: costingRawOrid?.qty ?? null,
+      rawRate: costingRawOrid?.rate ?? null,
+      rawValue: costingRawOrid?.value ?? null,
       pctDrafts: costingPctDrafts,
       rateDrafts: costingRateDrafts,
       expensesPctDraft: costingExpensesPctDraft,
@@ -1370,7 +1455,7 @@ export function StockAnalysisPage({ oridOnly = false }) {
     if (dhall.qty == null && dhall.rate == null && dhall.value == null) return null
     return { qty: dhall.qty, rate: dhall.rate, value: dhall.value }
   }, [
-    costingClosingOrid,
+    costingRawOrid,
     costingPctDrafts,
     costingRateDrafts,
     costingExpensesPctDraft,
@@ -1446,6 +1531,8 @@ export function StockAnalysisPage({ oridOnly = false }) {
         setCostingPctDrafts(drafts.pctDrafts)
         setCostingRateDrafts(drafts.rateDrafts)
         setCostingExpensesPctDraft(drafts.expensesPctDraft)
+        costingRawQtySourceRef.current = drafts.rawQtySource
+        setCostingRawQtySource(drafts.rawQtySource)
         setCostingHydrated(true)
         const savedMode = normalizeEstimatedSalesMode(
           savedWorkings?.estimated_sales_mode,
@@ -1578,6 +1665,9 @@ export function StockAnalysisPage({ oridOnly = false }) {
           onAddPendingLine={addPendingLine}
           onChangePendingLine={changePendingLine}
           pendingBusy={pendingBusy}
+          costingRawOrid={costingRawOrid}
+          costingRawQtySource={costingRawQtySource}
+          onCostingRawQtySourceChange={changeCostingRawQtySource}
           costingPctDrafts={costingPctDrafts}
           costingRateDrafts={costingRateDrafts}
           costingExpensesPctDraft={costingExpensesPctDraft}

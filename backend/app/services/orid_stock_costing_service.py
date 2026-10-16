@@ -8,6 +8,7 @@ from app.models.orid_stock_costing import OridStockCosting
 from app.schemas.orid_stock_costing import OridStockCostingOut, OridStockCostingSaveIn
 
 _COSTING_FIELDS = (
+    "raw_qty_source",
     "orid_dhall_pct",
     "orid_dhall_split_pct",
     "orid_rejection_pct",
