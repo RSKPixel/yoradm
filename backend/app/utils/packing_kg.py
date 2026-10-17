@@ -6,7 +6,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.tally import TallyInventoryMaster, TallySale
+from app.models.tally import TallySyncInventory, TallySyncSale
 
 # Standard bag unit for qty × packing_kg → 50 kg bag count (not a packing fallback).
 STANDARD_BAG_KG = 50.0
@@ -24,12 +24,12 @@ class MissingPackingError(ValueError):
         if voucher:
             message = (
                 f"Missing packing in Tally for stock item {item!r} "
-                f"(invoice {voucher}). Update tallydata_sales or inventory master."
+                f"(invoice {voucher}). Update tallysync_sales or inventory master."
             )
         else:
             message = (
                 f"Missing packing in Tally for stock item {item!r}. "
-                "Update tallydata_inventorymaster."
+                "Update tallysync_inventory."
             )
         super().__init__(message)
         self.stock_item = item
@@ -71,15 +71,15 @@ def require_packing_kg(
 
 
 def inventory_packing_map(db: Session) -> dict[str, float]:
-    """Packing from tallydata_inventorymaster keyed by stock_item."""
+    """Packing from tallysync_inventory keyed by stock_item."""
     return {
         str(row[0]).strip(): float(row[1])
         for row in (
-            db.query(TallyInventoryMaster.stock_item, TallyInventoryMaster.packing)
+            db.query(TallySyncInventory.stock_item, TallySyncInventory.packing)
             .filter(
-                TallyInventoryMaster.stock_item.isnot(None),
-                TallyInventoryMaster.stock_item != "",
-                TallyInventoryMaster.packing.isnot(None),
+                TallySyncInventory.stock_item.isnot(None),
+                TallySyncInventory.stock_item != "",
+                TallySyncInventory.packing.isnot(None),
             )
             .all()
         )
@@ -94,23 +94,23 @@ def tally_packing_for_line(
     stock_item: str | None,
     qty: float | None = None,
 ) -> Optional[float]:
-    """Packing from tallydata_sales for a voucher + stock item."""
+    """Packing from tallysync_sales for a voucher + stock item."""
     voucher = str(voucher_no or "").strip()
     item = str(stock_item or "").strip()
     if not voucher or not item:
         return None
 
-    base = db.query(TallySale.packing).filter(
-        TallySale.voucher_no == voucher,
-        TallySale.stock_item == item,
-        TallySale.packing.isnot(None),
+    base = db.query(TallySyncSale.packing).filter(
+        TallySyncSale.voucher_no == voucher,
+        TallySyncSale.stock_item == item,
+        TallySyncSale.packing.isnot(None),
     )
     if qty is not None:
-        row = base.filter(TallySale.qty == qty).order_by(TallySale.id.desc()).first()
+        row = base.filter(TallySyncSale.qty == qty).order_by(TallySyncSale.id.desc()).first()
         if row and row[0] is not None:
             return float(row[0])
 
-    row = base.order_by(TallySale.id.desc()).first()
+    row = base.order_by(TallySyncSale.id.desc()).first()
     if row and row[0] is not None:
         return float(row[0])
     return None

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.constants.orid_dhall_purchase import is_legacy_blocked_purchase_voucher
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
-from app.models.tally import TallyInventoryMaster, TallyPurchase, TallySale
+from app.models.tally import TallySyncInventory, TallySyncPurchase, TallySyncSale
 from app.schemas.orid_dhall_production import (
     OridDhallOpenBatchItem,
     OridDhallPeriodOptionsOut,
@@ -424,10 +424,10 @@ def _month_trade_by_stock_group(
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
     item_key = func.lower(func.trim(model.stock_item))
-    inv_item = func.lower(func.trim(TallyInventoryMaster.stock_item))
+    inv_item = func.lower(func.trim(TallySyncInventory.stock_item))
     packing_kg = func.coalesce(
         model.packing,
-        TallyInventoryMaster.packing,
+        TallySyncInventory.packing,
         STANDARD_BAG_KG,
     )
     bags_expr = (func.coalesce(model.qty, 0.0) * packing_kg) / STANDARD_BAG_KG
@@ -439,10 +439,17 @@ def _month_trade_by_stock_group(
     value_expr = func.coalesce(model.amount, 0.0)
     if include_discount and hasattr(model, "discount"):
         value_expr = value_expr + func.coalesce(model.discount, 0.0)
-    group_expr = func.coalesce(
-        func.nullif(func.trim(TallyInventoryMaster.stock_group), ""),
-        "Unmapped",
-    )
+    if hasattr(model, "stock_group"):
+        group_expr = func.coalesce(
+            func.nullif(func.trim(model.stock_group), ""),
+            func.nullif(func.trim(TallySyncInventory.stock_group), ""),
+            "Unmapped",
+        )
+    else:
+        group_expr = func.coalesce(
+            func.nullif(func.trim(TallySyncInventory.stock_group), ""),
+            "Unmapped",
+        )
     rows = (
         db.query(
             group_expr.label("stock_group"),
@@ -450,7 +457,7 @@ def _month_trade_by_stock_group(
             func.coalesce(func.sum(quintal_expr), 0.0).label("quintal"),
             func.coalesce(func.sum(value_expr), 0.0).label("value"),
         )
-        .outerjoin(TallyInventoryMaster, item_key == inv_item)
+        .outerjoin(TallySyncInventory, item_key == inv_item)
         .filter(
             model.voucher_date.isnot(None),
             model.voucher_date >= start_dt,
@@ -539,7 +546,7 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
     purchase_dhall = _club_avg_purchase_totals(unique_rows)
     purchase_by_group = _month_trade_by_stock_group(
         db,
-        model=TallyPurchase,
+        model=TallySyncPurchase,
         date_from=start,
         date_to=end,
     )
@@ -547,7 +554,7 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
 
     sales_by_group = _month_trade_by_stock_group(
         db,
-        model=TallySale,
+        model=TallySyncSale,
         date_from=start,
         date_to=end,
     )

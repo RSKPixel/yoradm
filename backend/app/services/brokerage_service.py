@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.brokerage import Brokerage
 from app.models.brokerage_rate import BrokerageRate
 from app.models.brokerage_setting import BrokerageSetting
-from app.models.tally import TallyPurchase, TallySale
+from app.models.tally import TallySyncPurchase, TallySyncSale
 from app.schemas.brokerage import (
     BrokerageBrokersOut,
     BrokerageBuyerRowOut,
@@ -59,7 +59,7 @@ def _round_money(value: float) -> float:
 def _aggregate_by_stock_item(
     db: Session,
     *,
-    model: Type[TallySale] | Type[TallyPurchase],
+    model: Type[TallySyncSale] | Type[TallySyncPurchase],
     date_from: date,
     date_to: date,
     broker: str,
@@ -102,7 +102,7 @@ def _aggregate_by_stock_item(
 def _aggregate_by_buyer(
     db: Session,
     *,
-    model: Type[TallySale] | Type[TallyPurchase],
+    model: Type[TallySyncSale] | Type[TallySyncPurchase],
     date_from: date,
     date_to: date,
     broker: str,
@@ -541,14 +541,14 @@ def _build_live_workings(
     tds_percent = _load_tds_percent(db, fy_start=fy_start, month=month, broker=name)
     sales_agg = _aggregate_by_stock_item(
         db,
-        model=TallySale,
+        model=TallySyncSale,
         date_from=date_from,
         date_to=date_to,
         broker=name,
     )
     purchase_agg = _aggregate_by_stock_item(
         db,
-        model=TallyPurchase,
+        model=TallySyncPurchase,
         date_from=date_from,
         date_to=date_to,
         broker=name,
@@ -608,7 +608,7 @@ def list_brokers(
     end_dt = datetime.combine(date_to, datetime.max.time())
 
     names: set[str] = set()
-    for model in (TallySale, TallyPurchase):
+    for model in (TallySyncSale, TallySyncPurchase):
         rows = (
             db.query(model.broker)
             .filter(
@@ -653,7 +653,7 @@ def list_brokerage_buyers(
     date_from, date_to = _month_date_range(fy_start=fy_start, month=month)
 
     merged: Dict[str, list] = {}
-    for model in (TallySale, TallyPurchase):
+    for model in (TallySyncSale, TallySyncPurchase):
         for buyer, qty, quintals in _aggregate_by_buyer(
             db,
             model=model,

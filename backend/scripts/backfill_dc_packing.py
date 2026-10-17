@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backfill delivery challan detail packing from tallydata_sales."""
+"""Backfill delivery challan detail packing from tallysync_sales."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.db.session import SessionLocal
 from app.models.delivery_challan import DeliveryChallanDetail
-from app.models.tally import TallySale
+from app.models.tally import TallySyncSale
 
 
 def _norm(value: str | None) -> str:
@@ -32,16 +32,16 @@ def main() -> None:
 
         voucher_nos = sorted({d.voucher_no for d in details if d.voucher_no})
         sales = (
-            db.query(TallySale)
+            db.query(TallySyncSale)
             .filter(
-                TallySale.voucher_no.in_(voucher_nos),
-                TallySale.packing.isnot(None),
+                TallySyncSale.voucher_no.in_(voucher_nos),
+                TallySyncSale.packing.isnot(None),
             )
             .all()
         )
 
         # voucher_no -> list of sales rows with packing
-        by_voucher: dict[str, list[TallySale]] = {}
+        by_voucher: dict[str, list[TallySyncSale]] = {}
         for sale in sales:
             key = sale.voucher_no or ""
             by_voucher.setdefault(key, []).append(sale)

@@ -18,22 +18,24 @@ from app.models.tds_working import TdsWorking
 from app.models.tds_head_payment import TdsHeadPayment
 from app.models.tally import (
     TallyAccountMaster,
+    TallySyncAccount,
     TallyCostCentre,
+    TallySyncCostCentre,
     TallyDaybook,
     TallyDaybook2,
+    TallySyncDaybook,
     TallyInventoryMaster,
+    TallySyncInventory,
     TallyPurchase,
     TallyReceivable,
+    TallySyncReceivable,
     TallySale,
     TallyStockGroup,
-    TallyStockSummary,
+    TallySyncPurchase,
     TallySyncSale,
     TallySyncStockSummary,
 )
 from app.models.user import User, UserRole
-from app.models.yoradm_daybook2 import YoradmDaybook2
-from app.models.yoradm_purchase import YoradmPurchase
-from app.models.yoradm_sale import YoradmSale
 
 __all__ = [
     "User",
@@ -62,18 +64,20 @@ __all__ = [
     "TdsWorking",
     "TdsHeadPayment",
     "TallyAccountMaster",
+    "TallySyncAccount",
     "TallyCostCentre",
+    "TallySyncCostCentre",
     "TallyDaybook",
     "TallyDaybook2",
+    "TallySyncDaybook",
     "TallyInventoryMaster",
+    "TallySyncInventory",
     "TallyPurchase",
     "TallyReceivable",
+    "TallySyncReceivable",
     "TallySale",
     "TallyStockGroup",
-    "TallyStockSummary",
+    "TallySyncPurchase",
     "TallySyncSale",
     "TallySyncStockSummary",
-    "YoradmDaybook2",
-    "YoradmPurchase",
-    "YoradmSale",
 ]

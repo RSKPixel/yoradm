@@ -9,7 +9,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
-from app.models.tally import TallyInventoryMaster, TallySale
+from app.models.tally import TallySyncInventory, TallySyncSale
 from app.schemas.delivery_challan import (
     DeliveryChallanCreate,
     DeliveryChallanListItem,
@@ -35,14 +35,14 @@ PENDING_DELIVERY_FROM = date(2026, 7, 12)
 def _inventory_packing_subquery(db: Session):
     return (
         db.query(
-            TallyInventoryMaster.stock_item.label("stock_item"),
-            func.max(TallyInventoryMaster.packing).label("packing"),
+            TallySyncInventory.stock_item.label("stock_item"),
+            func.max(TallySyncInventory.packing).label("packing"),
         )
         .filter(
-            TallyInventoryMaster.stock_item.isnot(None),
-            TallyInventoryMaster.stock_item != "",
+            TallySyncInventory.stock_item.isnot(None),
+            TallySyncInventory.stock_item != "",
         )
-        .group_by(TallyInventoryMaster.stock_item)
+        .group_by(TallySyncInventory.stock_item)
         .subquery("inv_packing")
     )
 
@@ -248,25 +248,25 @@ def pending_deliveries_by_stock_group(db: Session) -> PendingDeliveriesOut:
 
     lines = (
         db.query(
-            TallySale.voucher_no,
-            TallySale.voucher_date,
-            TallySale.ledger_name,
-            TallySale.stock_item,
-            TallySale.brand,
-            TallySale.qty,
-            TallySale.packing,
-            TallySale.amount,
+            TallySyncSale.voucher_no,
+            TallySyncSale.voucher_date,
+            TallySyncSale.ledger_name,
+            TallySyncSale.stock_item,
+            TallySyncSale.brand,
+            TallySyncSale.qty,
+            TallySyncSale.packing,
+            TallySyncSale.amount,
         )
         .filter(
-            TallySale.voucher_no.isnot(None),
-            TallySale.voucher_no != "",
-            TallySale.stock_item.isnot(None),
-            TallySale.stock_item != "",
-            TallySale.voucher_date.isnot(None),
-            TallySale.voucher_date >= cutoff,
-            ~TallySale.voucher_no.in_(used_voucher_nos),
+            TallySyncSale.voucher_no.isnot(None),
+            TallySyncSale.voucher_no != "",
+            TallySyncSale.stock_item.isnot(None),
+            TallySyncSale.stock_item != "",
+            TallySyncSale.voucher_date.isnot(None),
+            TallySyncSale.voucher_date >= cutoff,
+            ~TallySyncSale.voucher_no.in_(used_voucher_nos),
         )
-        .order_by(TallySale.voucher_date.desc(), TallySale.voucher_no.desc(), TallySale.id.asc())
+        .order_by(TallySyncSale.voucher_date.desc(), TallySyncSale.voucher_no.desc(), TallySyncSale.id.asc())
         .all()
     )
 
@@ -531,17 +531,17 @@ def today_deliveries_by_stock_group(
 
 
 def _tally_voucher_dates(db: Session, voucher_nos: set[str]) -> dict[str, datetime]:
-    """Earliest tallydata_sales voucher_date for each voucher number."""
+    """Earliest tallysync_sales voucher_date for each voucher number."""
     numbers = [no for no in voucher_nos if no]
     if not numbers:
         return {}
     rows = (
-        db.query(TallySale.voucher_no, func.min(TallySale.voucher_date))
+        db.query(TallySyncSale.voucher_no, func.min(TallySyncSale.voucher_date))
         .filter(
-            TallySale.voucher_no.in_(numbers),
-            TallySale.voucher_date.isnot(None),
+            TallySyncSale.voucher_no.in_(numbers),
+            TallySyncSale.voucher_date.isnot(None),
         )
-        .group_by(TallySale.voucher_no)
+        .group_by(TallySyncSale.voucher_no)
         .all()
     )
     lookup: dict[str, datetime] = {}
@@ -576,12 +576,12 @@ def _parse_optional_datetime(value: Optional[str | datetime | date]) -> Optional
 def _stock_group_by_item(db: Session) -> dict[str, str]:
     """Lowercased stock_item → stock_group from inventory master."""
     rows = (
-        db.query(TallyInventoryMaster.stock_item, TallyInventoryMaster.stock_group)
+        db.query(TallySyncInventory.stock_item, TallySyncInventory.stock_group)
         .filter(
-            TallyInventoryMaster.stock_item.isnot(None),
-            TallyInventoryMaster.stock_item != "",
-            TallyInventoryMaster.stock_group.isnot(None),
-            TallyInventoryMaster.stock_group != "",
+            TallySyncInventory.stock_item.isnot(None),
+            TallySyncInventory.stock_item != "",
+            TallySyncInventory.stock_group.isnot(None),
+            TallySyncInventory.stock_group != "",
         )
         .all()
     )
@@ -601,11 +601,11 @@ def _stock_items_for_group(db: Session, stock_group: str) -> list:
     return [
         row[0]
         for row in (
-            db.query(TallyInventoryMaster.stock_item)
+            db.query(TallySyncInventory.stock_item)
             .filter(
-                func.lower(TallyInventoryMaster.stock_group) == group.lower(),
-                TallyInventoryMaster.stock_item.isnot(None),
-                TallyInventoryMaster.stock_item != "",
+                func.lower(TallySyncInventory.stock_group) == group.lower(),
+                TallySyncInventory.stock_item.isnot(None),
+                TallySyncInventory.stock_item != "",
             )
             .distinct()
             .all()
@@ -744,15 +744,15 @@ def _sale_money_for_line(db: Session, line) -> Tuple[Optional[float], Optional[f
     if not line.voucher_no or not line.stock_item:
         return amount, discount
 
-    query = db.query(TallySale.amount, TallySale.discount).filter(
-        TallySale.voucher_no == line.voucher_no,
-        TallySale.stock_item == line.stock_item,
+    query = db.query(TallySyncSale.amount, TallySyncSale.discount).filter(
+        TallySyncSale.voucher_no == line.voucher_no,
+        TallySyncSale.stock_item == line.stock_item,
     )
     if line.packing is not None:
-        query = query.filter(TallySale.packing == line.packing)
+        query = query.filter(TallySyncSale.packing == line.packing)
     if line.qty is not None:
-        query = query.filter(TallySale.qty == line.qty)
-    row = query.order_by(TallySale.id.desc()).first()
+        query = query.filter(TallySyncSale.qty == line.qty)
+    row = query.order_by(TallySyncSale.id.desc()).first()
     if row is None:
         return amount, discount
     if amount is None and row[0] is not None:

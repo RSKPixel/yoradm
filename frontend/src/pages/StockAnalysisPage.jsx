@@ -40,7 +40,7 @@ import {
 } from '../utils/formatNumber'
 import { getApiErrorMessage } from '../utils/formValidation'
 
-const COL_COUNT = 8
+const COL_COUNT = 7
 
 const SALES_DAYS_WINDOW = 30
 const SALES_UPLIFT_PCT = 0.1
@@ -1102,7 +1102,6 @@ function TableColGroup() {
       <col className="stock-analysis__col-qtl" />
       <col className="stock-analysis__col-qtl" />
       <col className="stock-analysis__col-qtl" />
-      <col className="stock-analysis__col-qtl" />
       <col className="stock-analysis__col-days" />
       <col className="stock-analysis__col-days" />
       <col className="stock-analysis__col-days" />
@@ -1178,7 +1177,6 @@ function HeaderRow({ avgMonths }) {
     <tr>
       <th>Stock group</th>
       <th className="win-form__table-num">Closing qtl</th>
-      <th className="win-form__table-num">Closing 4w avg qtl</th>
       <th className="win-form__table-num">Last 30 days qtl</th>
       <th className="win-form__table-num">Avg {avgMonths} months qtl</th>
       <th className="win-form__table-num">Sales days (30d)</th>
@@ -1193,7 +1191,6 @@ function DataRow({ row }) {
     <tr>
       <td className="stock-analysis__group">{rowGroupLabel(row)}</td>
       <QuintalCell value={row.closing?.quintals} />
-      <QuintalCell value={row.closing_4w_ma?.quintals} />
       <QuintalCell value={row.last_30_days?.quintals} />
       <QuintalCell value={row.avg_3_months?.quintals} />
       <SalesDaysCell
@@ -1588,14 +1585,12 @@ export function StockAnalysisPage({ oridOnly = false }) {
     if (commodity === '' && analysis) {
       return {
         closing: Number(analysis.closing_totals?.quintals) || 0,
-        closing_4w_ma: Number(analysis.closing_4w_ma_totals?.quintals) || 0,
         last_30_days: Number(analysis.last_30_days_totals?.quintals) || 0,
         avg_3_months: Number(analysis.avg_3_months_totals?.quintals) || 0,
       }
     }
     return {
       closing: sumQuintals(rows, 'closing'),
-      closing_4w_ma: sumQuintals(rows, 'closing_4w_ma'),
       last_30_days: sumQuintals(rows, 'last_30_days'),
       avg_3_months: sumQuintals(rows, 'avg_3_months'),
     }
@@ -1735,7 +1730,6 @@ export function StockAnalysisPage({ oridOnly = false }) {
                       </span>
                     </td>
                     <QuintalCell value={totals.closing} />
-                    <QuintalCell value={totals.closing_4w_ma} />
                     <QuintalCell value={totals.last_30_days} />
                     <QuintalCell value={totals.avg_3_months} />
                     <SalesDaysCell value={totalSalesDays30} />

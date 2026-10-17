@@ -8,7 +8,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.packing_material import PackingPurchase, PackingSku, PackingStockFy
-from app.models.tally import TallyInventoryMaster, TallySale
+from app.models.tally import TallySyncInventory, TallySyncSale
 from app.schemas.packing_material import (
     PackingAdjustUpdate,
     PackingFyBulkUpdate,
@@ -100,14 +100,14 @@ def _items_by_allowed_groups(db: Session) -> Dict[str, Tuple[str, Optional[str]]
     group_filters = [g.lower() for g in PACKING_STOCK_GROUPS]
     rows = (
         db.query(
-            TallyInventoryMaster.stock_item,
-            TallyInventoryMaster.stock_group,
-            TallyInventoryMaster.base_unit,
+            TallySyncInventory.stock_item,
+            TallySyncInventory.stock_group,
+            TallySyncInventory.base_unit,
         )
         .filter(
-            TallyInventoryMaster.stock_item.isnot(None),
-            TallyInventoryMaster.stock_item != "",
-            func.lower(TallyInventoryMaster.stock_group).in_(group_filters),
+            TallySyncInventory.stock_item.isnot(None),
+            TallySyncInventory.stock_item != "",
+            func.lower(TallySyncInventory.stock_group).in_(group_filters),
         )
         .all()
     )
@@ -138,11 +138,11 @@ def _sales_sku_pairs(
     inv_names = {
         r[0].strip(): r[0].strip()
         for r in (
-            db.query(TallyInventoryMaster.stock_item)
+            db.query(TallySyncInventory.stock_item)
             .filter(
-                TallyInventoryMaster.stock_item.isnot(None),
-                TallyInventoryMaster.stock_item != "",
-                func.lower(TallyInventoryMaster.stock_group).in_(
+                TallySyncInventory.stock_item.isnot(None),
+                TallySyncInventory.stock_item != "",
+                func.lower(TallySyncInventory.stock_group).in_(
                     [g.lower() for g in PACKING_STOCK_GROUPS]
                 ),
             )
@@ -156,17 +156,17 @@ def _sales_sku_pairs(
         return []
 
     rows = (
-        db.query(TallySale.stock_item, TallySale.brand)
+        db.query(TallySyncSale.stock_item, TallySyncSale.brand)
         .filter(
-            TallySale.stock_item.in_(item_names),
+            TallySyncSale.stock_item.in_(item_names),
             or_(
-                TallySale.brand.is_(None),
-                func.trim(TallySale.brand) == "",
-                func.lower(func.trim(TallySale.brand)) != "x",
+                TallySyncSale.brand.is_(None),
+                func.trim(TallySyncSale.brand) == "",
+                func.lower(func.trim(TallySyncSale.brand)) != "x",
             ),
         )
         .distinct()
-        .order_by(TallySale.stock_item.asc(), TallySale.brand.asc())
+        .order_by(TallySyncSale.stock_item.asc(), TallySyncSale.brand.asc())
         .all()
     )
 
@@ -205,22 +205,22 @@ def _fy_sales_by_pair(
     end_dt = datetime.combine(date_to, datetime.max.time())
     rows = (
         db.query(
-            TallySale.stock_item,
-            TallySale.brand,
-            func.coalesce(func.sum(TallySale.qty), 0.0),
+            TallySyncSale.stock_item,
+            TallySyncSale.brand,
+            func.coalesce(func.sum(TallySyncSale.qty), 0.0),
         )
         .filter(
-            TallySale.voucher_date.isnot(None),
-            TallySale.voucher_date >= start_dt,
-            TallySale.voucher_date <= end_dt,
-            TallySale.stock_item.in_(item_names),
+            TallySyncSale.voucher_date.isnot(None),
+            TallySyncSale.voucher_date >= start_dt,
+            TallySyncSale.voucher_date <= end_dt,
+            TallySyncSale.stock_item.in_(item_names),
             or_(
-                TallySale.brand.is_(None),
-                func.trim(TallySale.brand) == "",
-                func.lower(func.trim(TallySale.brand)) != "x",
+                TallySyncSale.brand.is_(None),
+                func.trim(TallySyncSale.brand) == "",
+                func.lower(func.trim(TallySyncSale.brand)) != "x",
             ),
         )
-        .group_by(TallySale.stock_item, TallySale.brand)
+        .group_by(TallySyncSale.stock_item, TallySyncSale.brand)
         .all()
     )
 

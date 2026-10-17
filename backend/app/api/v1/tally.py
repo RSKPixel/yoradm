@@ -8,12 +8,11 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Response, Uploa
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.models.tally import (
-    TallyAccountMaster,
-    TallyInventoryMaster,
-    TallyPurchase,
-    TallyReceivable,
-    TallySale,
-    TallyStockSummary,
+    TallySyncAccount,
+    TallySyncInventory,
+    TallySyncPurchase,
+    TallySyncReceivable,
+    TallySyncSale,
 )
 from app.schemas import DashboardStats, PaginatedResponse
 from app.schemas.post_dated_cheque import PendingBillOut
@@ -38,7 +37,6 @@ from app.schemas.tally import (
     OridDhallSales50kgOut,
     OridWorkingsOut,
     StockAnalysisSalesOut,
-    StockSummaryOut,
     TdsHeadPaymentDateUpdate,
     TdsHeadPaymentOut,
     TdsWorkingsOut,
@@ -70,7 +68,7 @@ def list_accounts(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[AccountMasterOut]:
-    items, total = tally_service.paginate(db, TallyAccountMaster, page, page_size)
+    items, total = tally_service.paginate(db, TallySyncAccount, page, page_size)
     return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
 
 
@@ -81,7 +79,7 @@ def list_inventory(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[InventoryMasterOut]:
-    items, total = tally_service.paginate(db, TallyInventoryMaster, page, page_size)
+    items, total = tally_service.paginate(db, TallySyncInventory, page, page_size)
     return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
 
 
@@ -338,7 +336,7 @@ def list_sales(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[SaleOut]:
-    items, total = tally_service.paginate(db, TallySale, page, page_size)
+    items, total = tally_service.paginate(db, TallySyncSale, page, page_size)
     return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
 
 
@@ -366,18 +364,7 @@ def list_purchases(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[PurchaseOut]:
-    items, total = tally_service.paginate(db, TallyPurchase, page, page_size)
-    return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
-
-
-@router.get("/stock-summary", response_model=PaginatedResponse[StockSummaryOut])
-def list_stock_summary(
-    _: AdminUser,
-    db: DbSession,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-) -> PaginatedResponse[StockSummaryOut]:
-    items, total = tally_service.paginate(db, TallyStockSummary, page, page_size)
+    items, total = tally_service.paginate(db, TallySyncPurchase, page, page_size)
     return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
 
 
@@ -388,7 +375,7 @@ def list_receivables(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[ReceivableOut]:
-    items, total = tally_service.paginate(db, TallyReceivable, page, page_size)
+    items, total = tally_service.paginate(db, TallySyncReceivable, page, page_size)
     return PaginatedResponse(items=items, **tally_service.page_meta(total, page, page_size))
 
 

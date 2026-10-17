@@ -219,21 +219,6 @@ class PurchaseOut(BaseModel):
     amount: Optional[float] = None
 
 
-class StockSummaryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    vno: Optional[str] = None
-    vdt: Optional[datetime] = None
-    stock_item: Optional[str] = None
-    packing: Optional[float] = None
-    particulars: Optional[str] = None
-    opening: Optional[float] = None
-    vtype: Optional[str] = None
-    outwards: Optional[float] = None
-    inwards: Optional[float] = None
-
-
 class ReceivableOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -398,7 +383,6 @@ class StockAnalysisSalesRowOut(BaseModel):
     last_30_days: StockAnalysisSalesMetricsOut
     avg_3_months: StockAnalysisSalesMetricsOut
     closing: StockAnalysisSalesMetricsOut
-    closing_4w_ma: StockAnalysisSalesMetricsOut
 
 
 class StockAnalysisSalesOut(BaseModel):
@@ -413,7 +397,6 @@ class StockAnalysisSalesOut(BaseModel):
     last_30_days_totals: StockAnalysisSalesMetricsOut
     avg_3_months_totals: StockAnalysisSalesMetricsOut
     closing_totals: StockAnalysisSalesMetricsOut
-    closing_4w_ma_totals: StockAnalysisSalesMetricsOut
 
 
 class OridWorkingsMetricOut(BaseModel):

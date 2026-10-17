@@ -14,15 +14,14 @@ from app.constants.orid_raw_yield import (
 )
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
 from app.models.party_collection_performance import PartyCollectionPerformance
+from app.models.post_dated_cheque import PostDatedChequeAllocation
 from app.models.tally import (
-    TallyAccountMaster,
-    TallyCostCentre,
-    TallyDaybook2,
-    TallyInventoryMaster,
-    TallyPurchase,
-    TallyReceivable,
-    TallySale,
-    TallyStockSummary,
+    TallySyncAccount,
+    TallySyncCostCentre,
+    TallySyncDaybook,
+    TallySyncInventory,
+    TallySyncPurchase,
+    TallySyncReceivable,
     TallySyncSale,
     TallySyncStockSummary,
 )
@@ -107,20 +106,20 @@ def page_meta(total: int, page: int, page_size: int) -> dict:
 
 def dashboard_stats(db: Session) -> DashboardStats:
     return DashboardStats(
-        accounts=db.query(TallyAccountMaster).count(),
-        inventory_items=db.query(TallyInventoryMaster).count(),
-        sales_rows=db.query(TallySale).count(),
-        purchase_rows=db.query(TallyPurchase).count(),
-        receivables=db.query(TallyReceivable).count(),
-        stock_movements=db.query(TallyStockSummary).count(),
+        accounts=db.query(TallySyncAccount).count(),
+        inventory_items=db.query(TallySyncInventory).count(),
+        sales_rows=db.query(TallySyncSale).count(),
+        purchase_rows=db.query(TallySyncPurchase).count(),
+        receivables=db.query(TallySyncReceivable).count(),
+        stock_movements=db.query(TallySyncStockSummary).count(),
     )
 
 
 def daybook_availability(db: Session) -> DaybookAvailabilityOut:
-    """Min/max VDT from daybook2 — synced Tally data window."""
+    """Min/max voucher_date from tallysync_daybook — synced Tally data window."""
     row = db.query(
-        func.min(TallyDaybook2.vdt).label("date_from"),
-        func.max(TallyDaybook2.vdt).label("date_to"),
+        func.min(TallySyncDaybook.vdt).label("date_from"),
+        func.max(TallySyncDaybook.vdt).label("date_to"),
     ).one()
 
     def to_date(value: Any) -> Optional[date]:
@@ -141,13 +140,13 @@ def daybook_availability(db: Session) -> DaybookAvailabilityOut:
 def list_sale_invoices(db: Session) -> List[SaleInvoiceOptionOut]:
     rows = (
         db.query(
-            TallySale.voucher_no,
-            func.min(TallySale.voucher_date).label("voucher_date"),
-            func.min(TallySale.ledger_name).label("ledger_name"),
+            TallySyncSale.voucher_no,
+            func.min(TallySyncSale.voucher_date).label("voucher_date"),
+            func.min(TallySyncSale.ledger_name).label("ledger_name"),
         )
-        .filter(TallySale.voucher_no.isnot(None), TallySale.voucher_no != "")
-        .group_by(TallySale.voucher_no)
-        .order_by(func.min(TallySale.voucher_date).desc(), TallySale.voucher_no.desc())
+        .filter(TallySyncSale.voucher_no.isnot(None), TallySyncSale.voucher_no != "")
+        .group_by(TallySyncSale.voucher_no)
+        .order_by(func.min(TallySyncSale.voucher_date).desc(), TallySyncSale.voucher_no.desc())
         .all()
     )
     return [
@@ -161,38 +160,38 @@ def list_sale_invoices(db: Session) -> List[SaleInvoiceOptionOut]:
     ]
 
 
-def list_sale_invoice_lines(db: Session, voucher_no: str) -> Sequence[TallySale]:
+def list_sale_invoice_lines(db: Session, voucher_no: str) -> Sequence[TallySyncSale]:
     return (
-        db.query(TallySale)
-        .filter(TallySale.voucher_no == voucher_no)
-        .order_by(TallySale.item_no.asc(), TallySale.id.asc())
+        db.query(TallySyncSale)
+        .filter(TallySyncSale.voucher_no == voucher_no)
+        .order_by(TallySyncSale.item_no.asc(), TallySyncSale.id.asc())
         .all()
     )
 
 
-def list_locations(db: Session, parent: str = "Locations") -> Sequence[TallyCostCentre]:
+def list_locations(db: Session, parent: str = "Locations") -> Sequence[TallySyncCostCentre]:
     return (
-        db.query(TallyCostCentre)
+        db.query(TallySyncCostCentre)
         .filter(
-            TallyCostCentre.parent == parent,
-            TallyCostCentre.name.isnot(None),
-            TallyCostCentre.name != "",
+            TallySyncCostCentre.parent == parent,
+            TallySyncCostCentre.name.isnot(None),
+            TallySyncCostCentre.name != "",
         )
-        .order_by(TallyCostCentre.name.asc())
+        .order_by(TallySyncCostCentre.name.asc())
         .all()
     )
 
 
 def list_receivable_parties(db: Session) -> List[VendorOptionOut]:
-    """Distinct party ledger names from tallydata_receivables."""
+    """Distinct party ledger names from tallysync_receivables."""
     rows = (
-        db.query(TallyReceivable.ledger_name)
+        db.query(TallySyncReceivable.ledger_name)
         .filter(
-            TallyReceivable.ledger_name.isnot(None),
-            TallyReceivable.ledger_name != "",
+            TallySyncReceivable.ledger_name.isnot(None),
+            TallySyncReceivable.ledger_name != "",
         )
         .distinct()
-        .order_by(TallyReceivable.ledger_name.asc())
+        .order_by(TallySyncReceivable.ledger_name.asc())
         .all()
     )
     return [
@@ -213,16 +212,16 @@ def list_party_pending_bills(
     if not name:
         return []
     rows = (
-        db.query(TallyReceivable)
+        db.query(TallySyncReceivable)
         .filter(
-            TallyReceivable.ledger_name.isnot(None),
-            TallyReceivable.ledger_name != "",
-            func.lower(TallyReceivable.ledger_name) == name.lower(),
+            TallySyncReceivable.ledger_name.isnot(None),
+            TallySyncReceivable.ledger_name != "",
+            func.lower(TallySyncReceivable.ledger_name) == name.lower(),
         )
         .order_by(
-            TallyReceivable.invoice_date.asc(),
-            TallyReceivable.invoice_no.asc(),
-            TallyReceivable.id.asc(),
+            TallySyncReceivable.invoice_date.asc(),
+            TallySyncReceivable.invoice_no.asc(),
+            TallySyncReceivable.id.asc(),
         )
         .all()
     )
@@ -264,13 +263,13 @@ def list_party_pending_bills(
 def list_vendors(db: Session) -> List[VendorOptionOut]:
     """Party ledgers under Sundry Creditors / Sundry Debtors."""
     rows = (
-        db.query(TallyAccountMaster.ledger_name, TallyAccountMaster.primary_group)
+        db.query(TallySyncAccount.ledger_name, TallySyncAccount.primary_group)
         .filter(
-            TallyAccountMaster.primary_group.in_(VENDOR_PRIMARY_GROUPS),
-            TallyAccountMaster.ledger_name.isnot(None),
-            TallyAccountMaster.ledger_name != "",
+            TallySyncAccount.primary_group.in_(VENDOR_PRIMARY_GROUPS),
+            TallySyncAccount.ledger_name.isnot(None),
+            TallySyncAccount.ledger_name != "",
         )
-        .order_by(TallyAccountMaster.ledger_name.asc())
+        .order_by(TallySyncAccount.ledger_name.asc())
         .all()
     )
     return [
@@ -283,15 +282,15 @@ def list_vendors(db: Session) -> List[VendorOptionOut]:
 def list_inventory_items(db: Session) -> List[InventoryItemOptionOut]:
     rows = (
         db.query(
-            TallyInventoryMaster.stock_item,
-            TallyInventoryMaster.stock_group,
-            TallyInventoryMaster.packing,
+            TallySyncInventory.stock_item,
+            TallySyncInventory.stock_group,
+            TallySyncInventory.packing,
         )
         .filter(
-            TallyInventoryMaster.stock_item.isnot(None),
-            TallyInventoryMaster.stock_item != "",
+            TallySyncInventory.stock_item.isnot(None),
+            TallySyncInventory.stock_item != "",
         )
-        .order_by(TallyInventoryMaster.stock_item.asc())
+        .order_by(TallySyncInventory.stock_item.asc())
         .all()
     )
     return [
@@ -330,14 +329,14 @@ def sum_vendor_purchases(
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
     total = (
-        db.query(func.coalesce(func.sum(TallyDaybook2.ledger_amount), 0.0))
+        db.query(func.coalesce(func.sum(TallySyncDaybook.ledger_amount), 0.0))
         .filter(
-            TallyDaybook2.vtype == PURCHASE_VTYPE,
-            TallyDaybook2.bill_type == PARTY_BILL_TYPE_NEW,
-            TallyDaybook2.ledger_name == name,
-            TallyDaybook2.vdt.isnot(None),
-            TallyDaybook2.vdt >= start_dt,
-            TallyDaybook2.vdt <= end_dt,
+            TallySyncDaybook.vtype == PURCHASE_VTYPE,
+            TallySyncDaybook.bill_type == PARTY_BILL_TYPE_NEW,
+            TallySyncDaybook.ledger_name == name,
+            TallySyncDaybook.vdt.isnot(None),
+            TallySyncDaybook.vdt >= start_dt,
+            TallySyncDaybook.vdt <= end_dt,
         )
         .scalar()
     )
@@ -422,7 +421,7 @@ def _voucher_key(vno: Optional[str], vdt: Any) -> Optional[Tuple[str, str]]:
 
 
 def _resolve_tds_party(
-    siblings: Sequence[TallyDaybook2],
+    siblings: Sequence[TallySyncDaybook],
     party_groups: Dict[str, str],
 ) -> Optional[str]:
     """Pick party ledger from Journal sibling lines (exclude TDS Payable)."""
@@ -445,8 +444,8 @@ def _resolve_tds_party(
 
 
 def _resolve_tds_bill(
-    line: TallyDaybook2,
-    siblings: Sequence[TallyDaybook2],
+    line: TallySyncDaybook,
+    siblings: Sequence[TallySyncDaybook],
     party: Optional[str],
 ) -> Tuple[Optional[str], Optional[str]]:
     """Bill ref from the TDS line, else the party sibling, else any sibling with a bill."""
@@ -455,7 +454,7 @@ def _resolve_tds_bill(
     if bill_no:
         return bill_no, bill_type
 
-    ordered: List[TallyDaybook2] = []
+    ordered: List[TallySyncDaybook] = []
     if party:
         party_cf = party.casefold()
         ordered.extend(
@@ -514,14 +513,14 @@ def _load_expense_refs(
     wanted = {_expense_lookup_key(party, bill) for party, bill in pairs}
 
     expense_rows = (
-        db.query(TallyDaybook2)
+        db.query(TallySyncDaybook)
         .filter(
-            TallyDaybook2.bill_type == PARTY_BILL_TYPE_NEW,
-            TallyDaybook2.ledger_name.in_(parties),
-            TallyDaybook2.bill_no.in_(bill_nos),
-            TallyDaybook2.vdt.isnot(None),
+            TallySyncDaybook.bill_type == PARTY_BILL_TYPE_NEW,
+            TallySyncDaybook.ledger_name.in_(parties),
+            TallySyncDaybook.bill_no.in_(bill_nos),
+            TallySyncDaybook.vdt.isnot(None),
         )
-        .order_by(TallyDaybook2.vdt.asc(), TallyDaybook2.id.asc())
+        .order_by(TallySyncDaybook.vdt.asc(), TallySyncDaybook.id.asc())
         .all()
     )
 
@@ -778,15 +777,15 @@ def _infer_expense_source_id(
         return None
     start_dt = datetime.combine(expenses_date, datetime.min.time())
     end_dt = datetime.combine(expenses_date, datetime.max.time())
-    query = db.query(TallyDaybook2.id).filter(
-        TallyDaybook2.ledger_name == name,
-        TallyDaybook2.vdt.isnot(None),
-        TallyDaybook2.vdt >= start_dt,
-        TallyDaybook2.vdt <= end_dt,
-        func.lower(TallyDaybook2.debit_credit) == "cr",
+    query = db.query(TallySyncDaybook.id).filter(
+        TallySyncDaybook.ledger_name == name,
+        TallySyncDaybook.vdt.isnot(None),
+        TallySyncDaybook.vdt >= start_dt,
+        TallySyncDaybook.vdt <= end_dt,
+        func.lower(TallySyncDaybook.debit_credit) == "cr",
     )
     if expenses_amount is not None:
-        query = query.filter(TallyDaybook2.ledger_amount == float(expenses_amount))
+        query = query.filter(TallySyncDaybook.ledger_amount == float(expenses_amount))
     ids = [int(row[0]) for row in query.all()]
     if len(ids) != 1:
         return None
@@ -803,8 +802,8 @@ def _refresh_expense_source_id(
 ) -> Optional[int]:
     if expense_source_id is not None:
         exists = (
-            db.query(TallyDaybook2.id)
-            .filter(TallyDaybook2.id == int(expense_source_id))
+            db.query(TallySyncDaybook.id)
+            .filter(TallySyncDaybook.id == int(expense_source_id))
             .first()
         )
         if exists is not None:
@@ -896,7 +895,7 @@ def _assert_expense_source_available(
 
 
 def _score_cr_expense_row(
-    row: TallyDaybook2,
+    row: TallySyncDaybook,
     *,
     tds_date: date,
     journal_bill_no: Optional[str],
@@ -927,23 +926,23 @@ def _score_cr_expense_row(
 
 def _load_journal_siblings_for_line(
     db: Session,
-    line: TallyDaybook2,
+    line: TallySyncDaybook,
     *,
     tds_date: date,
-) -> List[TallyDaybook2]:
+) -> List[TallySyncDaybook]:
     vno = (line.vno or "").strip()
     if not vno:
         return []
     start_dt = datetime.combine(tds_date, datetime.min.time())
     end_dt = datetime.combine(tds_date, datetime.max.time())
     return (
-        db.query(TallyDaybook2)
+        db.query(TallySyncDaybook)
         .filter(
-            TallyDaybook2.vtype == JOURNAL_VTYPE,
-            TallyDaybook2.vno == vno,
-            TallyDaybook2.vdt.isnot(None),
-            TallyDaybook2.vdt >= start_dt,
-            TallyDaybook2.vdt <= end_dt,
+            TallySyncDaybook.vtype == JOURNAL_VTYPE,
+            TallySyncDaybook.vno == vno,
+            TallySyncDaybook.vdt.isnot(None),
+            TallySyncDaybook.vdt >= start_dt,
+            TallySyncDaybook.vdt <= end_dt,
         )
         .all()
     )
@@ -958,8 +957,8 @@ def _party_groups_for_names(
         return {}
     party_groups: Dict[str, str] = {}
     for ledger_name, primary_group in (
-        db.query(TallyAccountMaster.ledger_name, TallyAccountMaster.primary_group)
-        .filter(TallyAccountMaster.ledger_name.in_(names))
+        db.query(TallySyncAccount.ledger_name, TallySyncAccount.primary_group)
+        .filter(TallySyncAccount.ledger_name.in_(names))
         .all()
     ):
         name = (ledger_name or "").strip()
@@ -970,7 +969,7 @@ def _party_groups_for_names(
 
 def match_tds_expense(db: Session, *, source_id: int) -> TdsExpenseMatchOut:
     """Find Cr party ledger lines from FY start through TDS date for manual expense match."""
-    line = db.query(TallyDaybook2).filter(TallyDaybook2.id == source_id).first()
+    line = db.query(TallySyncDaybook).filter(TallySyncDaybook.id == source_id).first()
     if line is None:
         raise ValueError("TDS journal line not found")
     if (line.ledger_name or "").strip() != TDS_PAYABLE_LEDGER:
@@ -1004,19 +1003,19 @@ def match_tds_expense(db: Session, *, source_id: int) -> TdsExpenseMatchOut:
     )
 
     cr_rows = (
-        db.query(TallyDaybook2)
+        db.query(TallySyncDaybook)
         .filter(
-            TallyDaybook2.ledger_name == party,
-            TallyDaybook2.vdt.isnot(None),
-            TallyDaybook2.vdt >= start_dt,
-            TallyDaybook2.vdt <= end_dt,
-            func.lower(TallyDaybook2.debit_credit) == "cr",
+            TallySyncDaybook.ledger_name == party,
+            TallySyncDaybook.vdt.isnot(None),
+            TallySyncDaybook.vdt >= start_dt,
+            TallySyncDaybook.vdt <= end_dt,
+            func.lower(TallySyncDaybook.debit_credit) == "cr",
         )
-        .order_by(TallyDaybook2.vdt.desc(), TallyDaybook2.id.desc())
+        .order_by(TallySyncDaybook.vdt.desc(), TallySyncDaybook.id.desc())
         .all()
     )
 
-    scored: List[Tuple[int, TallyDaybook2]] = []
+    scored: List[Tuple[int, TallySyncDaybook]] = []
     for row in cr_rows:
         if int(row.id) in claimed_expense_ids:
             continue
@@ -1159,15 +1158,15 @@ def _build_live_tds_workings(
     end_dt = datetime.combine(end, datetime.max.time())
 
     tds_lines = (
-        db.query(TallyDaybook2)
+        db.query(TallySyncDaybook)
         .filter(
-            TallyDaybook2.vtype == JOURNAL_VTYPE,
-            TallyDaybook2.ledger_name == TDS_PAYABLE_LEDGER,
-            TallyDaybook2.vdt.isnot(None),
-            TallyDaybook2.vdt >= start_dt,
-            TallyDaybook2.vdt <= end_dt,
+            TallySyncDaybook.vtype == JOURNAL_VTYPE,
+            TallySyncDaybook.ledger_name == TDS_PAYABLE_LEDGER,
+            TallySyncDaybook.vdt.isnot(None),
+            TallySyncDaybook.vdt >= start_dt,
+            TallySyncDaybook.vdt <= end_dt,
         )
-        .order_by(TallyDaybook2.vdt.asc(), TallyDaybook2.vno.asc(), TallyDaybook2.id.asc())
+        .order_by(TallySyncDaybook.vdt.asc(), TallySyncDaybook.vno.asc(), TallySyncDaybook.id.asc())
         .all()
     )
 
@@ -1179,16 +1178,16 @@ def _build_live_tds_workings(
         }
     )
 
-    siblings_by_key: Dict[Tuple[str, str], List[TallyDaybook2]] = defaultdict(list)
+    siblings_by_key: Dict[Tuple[str, str], List[TallySyncDaybook]] = defaultdict(list)
     if vnos:
         sibling_rows = (
-            db.query(TallyDaybook2)
+            db.query(TallySyncDaybook)
             .filter(
-                TallyDaybook2.vtype == JOURNAL_VTYPE,
-                TallyDaybook2.vno.in_(vnos),
-                TallyDaybook2.vdt.isnot(None),
-                TallyDaybook2.vdt >= start_dt,
-                TallyDaybook2.vdt <= end_dt,
+                TallySyncDaybook.vtype == JOURNAL_VTYPE,
+                TallySyncDaybook.vno.in_(vnos),
+                TallySyncDaybook.vdt.isnot(None),
+                TallySyncDaybook.vdt >= start_dt,
+                TallySyncDaybook.vdt <= end_dt,
             )
             .all()
         )
@@ -1209,12 +1208,12 @@ def _build_live_tds_workings(
     if sibling_names:
         for ledger_name, primary_group, pan, party_gstin in (
             db.query(
-                TallyAccountMaster.ledger_name,
-                TallyAccountMaster.primary_group,
-                TallyAccountMaster.pan,
-                TallyAccountMaster.party_gstin,
+                TallySyncAccount.ledger_name,
+                TallySyncAccount.primary_group,
+                TallySyncAccount.pan,
+                TallySyncAccount.party_gstin,
             )
-            .filter(TallyAccountMaster.ledger_name.in_(sibling_names))
+            .filter(TallySyncAccount.ledger_name.in_(sibling_names))
             .all()
         ):
             name = (ledger_name or "").strip()
@@ -1617,7 +1616,7 @@ def list_purchase_lines(
     *,
     stock_item: Optional[str] = None,
     stock_group: Optional[str] = None,
-) -> Sequence[TallyPurchase]:
+) -> Sequence[TallySyncPurchase]:
     """Purchase lines by stock_item name, or by inventorymaster stock_group."""
     item = (stock_item or "").strip()
     group = (stock_group or "").strip()
@@ -1628,11 +1627,11 @@ def list_purchase_lines(
         stock_items = [
             row[0]
             for row in (
-                db.query(TallyInventoryMaster.stock_item)
+                db.query(TallySyncInventory.stock_item)
                 .filter(
-                    func.lower(TallyInventoryMaster.stock_group) == group.lower(),
-                    TallyInventoryMaster.stock_item.isnot(None),
-                    TallyInventoryMaster.stock_item != "",
+                    func.lower(TallySyncInventory.stock_group) == group.lower(),
+                    TallySyncInventory.stock_item.isnot(None),
+                    TallySyncInventory.stock_item != "",
                 )
                 .distinct()
                 .all()
@@ -1641,19 +1640,19 @@ def list_purchase_lines(
         if not stock_items:
             return []
         return (
-            db.query(TallyPurchase)
-            .filter(TallyPurchase.stock_item.in_(stock_items))
-            .order_by(TallyPurchase.voucher_date.desc(), TallyPurchase.id.desc())
+            db.query(TallySyncPurchase)
+            .filter(TallySyncPurchase.stock_item.in_(stock_items))
+            .order_by(TallySyncPurchase.voucher_date.desc(), TallySyncPurchase.id.desc())
             .all()
         )
 
     return (
-        db.query(TallyPurchase)
+        db.query(TallySyncPurchase)
         .filter(
-            TallyPurchase.stock_item.isnot(None),
-            func.lower(TallyPurchase.stock_item) == item.lower(),
+            TallySyncPurchase.stock_item.isnot(None),
+            func.lower(TallySyncPurchase.stock_item) == item.lower(),
         )
-        .order_by(TallyPurchase.voucher_date.desc(), TallyPurchase.id.desc())
+        .order_by(TallySyncPurchase.voucher_date.desc(), TallySyncPurchase.id.desc())
         .all()
     )
 
@@ -1662,12 +1661,12 @@ def list_sale_representatives(db: Session) -> List[ReceivableRepresentativeOut]:
     """Distinct sales brokers (used as representatives for collections)."""
     rows = (
         db.query(
-            TallySale.broker,
-            func.count(func.distinct(TallySale.voucher_no)).label("invoice_count"),
-            func.coalesce(func.sum(TallySale.amount), 0.0).label("total_amount"),
+            TallySyncSale.broker,
+            func.count(func.distinct(TallySyncSale.voucher_no)).label("invoice_count"),
+            func.coalesce(func.sum(TallySyncSale.amount), 0.0).label("total_amount"),
         )
-        .group_by(TallySale.broker)
-        .order_by(func.count(func.distinct(TallySale.voucher_no)).desc())
+        .group_by(TallySyncSale.broker)
+        .order_by(func.count(func.distinct(TallySyncSale.voucher_no)).desc())
         .all()
     )
     items: List[ReceivableRepresentativeOut] = []
@@ -1688,12 +1687,12 @@ def list_sale_representatives(db: Session) -> List[ReceivableRepresentativeOut]:
 def list_receivable_representatives(db: Session) -> List[ReceivableRepresentativeOut]:
     rows = (
         db.query(
-            TallyReceivable.representative,
-            func.count(TallyReceivable.id).label("invoice_count"),
-            func.coalesce(func.sum(TallyReceivable.amount), 0.0).label("total_amount"),
+            TallySyncReceivable.representative,
+            func.count(TallySyncReceivable.id).label("invoice_count"),
+            func.coalesce(func.sum(TallySyncReceivable.amount), 0.0).label("total_amount"),
         )
-        .group_by(TallyReceivable.representative)
-        .order_by(func.coalesce(func.sum(TallyReceivable.amount), 0.0).desc())
+        .group_by(TallySyncReceivable.representative)
+        .order_by(func.coalesce(func.sum(TallySyncReceivable.amount), 0.0).desc())
         .all()
     )
     items: List[ReceivableRepresentativeOut] = []
@@ -1751,17 +1750,17 @@ def _add_amount(buckets: Dict[str, Any], bucket: str, amount: float) -> None:
 
 
 def _receivable_query(db: Session, representative: Optional[str] = None):
-    query = db.query(TallyReceivable)
+    query = db.query(TallySyncReceivable)
     if representative is None:
         return query
     if representative == RECEIVABLE_REP_BLANK:
         return query.filter(
             or_(
-                TallyReceivable.representative.is_(None),
-                TallyReceivable.representative == "",
+                TallySyncReceivable.representative.is_(None),
+                TallySyncReceivable.representative == "",
             )
         )
-    return query.filter(TallyReceivable.representative == representative)
+    return query.filter(TallySyncReceivable.representative == representative)
 
 
 def receivables_analysis(
@@ -1774,9 +1773,9 @@ def receivables_analysis(
     rows = (
         _receivable_query(db, representative)
         .order_by(
-            TallyReceivable.ledger_name.asc(),
-            TallyReceivable.invoice_date.asc(),
-            TallyReceivable.id.asc(),
+            TallySyncReceivable.ledger_name.asc(),
+            TallySyncReceivable.invoice_date.asc(),
+            TallySyncReceivable.id.asc(),
         )
         .all()
     )
@@ -1875,21 +1874,21 @@ def _daybook_series_by_month(
     date_to: date,
 ) -> Dict[date, Tuple[float, int]]:
     """Party bill-line totals by calendar month for a voucher type."""
-    month_col = func.date_format(TallyDaybook2.vdt, "%Y-%m-01")
+    month_col = func.date_format(TallySyncDaybook.vdt, "%Y-%m-01")
     start = datetime.combine(date_from, datetime.min.time())
     end = datetime.combine(date_to, datetime.max.time())
     rows = (
         db.query(
             month_col.label("month_start"),
-            func.coalesce(func.sum(TallyDaybook2.ledger_amount), 0.0),
-            func.count(func.distinct(TallyDaybook2.vno)),
+            func.coalesce(func.sum(TallySyncDaybook.ledger_amount), 0.0),
+            func.count(func.distinct(TallySyncDaybook.vno)),
         )
         .filter(
-            TallyDaybook2.vtype == vtype,
-            TallyDaybook2.bill_type == bill_type,
-            TallyDaybook2.vdt.isnot(None),
-            TallyDaybook2.vdt >= start,
-            TallyDaybook2.vdt <= end,
+            TallySyncDaybook.vtype == vtype,
+            TallySyncDaybook.bill_type == bill_type,
+            TallySyncDaybook.vdt.isnot(None),
+            TallySyncDaybook.vdt >= start,
+            TallySyncDaybook.vdt <= end,
         )
         .group_by(month_col)
         .all()
@@ -2047,7 +2046,7 @@ def collection_performance(
 ) -> CollectionPerformanceOut:
     """Age Receipt Agst Ref collections by linked sales invoice date.
 
-    Days = receipt date − invoice date (from tallydata_sales via BILL_NO).
+    Days = receipt date − invoice date (from tallysync_sales via BILL_NO).
     Representative filter uses sales.broker on the linked invoice.
     """
     end = date_to or date.today()
@@ -2060,36 +2059,36 @@ def collection_performance(
 
     invoice_meta = (
         db.query(
-            TallySale.voucher_no.label("voucher_no"),
-            func.min(TallySale.voucher_date).label("invoice_date"),
-            func.min(TallySale.broker).label("broker"),
+            TallySyncSale.voucher_no.label("voucher_no"),
+            func.min(TallySyncSale.voucher_date).label("invoice_date"),
+            func.min(TallySyncSale.broker).label("broker"),
         )
         .filter(
-            TallySale.voucher_no.isnot(None),
-            TallySale.voucher_no != "",
-            TallySale.voucher_date.isnot(None),
+            TallySyncSale.voucher_no.isnot(None),
+            TallySyncSale.voucher_no != "",
+            TallySyncSale.voucher_date.isnot(None),
         )
-        .group_by(TallySale.voucher_no)
+        .group_by(TallySyncSale.voucher_no)
         .subquery()
     )
 
     query = (
         db.query(
-            TallyDaybook2.ledger_amount,
-            TallyDaybook2.vdt,
+            TallySyncDaybook.ledger_amount,
+            TallySyncDaybook.vdt,
             invoice_meta.c.invoice_date,
             invoice_meta.c.broker,
         )
         .outerjoin(
             invoice_meta,
-            invoice_meta.c.voucher_no == TallyDaybook2.bill_no,
+            invoice_meta.c.voucher_no == TallySyncDaybook.bill_no,
         )
         .filter(
-            TallyDaybook2.vtype == RECEIPT_VTYPE,
-            TallyDaybook2.bill_type == PARTY_BILL_TYPE_AGST,
-            TallyDaybook2.vdt.isnot(None),
-            TallyDaybook2.vdt >= start_dt,
-            TallyDaybook2.vdt <= end_dt,
+            TallySyncDaybook.vtype == RECEIPT_VTYPE,
+            TallySyncDaybook.bill_type == PARTY_BILL_TYPE_AGST,
+            TallySyncDaybook.vdt.isnot(None),
+            TallySyncDaybook.vdt >= start_dt,
+            TallySyncDaybook.vdt <= end_dt,
         )
     )
 
@@ -2178,14 +2177,14 @@ def _load_sales_invoice_dates(
 
     rows = (
         db.query(
-            TallySale.voucher_no,
-            func.min(TallySale.voucher_date).label("invoice_date"),
+            TallySyncSale.voucher_no,
+            func.min(TallySyncSale.voucher_date).label("invoice_date"),
         )
         .filter(
-            TallySale.voucher_no.in_(bills),
-            TallySale.voucher_date.isnot(None),
+            TallySyncSale.voucher_no.in_(bills),
+            TallySyncSale.voucher_date.isnot(None),
         )
-        .group_by(TallySale.voucher_no)
+        .group_by(TallySyncSale.voucher_no)
         .all()
     )
     result: Dict[str, date] = {}
@@ -2206,7 +2205,7 @@ def collection_analysis(
     """Avg payment days per party: Receipt Agst Ref VDT − invoice date.
 
     Invoice date prefers daybook New Ref (same ledger_name + bill_no); falls back
-    to tallydata_sales.voucher_date when New Ref is missing (older invoices).
+    to tallysync_sales.voucher_date when New Ref is missing (older invoices).
     Average is amount-weighted. Unmatched receipts are excluded from the average.
     Default window is current FY start (1 Apr) through today.
     """
@@ -2220,21 +2219,21 @@ def collection_analysis(
 
     receipt_rows = (
         db.query(
-            TallyDaybook2.ledger_name,
-            TallyDaybook2.bill_no,
-            TallyDaybook2.ledger_amount,
-            TallyDaybook2.vdt,
+            TallySyncDaybook.ledger_name,
+            TallySyncDaybook.bill_no,
+            TallySyncDaybook.ledger_amount,
+            TallySyncDaybook.vdt,
         )
         .filter(
-            TallyDaybook2.vtype == RECEIPT_VTYPE,
-            TallyDaybook2.bill_type == PARTY_BILL_TYPE_AGST,
-            TallyDaybook2.vdt.isnot(None),
-            TallyDaybook2.vdt >= start_dt,
-            TallyDaybook2.vdt <= end_dt,
-            TallyDaybook2.bill_no.isnot(None),
-            TallyDaybook2.bill_no != "",
-            TallyDaybook2.ledger_name.isnot(None),
-            TallyDaybook2.ledger_name != "",
+            TallySyncDaybook.vtype == RECEIPT_VTYPE,
+            TallySyncDaybook.bill_type == PARTY_BILL_TYPE_AGST,
+            TallySyncDaybook.vdt.isnot(None),
+            TallySyncDaybook.vdt >= start_dt,
+            TallySyncDaybook.vdt <= end_dt,
+            TallySyncDaybook.bill_no.isnot(None),
+            TallySyncDaybook.bill_no != "",
+            TallySyncDaybook.ledger_name.isnot(None),
+            TallySyncDaybook.ledger_name != "",
         )
         .all()
     )
@@ -2476,14 +2475,14 @@ def expected_collections(
     receivables = (
         _receivable_query(db, representative)
         .filter(
-            TallyReceivable.invoice_date.isnot(None),
-            TallyReceivable.ledger_name.isnot(None),
-            TallyReceivable.ledger_name != "",
+            TallySyncReceivable.invoice_date.isnot(None),
+            TallySyncReceivable.ledger_name.isnot(None),
+            TallySyncReceivable.ledger_name != "",
         )
         .order_by(
-            TallyReceivable.ledger_name.asc(),
-            TallyReceivable.invoice_date.asc(),
-            TallyReceivable.id.asc(),
+            TallySyncReceivable.ledger_name.asc(),
+            TallySyncReceivable.invoice_date.asc(),
+            TallySyncReceivable.id.asc(),
         )
         .all()
     )
@@ -2562,7 +2561,6 @@ def expected_collections(
 STOCK_ANALYSIS_DEFAULT_PACKING_KG = 50.0
 STOCK_ANALYSIS_UNMAPPED_GROUP = "Unmapped"
 STOCK_ANALYSIS_AVG_MONTHS = 3
-STOCK_ANALYSIS_CLOSING_MA_WEEKS = 4
 PURCHASE_PRODUCTION_STATUS_GROUPS = frozenset({"Orid Raw"})
 
 
@@ -2572,16 +2570,17 @@ def _aggregate_sales_by_stock_group(
     date_from: date,
     date_to: date,
 ) -> Dict[str, float]:
-    """Map stock_group -> quintals from tallydata_sales joined to inventory master."""
+    """Map stock_group -> quintals from tallysync_sales (row group, else inventory)."""
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
-    packing_kg = func.coalesce(TallySale.packing, STOCK_ANALYSIS_DEFAULT_PACKING_KG)
-    qty_expr = func.coalesce(TallySale.qty, 0.0)
+    packing_kg = func.coalesce(TallySyncSale.packing, STOCK_ANALYSIS_DEFAULT_PACKING_KG)
+    qty_expr = func.coalesce(TallySyncSale.qty, 0.0)
     quintals_expr = qty_expr * packing_kg / 100.0
-    stock_item_key = func.lower(func.trim(TallySale.stock_item))
-    inventory_item_key = func.lower(func.trim(TallyInventoryMaster.stock_item))
+    stock_item_key = func.lower(func.trim(TallySyncSale.stock_item))
+    inventory_item_key = func.lower(func.trim(TallySyncInventory.stock_item))
     group_expr = func.coalesce(
-        func.nullif(func.trim(TallyInventoryMaster.stock_group), ""),
+        func.nullif(func.trim(TallySyncSale.stock_group), ""),
+        func.nullif(func.trim(TallySyncInventory.stock_group), ""),
         STOCK_ANALYSIS_UNMAPPED_GROUP,
     )
 
@@ -2590,13 +2589,13 @@ def _aggregate_sales_by_stock_group(
             group_expr.label("stock_group"),
             func.coalesce(func.sum(quintals_expr), 0.0).label("quintals"),
         )
-        .outerjoin(TallyInventoryMaster, stock_item_key == inventory_item_key)
+        .outerjoin(TallySyncInventory, stock_item_key == inventory_item_key)
         .filter(
-            TallySale.voucher_date.isnot(None),
-            TallySale.voucher_date >= start_dt,
-            TallySale.voucher_date <= end_dt,
-            TallySale.stock_item.isnot(None),
-            func.trim(TallySale.stock_item) != "",
+            TallySyncSale.voucher_date.isnot(None),
+            TallySyncSale.voucher_date >= start_dt,
+            TallySyncSale.voucher_date <= end_dt,
+            TallySyncSale.stock_item.isnot(None),
+            func.trim(TallySyncSale.stock_item) != "",
         )
         .group_by(group_expr)
         .all()
@@ -2611,12 +2610,12 @@ def _aggregate_sales_by_stock_group(
 def _stock_group_lookup(db: Session) -> Dict[str, str]:
     """Lowercased stock_item → stock_group from inventory master."""
     rows = (
-        db.query(TallyInventoryMaster.stock_item, TallyInventoryMaster.stock_group)
+        db.query(TallySyncInventory.stock_item, TallySyncInventory.stock_group)
         .filter(
-            TallyInventoryMaster.stock_item.isnot(None),
-            func.trim(TallyInventoryMaster.stock_item) != "",
-            TallyInventoryMaster.stock_group.isnot(None),
-            func.trim(TallyInventoryMaster.stock_group) != "",
+            TallySyncInventory.stock_item.isnot(None),
+            func.trim(TallySyncInventory.stock_item) != "",
+            TallySyncInventory.stock_group.isnot(None),
+            func.trim(TallySyncInventory.stock_group) != "",
         )
         .all()
     )
@@ -2629,86 +2628,23 @@ def _stock_group_lookup(db: Session) -> Dict[str, str]:
     return lookup
 
 
-def _rollup_item_quintals_to_stock_group(
-    item_quintals: Dict[str, float],
-    stock_group_lookup: Dict[str, str],
-) -> Dict[str, float]:
-    grouped: Dict[str, float] = defaultdict(float)
-    for stock_item, quintals in item_quintals.items():
-        group = stock_group_lookup.get(stock_item.casefold()) or STOCK_ANALYSIS_UNMAPPED_GROUP
-        grouped[group] += float(quintals or 0.0)
-    return dict(grouped)
-
-
-def _closing_quintals_by_stock_item(
-    db: Session,
-    *,
-    as_of: date,
-) -> Dict[str, float]:
-    """Map stock_item -> closing quintals from tallydata_stocksummary."""
-    end_dt = datetime.combine(as_of, datetime.max.time())
-    packing_kg = func.coalesce(TallyStockSummary.packing, STOCK_ANALYSIS_DEFAULT_PACKING_KG)
-    opening = func.coalesce(TallyStockSummary.opening, 0.0)
-    inwards = func.coalesce(TallyStockSummary.inwards, 0.0)
-    outwards = func.coalesce(TallyStockSummary.outwards, 0.0)
-    closing_qty = opening + func.sum(inwards) - func.sum(outwards)
-    closing_quintals = closing_qty * packing_kg / 100.0
-
-    rows = (
-        db.query(
-            TallyStockSummary.stock_item,
-            closing_quintals.label("quintals"),
-        )
-        .filter(
-            TallyStockSummary.vdt.isnot(None),
-            TallyStockSummary.vdt <= end_dt,
-            TallyStockSummary.stock_item.isnot(None),
-            func.trim(TallyStockSummary.stock_item) != "",
-        )
-        .group_by(
-            TallyStockSummary.stock_item,
-            TallyStockSummary.opening,
-            TallyStockSummary.packing,
-        )
-        .all()
-    )
-    result: Dict[str, float] = {}
-    for stock_item, quintal_sum in rows:
-        name = (stock_item or "").strip()
-        if name:
-            result[name] = result.get(name, 0.0) + float(quintal_sum or 0.0)
-    return result
-
-
 def _closing_quintals_by_stock_group(
     db: Session,
     *,
     as_of: date,
 ) -> Dict[str, float]:
-    item_quintals = _closing_quintals_by_stock_item(db, as_of=as_of)
-    return _rollup_item_quintals_to_stock_group(item_quintals, _stock_group_lookup(db))
+    """Map stock_group -> closing quintals from tallysync_stocksummary."""
+    candidates = db.query(TallySyncStockSummary).all()
+    covering = [row for row in candidates if _sync_period_covers(row, as_of)]
+    sync_rows = covering if covering else _latest_sync_rows_by_group(candidates)
 
-
-def _closing_quintals_4w_moving_avg_by_stock_group(
-    db: Session,
-    *,
-    as_of: date,
-    weeks: int = STOCK_ANALYSIS_CLOSING_MA_WEEKS,
-) -> Dict[str, float]:
-    """Average closing quintals at weekly snapshots ending on as_of."""
-    week_count = max(int(weeks), 1)
-    snapshots: List[Dict[str, float]] = []
-    all_groups: set[str] = set()
-    for week_offset in range(week_count):
-        snapshot_date = as_of - timedelta(days=7 * week_offset)
-        snapshot = _closing_quintals_by_stock_group(db, as_of=snapshot_date)
-        snapshots.append(snapshot)
-        all_groups.update(snapshot)
-
-    return {
-        group: sum(snapshot.get(group, 0.0) for snapshot in snapshots) / week_count
-        for group in all_groups
-    }
+    grouped: Dict[str, float] = defaultdict(float)
+    for row in sync_rows:
+        group = (row.stock_group or "").strip() or STOCK_ANALYSIS_UNMAPPED_GROUP
+        quintals = _closing_quintals_from_sync_row(row)
+        if quintals is not None:
+            grouped[group] += float(quintals)
+    return dict(grouped)
 
 
 def _stock_analysis_metrics(quintals: float) -> StockAnalysisSalesMetricsOut:
@@ -2737,15 +2673,9 @@ def _apply_orid_raw_yield_conversion(
         return rows
 
     raw_closing = _metric_quintals(raw_row.closing)
-    raw_closing_4w = _metric_quintals(raw_row.closing_4w_ma)
     raw_last_30 = _metric_quintals(raw_row.last_30_days)
     raw_avg_3 = _metric_quintals(raw_row.avg_3_months)
-    if (
-        raw_closing == 0.0
-        and raw_closing_4w == 0.0
-        and raw_last_30 == 0.0
-        and raw_avg_3 == 0.0
-    ):
+    if raw_closing == 0.0 and raw_last_30 == 0.0 and raw_avg_3 == 0.0:
         return [row for row in rows if row.stock_group != ORID_RAW_STOCK_GROUP]
 
     by_group: Dict[str, StockAnalysisSalesRowOut] = {
@@ -2756,7 +2686,6 @@ def _apply_orid_raw_yield_conversion(
 
     for group, pct in ORID_RAW_YIELD_BY_GROUP.items():
         add_closing = raw_closing * pct
-        add_closing_4w = raw_closing_4w * pct
         add_last_30 = raw_last_30 * pct
         add_avg_3 = raw_avg_3 * pct
         existing = by_group.get(group)
@@ -2765,9 +2694,6 @@ def _apply_orid_raw_yield_conversion(
                 stock_group=group,
                 closing=_stock_analysis_metrics(
                     _metric_quintals(existing.closing) + add_closing
-                ),
-                closing_4w_ma=_stock_analysis_metrics(
-                    _metric_quintals(existing.closing_4w_ma) + add_closing_4w
                 ),
                 last_30_days=_stock_analysis_metrics(
                     _metric_quintals(existing.last_30_days) + add_last_30
@@ -2780,7 +2706,6 @@ def _apply_orid_raw_yield_conversion(
             by_group[group] = StockAnalysisSalesRowOut(
                 stock_group=group,
                 closing=_stock_analysis_metrics(add_closing),
-                closing_4w_ma=_stock_analysis_metrics(add_closing_4w),
                 last_30_days=_stock_analysis_metrics(add_last_30),
                 avg_3_months=_stock_analysis_metrics(add_avg_3),
             )
@@ -2797,12 +2722,11 @@ def _apply_orid_raw_yield_conversion(
 
 def _stock_analysis_row_totals(
     rows: Sequence[StockAnalysisSalesRowOut],
-) -> Tuple[float, float, float, float]:
+) -> Tuple[float, float, float]:
     closing = sum(_metric_quintals(row.closing) for row in rows)
-    closing_4w = sum(_metric_quintals(row.closing_4w_ma) for row in rows)
     last_30 = sum(_metric_quintals(row.last_30_days) for row in rows)
     avg_3 = sum(_metric_quintals(row.avg_3_months) for row in rows)
-    return closing, closing_4w, last_30, avg_3
+    return closing, last_30, avg_3
 
 
 def stock_analysis_sales(
@@ -2823,16 +2747,14 @@ def stock_analysis_sales(
         db, date_from=avg_3_months_start, date_to=today
     )
     closing_map = _closing_quintals_by_stock_group(db, as_of=today)
-    closing_4w_map = _closing_quintals_4w_moving_avg_by_stock_group(db, as_of=today)
 
     last_30_totals = 0.0
     avg_3_months_totals_raw = 0.0
     closing_totals = 0.0
-    closing_4w_totals = 0.0
     rows: List[StockAnalysisSalesRowOut] = []
 
     for stock_group in sorted(
-        set(last_30_map) | set(avg_3_months_raw) | set(closing_map) | set(closing_4w_map),
+        set(last_30_map) | set(avg_3_months_raw) | set(closing_map),
         key=lambda name: (
             -closing_map.get(name, 0.0),
             -last_30_map.get(name, 0.0),
@@ -2842,24 +2764,21 @@ def stock_analysis_sales(
         last_30_quintals = last_30_map.get(stock_group, 0.0)
         avg_3_months_quintals = avg_3_months_raw.get(stock_group, 0.0)
         closing_quintals = closing_map.get(stock_group, 0.0)
-        closing_4w_quintals = closing_4w_map.get(stock_group, 0.0)
         rows.append(
             StockAnalysisSalesRowOut(
                 stock_group=stock_group,
                 last_30_days=_stock_analysis_metrics(last_30_quintals),
                 avg_3_months=_average_monthly_quintals(avg_3_months_quintals),
                 closing=_stock_analysis_metrics(closing_quintals),
-                closing_4w_ma=_stock_analysis_metrics(closing_4w_quintals),
             )
         )
         last_30_totals += last_30_quintals
         avg_3_months_totals_raw += avg_3_months_quintals
         closing_totals += closing_quintals
-        closing_4w_totals += closing_4w_quintals
 
     if convert_orid_raw:
         rows = _apply_orid_raw_yield_conversion(rows)
-        closing_totals, closing_4w_totals, last_30_totals, avg_3_months_totals_sum = (
+        closing_totals, last_30_totals, avg_3_months_totals_sum = (
             _stock_analysis_row_totals(rows)
         )
         avg_3_months_totals = _stock_analysis_metrics(avg_3_months_totals_sum)
@@ -2878,7 +2797,6 @@ def stock_analysis_sales(
         last_30_days_totals=_stock_analysis_metrics(last_30_totals),
         avg_3_months_totals=avg_3_months_totals,
         closing_totals=_stock_analysis_metrics(closing_totals),
-        closing_4w_ma_totals=_stock_analysis_metrics(closing_4w_totals),
     )
 
 
@@ -2966,19 +2884,19 @@ def _orid_dhall_sales_bags50(
 
     Prefer qty_alt (kg) / 50. When qty_alt is blank (common after sync), use
     qty × packing as kg. Resolve stock group from the sales row when present,
-    otherwise from tallydata_inventorymaster.
+    otherwise from tallysync_inventory.
     """
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
     stock_item_key = func.lower(func.trim(TallySyncSale.stock_item))
-    inventory_item_key = func.lower(func.trim(TallyInventoryMaster.stock_item))
+    inventory_item_key = func.lower(func.trim(TallySyncInventory.stock_item))
     group_expr = func.coalesce(
         func.nullif(func.trim(TallySyncSale.stock_group), ""),
-        func.nullif(func.trim(TallyInventoryMaster.stock_group), ""),
+        func.nullif(func.trim(TallySyncInventory.stock_group), ""),
     )
     packing_kg = func.coalesce(
         TallySyncSale.packing,
-        TallyInventoryMaster.packing,
+        TallySyncInventory.packing,
         STOCK_ANALYSIS_DEFAULT_PACKING_KG,
     )
     kg_expr = func.coalesce(
@@ -2987,7 +2905,7 @@ def _orid_dhall_sales_bags50(
     )
     total_kg = (
         db.query(func.coalesce(func.sum(kg_expr), 0.0))
-        .outerjoin(TallyInventoryMaster, stock_item_key == inventory_item_key)
+        .outerjoin(TallySyncInventory, stock_item_key == inventory_item_key)
         .filter(
             group_expr == ORID_WORKINGS_DHALL_GROUP,
             TallySyncSale.voucher_date.isnot(None),
@@ -3113,7 +3031,7 @@ def _orid_production_link_maps(
     Dict[int, Tuple[str, Optional[PurchaseProductionYieldOut]]],
     Dict[str, Tuple[str, Optional[PurchaseProductionYieldOut]]],
 ]:
-    """Map TallyPurchase.id / voucher_no → (status, yield breakdown)."""
+    """Map TallySyncPurchase.id / voucher_no → (status, yield breakdown)."""
     from app.services.orid_dhall_production_service import _list_summary, _parse_qty
 
     link_rows = (
@@ -3247,20 +3165,20 @@ def purchase_report(
     party_key = (party or "").strip()
     item_key = (stock_item or "").strip()
 
-    base_query = db.query(TallyPurchase).filter(
-        TallyPurchase.voucher_date.isnot(None),
-        TallyPurchase.voucher_date >= start_dt,
-        TallyPurchase.voucher_date <= end_dt,
-        TallyPurchase.stock_item.isnot(None),
-        func.trim(TallyPurchase.stock_item) != "",
+    base_query = db.query(TallySyncPurchase).filter(
+        TallySyncPurchase.voucher_date.isnot(None),
+        TallySyncPurchase.voucher_date >= start_dt,
+        TallySyncPurchase.voucher_date <= end_dt,
+        TallySyncPurchase.stock_item.isnot(None),
+        func.trim(TallySyncPurchase.stock_item) != "",
     )
     if party_key:
-        base_query = base_query.filter(TallyPurchase.ledger_name.ilike(f"%{party_key}%"))
+        base_query = base_query.filter(TallySyncPurchase.ledger_name.ilike(f"%{party_key}%"))
 
     stock_item_rows = (
-        base_query.with_entities(TallyPurchase.stock_item)
+        base_query.with_entities(TallySyncPurchase.stock_item)
         .distinct()
-        .order_by(TallyPurchase.stock_item.asc())
+        .order_by(TallySyncPurchase.stock_item.asc())
         .all()
     )
     stock_items = sorted(
@@ -3275,12 +3193,12 @@ def purchase_report(
     query = base_query
     if item_key:
         query = query.filter(
-            func.lower(func.trim(TallyPurchase.stock_item)) == item_key.casefold()
+            func.lower(func.trim(TallySyncPurchase.stock_item)) == item_key.casefold()
         )
 
     lines = query.order_by(
-        TallyPurchase.voucher_date.desc(),
-        TallyPurchase.id.desc(),
+        TallySyncPurchase.voucher_date.desc(),
+        TallySyncPurchase.id.desc(),
     ).all()
 
     stock_group_lookup = _stock_group_lookup(db)

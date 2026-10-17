@@ -28,12 +28,60 @@ class TallyAccountMaster(Base):
     representative: Mapped[Optional[str]] = mapped_column("REPRESENTATIVE", Text)
 
 
+class TallySyncAccount(Base):
+    """Tally accounts sync (replaces tallydata_accountmaster for live reads)."""
+
+    __tablename__ = "tallysync_accounts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    master_id: Mapped[Optional[str]] = mapped_column(Text)
+    guid: Mapped[Optional[str]] = mapped_column(Text)
+    ledger_name: Mapped[Optional[str]] = mapped_column(Text)
+    account_group: Mapped[Optional[str]] = mapped_column(Text)
+    mailing_name: Mapped[Optional[str]] = mapped_column(Text)
+    # App/API still call this party_gstin; DB column is gstin.
+    party_gstin: Mapped[Optional[str]] = mapped_column("gstin", Text)
+    gst_registration_type: Mapped[Optional[str]] = mapped_column(Text)
+    state: Mapped[Optional[str]] = mapped_column(Text)
+    country: Mapped[Optional[str]] = mapped_column(Text)
+    pan: Mapped[Optional[str]] = mapped_column(Text)
+    phone: Mapped[Optional[str]] = mapped_column(Text)
+    mobile: Mapped[Optional[str]] = mapped_column(Text)
+    email: Mapped[Optional[str]] = mapped_column(Text)
+    bill_wise: Mapped[Optional[str]] = mapped_column(Text)
+    address_1: Mapped[Optional[str]] = mapped_column(Text)
+    address_2: Mapped[Optional[str]] = mapped_column(Text)
+    address_3: Mapped[Optional[str]] = mapped_column(Text)
+    address_4: Mapped[Optional[str]] = mapped_column(Text)
+    pin_code: Mapped[Optional[str]] = mapped_column(Text)
+    favouring_name: Mapped[Optional[str]] = mapped_column(Text)
+    account_number: Mapped[Optional[str]] = mapped_column(Text)
+    bank_code: Mapped[Optional[str]] = mapped_column(Text)
+    bank_name: Mapped[Optional[str]] = mapped_column(Text)
+    representative: Mapped[Optional[str]] = mapped_column(Text)
+    primary_group: Mapped[Optional[str]] = mapped_column(Text)
+
+
 class TallyCostCentre(Base):
     __tablename__ = "tallydata_costcentre"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[Optional[str]] = mapped_column("NAME", Text)
     parent: Mapped[Optional[str]] = mapped_column("PARENT", Text)
+
+
+class TallySyncCostCentre(Base):
+    """Tally cost centres sync (replaces tallydata_costcentre for live reads)."""
+
+    __tablename__ = "tallysync_costcentres"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    master_id: Mapped[Optional[str]] = mapped_column(Text)
+    guid: Mapped[Optional[str]] = mapped_column(Text)
+    # App/API still call this name; DB column is cost_centre.
+    name: Mapped[Optional[str]] = mapped_column("cost_centre", Text)
+    parent: Mapped[Optional[str]] = mapped_column(Text)
+    category: Mapped[Optional[str]] = mapped_column(Text)
 
 
 class TallyDaybook(Base):
@@ -68,6 +116,28 @@ class TallyDaybook2(Base):
     bill_type: Mapped[Optional[str]] = mapped_column("BILL_TYPE", Text)
 
 
+class TallySyncDaybook(Base):
+    """Tally daybook sync (replaces tallydata_daybook2 for live reads).
+
+    Attribute names match TallyDaybook2 so TDS / trade callers stay unchanged.
+    """
+
+    __tablename__ = "tallysync_daybook"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    vtype: Mapped[Optional[str]] = mapped_column("voucher_type", Text)
+    vno: Mapped[Optional[str]] = mapped_column("voucher_no", Text)
+    vdt: Mapped[Optional[datetime]] = mapped_column("voucher_date", DateTime)
+    narration: Mapped[Optional[str]] = mapped_column(Text)
+    debit_credit: Mapped[Optional[str]] = mapped_column(Text)
+    ledger_name: Mapped[Optional[str]] = mapped_column(Text)
+    costcentre_name: Mapped[Optional[str]] = mapped_column(Text)
+    costcentre_amt: Mapped[Optional[float]] = mapped_column(Float)
+    ledger_amount: Mapped[Optional[float]] = mapped_column(Float)
+    bill_no: Mapped[Optional[str]] = mapped_column(Text)
+    bill_type: Mapped[Optional[str]] = mapped_column(Text)
+
+
 class TallyInventoryMaster(Base):
     __tablename__ = "tallydata_inventorymaster"
 
@@ -77,6 +147,30 @@ class TallyInventoryMaster(Base):
     stock_group: Mapped[Optional[str]] = mapped_column(Text)
     base_unit: Mapped[Optional[str]] = mapped_column(Text)
     additional_unit: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class TallySyncInventory(Base):
+    """Tally inventory sync (replaces tallydata_inventorymaster for live reads)."""
+
+    __tablename__ = "tallysync_inventory"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    master_id: Mapped[Optional[str]] = mapped_column(Text)
+    guid: Mapped[Optional[str]] = mapped_column(Text)
+    stock_item: Mapped[Optional[str]] = mapped_column(Text)
+    stock_group: Mapped[Optional[str]] = mapped_column(Text)
+    category: Mapped[Optional[str]] = mapped_column(Text)
+    base_unit: Mapped[Optional[str]] = mapped_column(Text)
+    alternate_unit: Mapped[Optional[str]] = mapped_column(Text)
+    conversion: Mapped[Optional[float]] = mapped_column(Float)
+    denominator: Mapped[Optional[float]] = mapped_column(Float)
+    packing: Mapped[Optional[float]] = mapped_column(Float)
+    gst_applicable: Mapped[Optional[str]] = mapped_column(Text)
+
+    @property
+    def additional_unit(self) -> Optional[str]:
+        """Alias for InventoryMasterOut / older additional_unit callers."""
+        return self.alternate_unit
 
 
 class TallyPurchase(Base):
@@ -98,6 +192,29 @@ class TallyPurchase(Base):
     amount: Mapped[Optional[float]] = mapped_column(Float)
 
 
+class TallySyncPurchase(Base):
+    """Tally purchase sync (same columns as tallydata_purchases)."""
+
+    __tablename__ = "tallysync_purchases"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    voucher_no: Mapped[Optional[str]] = mapped_column(Text)
+    voucher_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    ledger_name: Mapped[Optional[str]] = mapped_column(Text)
+    broker: Mapped[Optional[str]] = mapped_column(Text)
+    item_count: Mapped[Optional[float]] = mapped_column(Float)
+    itemno: Mapped[Optional[float]] = mapped_column(Float)
+    stock_item: Mapped[Optional[str]] = mapped_column(Text)
+    brand: Mapped[Optional[str]] = mapped_column(Text)
+    packing: Mapped[Optional[float]] = mapped_column(Float)
+    qty: Mapped[Optional[float]] = mapped_column(Float)
+    weight: Mapped[Optional[float]] = mapped_column(Float)
+    rate: Mapped[Optional[float]] = mapped_column(Float)
+    amount: Mapped[Optional[float]] = mapped_column(Float)
+    box: Mapped[Optional[float]] = mapped_column(Float)
+    qty_per_box: Mapped[Optional[float]] = mapped_column(Float)
+
+
 class TallyReceivable(Base):
     __tablename__ = "tallydata_receivables"
 
@@ -107,6 +224,23 @@ class TallyReceivable(Base):
     ledger_name: Mapped[Optional[str]] = mapped_column(Text)
     representative: Mapped[Optional[str]] = mapped_column(Text)
     amount: Mapped[Optional[float]] = mapped_column(Float)
+
+
+class TallySyncReceivable(Base):
+    """Tally receivables sync (replaces tallydata_receivables for live reads)."""
+
+    __tablename__ = "tallysync_receivables"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    as_on: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    invoice_no: Mapped[Optional[str]] = mapped_column(Text)
+    invoice_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    due_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    overdue_days: Mapped[Optional[float]] = mapped_column(Float)
+    ledger_name: Mapped[Optional[str]] = mapped_column(Text)
+    representative: Mapped[Optional[str]] = mapped_column(Text)
+    amount: Mapped[Optional[float]] = mapped_column(Float)
+    closing: Mapped[Optional[float]] = mapped_column(Float)
 
 
 class TallySale(Base):
@@ -135,21 +269,6 @@ class TallyStockGroup(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     stock_group: Mapped[Optional[str]] = mapped_column(Text)
     parent: Mapped[Optional[str]] = mapped_column(Text)
-
-
-class TallyStockSummary(Base):
-    __tablename__ = "tallydata_stocksummary"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    vno: Mapped[Optional[str]] = mapped_column("VNO", Text)
-    vdt: Mapped[Optional[datetime]] = mapped_column("VDT", DateTime)
-    stock_item: Mapped[Optional[str]] = mapped_column("STOCK_ITEM", Text)
-    packing: Mapped[Optional[float]] = mapped_column("PACKING", Float)
-    particulars: Mapped[Optional[str]] = mapped_column("PARTICULARS", Text)
-    opening: Mapped[Optional[float]] = mapped_column("OPENING", Float)
-    vtype: Mapped[Optional[str]] = mapped_column("VTYPE", Text)
-    outwards: Mapped[Optional[float]] = mapped_column("OUTWARDS", Float)
-    inwards: Mapped[Optional[float]] = mapped_column("INWARDS", Float)
 
 
 class TallySyncSale(Base):
