@@ -199,6 +199,19 @@ export async function fetchReceivablesAnalysis({ representative, asOf } = {}) {
   return data
 }
 
+export async function fetchPayableRepresentatives() {
+  const { data } = await api.get('/tally/payables/representatives')
+  return data
+}
+
+export async function fetchPayablesAnalysis({ representative, asOf } = {}) {
+  const params = {}
+  if (representative) params.representative = representative
+  if (asOf) params.as_of = asOf
+  const { data } = await api.get('/tally/payables/analysis', { params })
+  return data
+}
+
 export async function fetchSalesPurchaseTrend({ dateFrom, dateTo } = {}) {
   const { data } = await api.get('/tally/daybook/sales-purchase', {
     params: {

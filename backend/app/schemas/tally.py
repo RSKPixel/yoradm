@@ -271,6 +271,14 @@ class ReceivableAnalysisOut(BaseModel):
     invoices: List[ReceivableInvoiceAgeingOut]
 
 
+# Payables analysis uses the same ageing shape as receivables.
+PayableRepresentativeOut = ReceivableRepresentativeOut
+PayableAgeingBuckets = ReceivableAgeingBuckets
+PayablePartyAgeingOut = ReceivablePartyAgeingOut
+PayableInvoiceAgeingOut = ReceivableInvoiceAgeingOut
+PayableAnalysisOut = ReceivableAnalysisOut
+
+
 class DaybookTradePointOut(BaseModel):
     date: str
     label: str

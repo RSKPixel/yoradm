@@ -82,6 +82,7 @@ const navSections = [
     icon: DocumentChartBarIcon,
     items: [
       { to: '/reports/receivables-analysis', label: 'Receivables Analysis', icon: ScaleIcon },
+      { to: '/reports/payables-analysis', label: 'Payables Analysis', icon: BanknotesIcon },
       { to: '/reports/collection-analysis', label: 'Collection Analysis', icon: ClockIcon },
       { to: '/reports/tds-workings', label: 'TDS Workings', icon: ReceiptPercentIcon },
       { to: '/reports/stock-analysis', label: 'Stock Analysis', icon: CubeTransparentIcon },
@@ -298,6 +299,7 @@ export function AppLayout() {
     location.pathname.startsWith('/transactions/brokerage') ||
     location.pathname.startsWith('/payroll/') ||
     location.pathname.startsWith('/reports/receivables-analysis') ||
+    location.pathname.startsWith('/reports/payables-analysis') ||
     location.pathname.startsWith('/reports/collection-analysis') ||
     location.pathname.startsWith('/reports/tds-workings') ||
     location.pathname.startsWith('/reports/stock-analysis') ||

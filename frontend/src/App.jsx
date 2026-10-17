@@ -16,6 +16,7 @@ import { PayrollAttendancePage } from './pages/PayrollAttendancePage'
 import { PayrollEmployeesPage } from './pages/PayrollEmployeesPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { PostDatedChequePage } from './pages/PostDatedChequePage'
+import { PayablesAnalysisPage } from './pages/PayablesAnalysisPage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
 import { OridStockAnalysisPage, StockAnalysisPage } from './pages/StockAnalysisPage'
 import { MonthlySummaryPage } from './pages/MonthlySummaryPage'
@@ -66,6 +67,10 @@ export default function App() {
                   <Route
                     path="reports/receivables-analysis"
                     element={<ReceivablesAnalysisPage />}
+                  />
+                  <Route
+                    path="reports/payables-analysis"
+                    element={<PayablesAnalysisPage />}
                   />
                   <Route
                     path="reports/collection-analysis"

@@ -399,6 +399,26 @@ def receivables_analysis(
     return tally_service.receivables_analysis(db, as_of=as_of, representative=rep)
 
 
+@router.get("/payables/representatives", response_model=List[ReceivableRepresentativeOut])
+def list_payable_representatives(
+    _: CurrentUser, db: DbSession
+) -> List[ReceivableRepresentativeOut]:
+    return tally_service.list_payable_representatives(db)
+
+
+@router.get("/payables/analysis", response_model=ReceivableAnalysisOut)
+def payables_analysis(
+    _: CurrentUser,
+    db: DbSession,
+    representative: Optional[str] = Query(None),
+    as_of: Optional[date] = Query(None),
+) -> ReceivableAnalysisOut:
+    rep = representative.strip() if representative else None
+    if rep == "":
+        rep = None
+    return tally_service.payables_analysis(db, as_of=as_of, representative=rep)
+
+
 @router.get("/daybook/sales-purchase", response_model=DaybookTradeOut)
 def daybook_sales_purchase(
     _: AdminUser,

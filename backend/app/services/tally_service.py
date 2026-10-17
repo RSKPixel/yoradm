@@ -21,6 +21,7 @@ from app.models.tally import (
     TallySyncDaybook,
     TallySyncInventory,
     TallySyncPurchase,
+    TallySyncPayable,
     TallySyncReceivable,
     TallySyncSale,
     TallySyncStockSummary,
@@ -1814,6 +1815,207 @@ def receivables_analysis(
                 invoice_date=row.invoice_date,
                 ledger_name=row.ledger_name,
                 representative=row.representative,
+                amount=amount,
+                days=days,
+                age_bucket=bucket,
+            )
+        )
+
+    parties = [
+        ReceivablePartyAgeingOut(
+            ledger_name=str(data["ledger_name"]),
+            representative=data.get("representative"),
+            bucket_0_30=float(data["bucket_0_30"]),
+            bucket_31_60=float(data["bucket_31_60"]),
+            bucket_61_90=float(data["bucket_61_90"]),
+            bucket_91_120=float(data["bucket_91_120"]),
+            bucket_above_120=float(data["bucket_above_120"]),
+            bucket_undated=float(data["bucket_undated"]),
+            total=float(data["total"]),
+            invoice_count=int(data["invoice_count"]),
+        )
+        for data in party_map.values()
+    ]
+    parties.sort(key=lambda p: (-p.total, p.ledger_name.lower()))
+
+    return ReceivableAnalysisOut(
+        as_of=as_of_date.isoformat(),
+        representative=representative,
+        totals=ReceivableAgeingBuckets(
+            bucket_0_30=float(totals["bucket_0_30"]),
+            bucket_31_60=float(totals["bucket_31_60"]),
+            bucket_61_90=float(totals["bucket_61_90"]),
+            bucket_91_120=float(totals["bucket_91_120"]),
+            bucket_above_120=float(totals["bucket_above_120"]),
+            bucket_undated=float(totals["bucket_undated"]),
+            total=float(totals["total"]),
+            invoice_count=int(totals["invoice_count"]),
+        ),
+        parties=parties,
+        invoices=invoices,
+    )
+
+
+def _as_date(value: Any) -> Optional[date]:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def _purchase_broker_lookups(
+    db: Session,
+) -> Tuple[Dict[Tuple[str, date, float], str], Dict[str, str]]:
+    """Purchase brokers for payables: bill-level and latest-per-party.
+
+    Payables never use ``tallysync_payables.representative`` (ledger cost-centre);
+    only ``tallysync_purchases.broker``.
+    """
+    rows = (
+        db.query(
+            TallySyncPurchase.ledger_name,
+            TallySyncPurchase.voucher_no,
+            TallySyncPurchase.voucher_date,
+            TallySyncPurchase.broker,
+            TallySyncPurchase.amount,
+            TallySyncPurchase.id,
+        )
+        .order_by(TallySyncPurchase.voucher_date.desc(), TallySyncPurchase.id.desc())
+        .all()
+    )
+    vouchers: Dict[Tuple[str, str, date], Dict[str, Any]] = {}
+    party_latest: Dict[str, str] = {}
+    for row in rows:
+        ledger = (row.ledger_name or "").strip()
+        vdate = _as_date(row.voucher_date)
+        if not ledger:
+            continue
+        ledger_cf = ledger.casefold()
+        broker = (row.broker or "").strip()
+        if broker and ledger_cf not in party_latest:
+            party_latest[ledger_cf] = broker
+        if vdate is None:
+            continue
+        vno = (row.voucher_no or "").strip()
+        key = (ledger_cf, vno, vdate)
+        entry = vouchers.get(key)
+        if entry is None:
+            entry = {"total": 0.0, "broker": None}
+            vouchers[key] = entry
+        entry["total"] = float(entry["total"]) + float(row.amount or 0.0)
+        if broker and not entry["broker"]:
+            entry["broker"] = broker
+
+    by_bill: Dict[Tuple[str, date, float], str] = {}
+    for (ledger_cf, _vno, vdate), entry in vouchers.items():
+        broker = entry.get("broker")
+        if not broker:
+            continue
+        by_bill[(ledger_cf, vdate, round(float(entry["total"]), 2))] = str(broker)
+    return by_bill, party_latest
+
+
+def _resolve_payable_representative(
+    row: TallySyncPayable,
+    by_bill: Dict[Tuple[str, date, float], str],
+    by_party: Dict[str, str],
+) -> Optional[str]:
+    """Broker from purchases only — never the payable/ledger representative."""
+    ledger = (row.ledger_name or "").strip()
+    if not ledger:
+        return None
+    ledger_cf = ledger.casefold()
+    inv_date = _as_date(row.invoice_date)
+    amount = round(float(row.amount or 0.0), 2)
+    if inv_date is not None:
+        matched = by_bill.get((ledger_cf, inv_date, amount))
+        if matched:
+            return matched
+    return by_party.get(ledger_cf)
+
+
+def list_payable_representatives(db: Session) -> List[ReceivableRepresentativeOut]:
+    """Distinct purchase brokers used on outstanding payables."""
+    by_bill, by_party = _purchase_broker_lookups(db)
+    counts: Dict[str, Dict[str, float]] = defaultdict(lambda: {"invoice_count": 0.0, "total_amount": 0.0})
+    for row in db.query(TallySyncPayable).all():
+        rep = _resolve_payable_representative(row, by_bill, by_party) or ""
+        key = rep if rep else RECEIVABLE_REP_BLANK
+        counts[key]["invoice_count"] += 1
+        counts[key]["total_amount"] += float(row.amount or 0.0)
+    items = [
+        ReceivableRepresentativeOut(
+            name=name,
+            invoice_count=int(data["invoice_count"]),
+            total_amount=float(data["total_amount"]),
+        )
+        for name, data in counts.items()
+    ]
+    items.sort(key=lambda r: (-r.total_amount, r.name.lower()))
+    return items
+
+
+def payables_analysis(
+    db: Session,
+    *,
+    as_of: Optional[date] = None,
+    representative: Optional[str] = None,
+) -> ReceivableAnalysisOut:
+    """Outstanding payables ageing — same shape as receivables analysis.
+
+    Representative is always the purchase voucher broker (bill match, else
+    latest purchase for the party). Ledger cost-centre is ignored.
+    """
+    as_of_date = as_of or date.today()
+    by_bill, by_party = _purchase_broker_lookups(db)
+    rows = (
+        db.query(TallySyncPayable)
+        .order_by(
+            TallySyncPayable.ledger_name.asc(),
+            TallySyncPayable.invoice_date.asc(),
+            TallySyncPayable.id.asc(),
+        )
+        .all()
+    )
+
+    totals = _empty_buckets()
+    party_map: Dict[Tuple[str, Optional[str]], Dict[str, Any]] = defaultdict(_empty_buckets)
+    invoices: List[ReceivableInvoiceAgeingOut] = []
+
+    for row in rows:
+        amount = float(row.amount or 0.0)
+        inv_date = _as_date(row.invoice_date)
+        rep_raw = _resolve_payable_representative(row, by_bill, by_party)
+
+        if representative is not None:
+            if representative == RECEIVABLE_REP_BLANK:
+                if rep_raw:
+                    continue
+            elif rep_raw != representative:
+                continue
+
+        days: Optional[int] = None
+        if inv_date is not None:
+            days = max((as_of_date - inv_date).days, 0)
+        bucket = _age_bucket(days)
+        _add_amount(totals, bucket, amount)
+
+        ledger = (row.ledger_name or "").strip() or "(No party)"
+        party_key = (ledger, rep_raw)
+        party_buckets = party_map[party_key]
+        if "ledger_name" not in party_buckets:
+            party_buckets["ledger_name"] = ledger
+            party_buckets["representative"] = rep_raw
+        _add_amount(party_buckets, bucket, amount)
+
+        invoices.append(
+            ReceivableInvoiceAgeingOut(
+                id=row.id,
+                invoice_no=row.invoice_no,
+                invoice_date=row.invoice_date,
+                ledger_name=row.ledger_name,
+                representative=rep_raw,
                 amount=amount,
                 days=days,
                 age_bucket=bucket,

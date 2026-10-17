@@ -243,6 +243,23 @@ class TallySyncReceivable(Base):
     closing: Mapped[Optional[float]] = mapped_column(Float)
 
 
+class TallySyncPayable(Base):
+    """Tally payables sync (outstanding creditor bills)."""
+
+    __tablename__ = "tallysync_payables"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    as_on: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    invoice_no: Mapped[Optional[str]] = mapped_column(Text)
+    invoice_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    due_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    overdue_days: Mapped[Optional[float]] = mapped_column(Float)
+    ledger_name: Mapped[Optional[str]] = mapped_column(Text)
+    representative: Mapped[Optional[str]] = mapped_column(Text)
+    amount: Mapped[Optional[float]] = mapped_column(Float)
+    closing: Mapped[Optional[float]] = mapped_column(Float)
+
+
 class TallySale(Base):
     __tablename__ = "tallydata_sales"
 

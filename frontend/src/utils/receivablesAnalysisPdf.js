@@ -58,9 +58,12 @@ function todayStamp() {
   return `${yyyy}${mm}${dd}`
 }
 
-export function getReceivablesAnalysisPdfFileName(asOfDate = new Date()) {
+export function getReceivablesAnalysisPdfFileName(
+  asOfDate = new Date(),
+  fileNamePrefix = 'debtors-receivable',
+) {
   const stamp = formatDate(asOfDate)?.replace(/-/g, '') || todayStamp()
-  return `debtors-receivable-${stamp}.pdf`
+  return `${fileNamePrefix}-${stamp}.pdf`
 }
 
 function drawPartyWiseTable(doc, { partyGroups, startY, margin }) {
@@ -276,6 +279,7 @@ export async function buildReceivablesAnalysisPdf({
   asOfDate = new Date(),
   representativeLabel = '',
   viewMode = 'party',
+  reportTitle = 'Debitors Receivable',
 }) {
   const fonts = await loadPdfCandaraFonts()
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
@@ -286,7 +290,7 @@ export async function buildReceivablesAnalysisPdf({
   let y = addPdfReportTitle(
     doc,
     pageWidth,
-    `Debitors Receivable as on ${asOn}`,
+    `${reportTitle} as on ${asOn}`,
     letterheadY,
   )
 
@@ -333,6 +337,9 @@ export async function buildReceivablesAnalysisPdf({
 export async function createReceivablesAnalysisPdfBlob(params) {
   const doc = await buildReceivablesAnalysisPdf(params)
   const blob = doc.output('blob')
-  const fileName = getReceivablesAnalysisPdfFileName(params.asOfDate)
+  const fileName = getReceivablesAnalysisPdfFileName(
+    params.asOfDate,
+    params.fileNamePrefix || 'debtors-receivable',
+  )
   return { blob, fileName }
 }
