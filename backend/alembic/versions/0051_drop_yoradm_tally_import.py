@@ -18,11 +18,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Idempotent: local/dev may have already dropped these before deploy.
-    conn = op.get_bind()
-    existing = {
-        row[0]
-        for row in conn.exec_driver_sql("SHOW TABLES LIKE 'yoradm_%'").fetchall()
-    }
+    # Avoid SHOW TABLES LIKE '...%' — pymysql treats % as a format char.
+    inspector = sa.inspect(op.get_bind())
+    existing = set(inspector.get_table_names())
     if "yoradm_daybook2" in existing:
         op.drop_index("ix_yoradm_daybook2_vdt", table_name="yoradm_daybook2")
         op.drop_index("ix_yoradm_daybook2_vno", table_name="yoradm_daybook2")
