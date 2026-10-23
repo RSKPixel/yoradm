@@ -116,6 +116,7 @@ const COSTING_RAW_QTY_SOURCES = [
   { value: 'in_stock', label: 'In Stock' },
   { value: 'pendings', label: 'Pendings' },
   { value: 'both', label: 'Both' },
+  { value: 'manual', label: 'Manual' },
 ]
 
 const COSTING_RAW_QTY_SOURCE_KEYS = new Set(
@@ -162,8 +163,9 @@ function applyCostingApiToDrafts(row) {
   const rateDrafts = defaultCostingRateDrafts()
   let expensesPctDraft = ''
   let rawQtySource = 'both'
+  let manualRaw = { qty: '', rate: '' }
   if (!row) {
-    return { pctDrafts, rateDrafts, expensesPctDraft, rawQtySource }
+    return { pctDrafts, rateDrafts, expensesPctDraft, rawQtySource, manualRaw }
   }
   pctDrafts[ORID_COSTING_DHALL] = draftFromNumber(row.orid_dhall_pct)
   pctDrafts['Orid Dhall Split'] = draftFromNumber(row.orid_dhall_split_pct)
@@ -180,12 +182,18 @@ function applyCostingApiToDrafts(row) {
   rateDrafts['Orid Husk'] = draftFromNumber(row.husk_rate)
   expensesPctDraft = draftFromNumber(row.expenses_pct)
   rawQtySource = normalizeCostingRawQtySource(row.raw_qty_source)
-  return { pctDrafts, rateDrafts, expensesPctDraft, rawQtySource }
+  manualRaw = {
+    qty: draftFromNumber(row.manual_raw_qty),
+    rate: draftFromNumber(row.manual_raw_rate),
+  }
+  return { pctDrafts, rateDrafts, expensesPctDraft, rawQtySource, manualRaw }
 }
 
-function costingSavePayload(pctDrafts, rateDrafts, expensesPctDraft, rawQtySource) {
+function costingSavePayload(pctDrafts, rateDrafts, expensesPctDraft, rawQtySource, manualRaw) {
   return {
     raw_qty_source: normalizeCostingRawQtySource(rawQtySource),
+    manual_raw_qty: parsePendingNumber(manualRaw?.qty),
+    manual_raw_rate: parsePendingNumber(manualRaw?.rate),
     orid_dhall_pct: parsePendingNumber(pctDrafts[ORID_COSTING_DHALL]),
     orid_dhall_split_pct: parsePendingNumber(pctDrafts['Orid Dhall Split']),
     orid_rejection_pct: parsePendingNumber(pctDrafts['Orid Dhall Rejection']),
@@ -197,8 +205,14 @@ function costingSavePayload(pctDrafts, rateDrafts, expensesPctDraft, rawQtySourc
   }
 }
 
-function resolveCostingRawOrid(workingsRows, rawQtySource) {
+function resolveCostingRawOrid(workingsRows, rawQtySource, manualRaw) {
   const source = normalizeCostingRawQtySource(rawQtySource)
+  if (source === 'manual') {
+    const qty = parsePendingNumber(manualRaw?.qty)
+    const rate = parsePendingNumber(manualRaw?.rate)
+    const value = qty != null && rate != null ? roundMoney(qty * rate) : null
+    return { qty, rate, value }
+  }
   const inStock = workingsRows.find((row) => row.id === 'in_stock')?.orid
   const purchases = workingsRows.find((row) => row.id === 'pending_purchases')?.orid
   const arrivals = workingsRows.find((row) => row.id === 'pending_arrivals')?.orid
@@ -852,6 +866,8 @@ function OridCostingTable({
   rawOrid,
   rawQtySource = 'both',
   onRawQtySourceChange,
+  manualRaw,
+  onManualRawChange,
   pctDrafts,
   rateDrafts,
   expensesPctDraft,
@@ -971,12 +987,30 @@ function OridCostingTable({
                   )}
                 </td>
                 <td className="win-form__table-num">
-                  <span className="win-form__table-readonly">
-                    {row.qty == null ? '—' : formatCommaNumber(row.qty, 2)}
-                  </span>
+                  {row.kind === 'raw' && rawQtySource === 'manual' ? (
+                    <FormattedNumberInput
+                      value={manualRaw?.qty ?? ''}
+                      fractionDigits={2}
+                      selectOnFocus
+                      aria-label={`Qty for ${row.label}`}
+                      onChange={(value) => onManualRawChange?.('qty', value)}
+                    />
+                  ) : (
+                    <span className="win-form__table-readonly">
+                      {row.qty == null ? '—' : formatCommaNumber(row.qty, 2)}
+                    </span>
+                  )}
                 </td>
                 <td className="win-form__table-num">
-                  {row.kind === 'byproduct' ? (
+                  {row.kind === 'raw' && rawQtySource === 'manual' ? (
+                    <FormattedNumberInput
+                      value={manualRaw?.rate ?? ''}
+                      fractionDigits={2}
+                      selectOnFocus
+                      aria-label={`Rate for ${row.label}`}
+                      onChange={(value) => onManualRawChange?.('rate', value)}
+                    />
+                  ) : row.kind === 'byproduct' ? (
                     <FormattedNumberInput
                       value={rateDrafts[row.label] ?? ''}
                       fractionDigits={2}
@@ -1019,6 +1053,8 @@ function OridReportTabs({
   costingRawOrid,
   costingRawQtySource,
   onCostingRawQtySourceChange,
+  costingManualRaw,
+  onCostingManualRawChange,
   costingPctDrafts,
   costingRateDrafts,
   costingExpensesPctDraft,
@@ -1070,6 +1106,8 @@ function OridReportTabs({
             rawOrid={costingRawOrid}
             rawQtySource={costingRawQtySource}
             onRawQtySourceChange={onCostingRawQtySourceChange}
+            manualRaw={costingManualRaw}
+            onManualRawChange={onCostingManualRawChange}
             pctDrafts={costingPctDrafts}
             rateDrafts={costingRateDrafts}
             expensesPctDraft={costingExpensesPctDraft}
@@ -1227,6 +1265,7 @@ export function StockAnalysisPage({ oridOnly = false }) {
   const [costingRateDrafts, setCostingRateDrafts] = useState(defaultCostingRateDrafts)
   const [costingExpensesPctDraft, setCostingExpensesPctDraft] = useState('')
   const [costingRawQtySource, setCostingRawQtySource] = useState('both')
+  const [costingManualRaw, setCostingManualRaw] = useState({ qty: '', rate: '' })
   const [costingHydrated, setCostingHydrated] = useState(false)
   const [estimatedSalesMode, setEstimatedSalesMode] = useState('manual')
   const [estimatedSales50kg, setEstimatedSales50kg] = useState('')
@@ -1244,6 +1283,7 @@ export function StockAnalysisPage({ oridOnly = false }) {
   const costingRateRef = useRef(costingRateDrafts)
   const costingExpensesRef = useRef(costingExpensesPctDraft)
   const costingRawQtySourceRef = useRef(costingRawQtySource)
+  const costingManualRawRef = useRef(costingManualRaw)
   const workingsSaveTimer = useRef(null)
   const estimatedSalesModeRef = useRef(estimatedSalesMode)
   const estimatedSalesRef = useRef(estimatedSales50kg)
@@ -1261,7 +1301,14 @@ export function StockAnalysisPage({ oridOnly = false }) {
     costingRateRef.current = costingRateDrafts
     costingExpensesRef.current = costingExpensesPctDraft
     costingRawQtySourceRef.current = costingRawQtySource
-  }, [costingPctDrafts, costingRateDrafts, costingExpensesPctDraft, costingRawQtySource])
+    costingManualRawRef.current = costingManualRaw
+  }, [
+    costingPctDrafts,
+    costingRateDrafts,
+    costingExpensesPctDraft,
+    costingRawQtySource,
+    costingManualRaw,
+  ])
 
   useEffect(() => {
     estimatedSalesModeRef.current = estimatedSalesMode
@@ -1349,6 +1396,7 @@ export function StockAnalysisPage({ oridOnly = false }) {
           costingRateRef.current,
           costingExpensesRef.current,
           costingRawQtySourceRef.current,
+          costingManualRawRef.current,
         ),
       ).catch((err) => {
         showError(getApiErrorMessage(err, 'Unable to save costing'))
@@ -1384,6 +1432,15 @@ export function StockAnalysisPage({ oridOnly = false }) {
     const next = normalizeCostingRawQtySource(value)
     costingRawQtySourceRef.current = next
     setCostingRawQtySource(next)
+    scheduleCostingSave()
+  }
+
+  function changeCostingManualRaw(field, value) {
+    setCostingManualRaw((current) => {
+      const next = { ...current, [field]: value }
+      costingManualRawRef.current = next
+      return next
+    })
     scheduleCostingSave()
   }
 
@@ -1434,8 +1491,8 @@ export function StockAnalysisPage({ oridOnly = false }) {
   )
 
   const costingRawOrid = useMemo(
-    () => resolveCostingRawOrid(baseWorkingsRows, costingRawQtySource),
-    [baseWorkingsRows, costingRawQtySource],
+    () => resolveCostingRawOrid(baseWorkingsRows, costingRawQtySource, costingManualRaw),
+    [baseWorkingsRows, costingRawQtySource, costingManualRaw],
   )
 
   const manufacturingDhall = useMemo(() => {
@@ -1530,6 +1587,8 @@ export function StockAnalysisPage({ oridOnly = false }) {
         setCostingExpensesPctDraft(drafts.expensesPctDraft)
         costingRawQtySourceRef.current = drafts.rawQtySource
         setCostingRawQtySource(drafts.rawQtySource)
+        costingManualRawRef.current = drafts.manualRaw
+        setCostingManualRaw(drafts.manualRaw)
         setCostingHydrated(true)
         const savedMode = normalizeEstimatedSalesMode(
           savedWorkings?.estimated_sales_mode,
@@ -1663,6 +1722,8 @@ export function StockAnalysisPage({ oridOnly = false }) {
           costingRawOrid={costingRawOrid}
           costingRawQtySource={costingRawQtySource}
           onCostingRawQtySourceChange={changeCostingRawQtySource}
+          costingManualRaw={costingManualRaw}
+          onCostingManualRawChange={changeCostingManualRaw}
           costingPctDrafts={costingPctDrafts}
           costingRateDrafts={costingRateDrafts}
           costingExpensesPctDraft={costingExpensesPctDraft}

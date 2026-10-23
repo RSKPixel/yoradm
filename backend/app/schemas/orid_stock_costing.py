@@ -5,7 +5,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-OridCostingRawQtySource = Literal["in_stock", "pendings", "both"]
+OridCostingRawQtySource = Literal["in_stock", "pendings", "both", "manual"]
 
 
 class OridStockCostingOut(BaseModel):
@@ -13,6 +13,8 @@ class OridStockCostingOut(BaseModel):
 
     id: int
     raw_qty_source: Optional[str] = "both"
+    manual_raw_qty: Optional[float] = None
+    manual_raw_rate: Optional[float] = None
     orid_dhall_pct: Optional[float] = None
     orid_dhall_split_pct: Optional[float] = None
     orid_rejection_pct: Optional[float] = None
@@ -27,6 +29,8 @@ class OridStockCostingOut(BaseModel):
 
 class OridStockCostingSaveIn(BaseModel):
     raw_qty_source: OridCostingRawQtySource = "both"
+    manual_raw_qty: Optional[float] = Field(default=None)
+    manual_raw_rate: Optional[float] = Field(default=None)
     orid_dhall_pct: Optional[float] = Field(default=None)
     orid_dhall_split_pct: Optional[float] = Field(default=None)
     orid_rejection_pct: Optional[float] = Field(default=None)

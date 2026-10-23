@@ -20,6 +20,8 @@ class OridStockCosting(Base):
         nullable=True,
         default="both",
     )
+    manual_raw_qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    manual_raw_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     orid_dhall_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     orid_dhall_split_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     orid_rejection_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
