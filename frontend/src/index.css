@@ -1515,8 +1515,71 @@ body {
 
 .odp-page__heading,
 .primary-content__heading {
+  display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
   padding: 0.35rem 2rem 0;
+}
+
+.primary-content__heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Compact labelled select for the breadcrumb row (e.g. Orid Costing lot). */
+.heading-picker {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+
+.heading-picker:hover,
+.heading-picker:focus-within {
+  border-color: var(--accent);
+}
+
+.heading-picker__label {
+  padding: 0 0.6rem 0 0.75rem;
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.heading-picker__select {
+  appearance: none;
+  height: 100%;
+  min-width: 11rem;
+  padding: 0 1.75rem 0 0.6rem;
+  border: 0;
+  border-radius: 0 999px 999px 0;
+  background: transparent
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239a958c'%3E%3Cpath d='M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z'/%3E%3C/svg%3E")
+    no-repeat right 0.55rem center / 0.85rem;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.heading-picker__select:focus {
+  outline: none;
+}
+
+.heading-picker__select option {
+  background: var(--panel);
+  color: var(--ink);
 }
 
 .page-breadcrumb__list {
@@ -5118,6 +5181,24 @@ body {
 .stock-analysis__costing-raw td {
   background: var(--surface);
   font-weight: 600;
+}
+
+.stock-analysis__costing-total td {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.stock-analysis__costing-yield-total td {
+  border-top: 2px solid var(--line);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.stock-analysis__costing-section td {
+  padding-top: 0.75rem;
+  font-weight: 600;
+  border-left-color: transparent;
+  border-right-color: transparent;
 }
 
 .stock-analysis__costing-raw-cell {

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -22,6 +22,9 @@ class OridStockCosting(Base):
     )
     manual_raw_qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     manual_raw_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    manual_mfg_expenses_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    manual_overheads_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    manual_lot_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     orid_dhall_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     orid_dhall_split_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     orid_rejection_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

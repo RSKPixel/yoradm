@@ -15,6 +15,9 @@ class OridStockCostingOut(BaseModel):
     raw_qty_source: Optional[str] = "both"
     manual_raw_qty: Optional[float] = None
     manual_raw_rate: Optional[float] = None
+    manual_mfg_expenses_pct: Optional[float] = None
+    manual_overheads_pct: Optional[float] = None
+    manual_lot_id: Optional[int] = None
     orid_dhall_pct: Optional[float] = None
     orid_dhall_split_pct: Optional[float] = None
     orid_rejection_pct: Optional[float] = None
@@ -31,6 +34,9 @@ class OridStockCostingSaveIn(BaseModel):
     raw_qty_source: OridCostingRawQtySource = "both"
     manual_raw_qty: Optional[float] = Field(default=None)
     manual_raw_rate: Optional[float] = Field(default=None)
+    manual_mfg_expenses_pct: Optional[float] = Field(default=None)
+    manual_overheads_pct: Optional[float] = Field(default=None)
+    manual_lot_id: Optional[int] = Field(default=None)
     orid_dhall_pct: Optional[float] = Field(default=None)
     orid_dhall_split_pct: Optional[float] = Field(default=None)
     orid_rejection_pct: Optional[float] = Field(default=None)

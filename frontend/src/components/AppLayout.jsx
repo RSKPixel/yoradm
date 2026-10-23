@@ -15,6 +15,7 @@ import {
   IdentificationIcon,
   CalendarDaysIcon,
   ClipboardDocumentListIcon,
+  CalculatorIcon,
   CubeTransparentIcon,
   InboxArrowDownIcon,
   RectangleStackIcon,
@@ -57,6 +58,7 @@ const navSections = [
         icon: DocumentCheckIcon,
       },
       { to: '/transactions/orid-dhall-production', label: 'Orid Dhall Production', icon: CubeTransparentIcon },
+      { to: '/transactions/orid-costing', label: 'Orid Costing', icon: CalculatorIcon },
       {
         to: '/transactions/packing-material',
         label: 'Packing Material',
@@ -304,6 +306,7 @@ export function AppLayout() {
     location.pathname.startsWith('/reports/tds-workings') ||
     location.pathname.startsWith('/reports/stock-analysis') ||
     location.pathname.startsWith('/reports/orid-stock-analysis') ||
+    location.pathname.startsWith('/transactions/orid-costing') ||
     location.pathname.startsWith('/reports/purchases') ||
     location.pathname.startsWith('/reports/monthly-summary')
   const isFillMain = isPrimaryContentPage || isDashboardPage

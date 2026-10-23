@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
@@ -61,6 +61,7 @@ def list_productions(
     db: DbSession,
     date_from: Optional[date] = Query(default=None),
     date_to: Optional[date] = Query(default=None),
+    status_filter: Optional[Literal["Open", "Closed"]] = Query(default=None, alias="status"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
 ) -> PaginatedResponse[OridDhallProductionListItem]:
@@ -68,6 +69,7 @@ def list_productions(
         db,
         date_from=date_from,
         date_to=date_to,
+        status=status_filter,
         page=page,
         page_size=page_size,
     )

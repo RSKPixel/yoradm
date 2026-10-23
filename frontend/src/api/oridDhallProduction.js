@@ -57,6 +57,7 @@ export async function fetchOridStockPosition() {
 export async function searchOridDhallProductions({
   dateFrom,
   dateTo,
+  status,
   page = 1,
   pageSize = 50,
 } = {}) {
@@ -64,6 +65,7 @@ export async function searchOridDhallProductions({
     params: {
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
+      status: status || undefined,
       page,
       page_size: pageSize,
     },

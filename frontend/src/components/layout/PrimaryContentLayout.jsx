@@ -6,12 +6,14 @@ import { PageBreadcrumb } from './PageBreadcrumb'
  * Full-height transaction page layout:
  * breadcrumb + flat form body + bottom action bar (aligned with sidebar pin).
  * Footer left hosts inline form messages; pass action buttons as `footer`.
+ * `headingActions` renders on the right of the breadcrumb row.
  */
 export function PrimaryContentLayout({
   breadcrumb = [],
   title,
   children,
   footer,
+  headingActions,
   onSubmit,
   onKeyDown,
   className = '',
@@ -23,6 +25,9 @@ export function PrimaryContentLayout({
       {breadcrumb.length ? (
         <div className="primary-content__heading">
           <PageBreadcrumb items={breadcrumb} />
+          {headingActions ? (
+            <div className="primary-content__heading-actions">{headingActions}</div>
+          ) : null}
         </div>
       ) : null}
       <FormPanel

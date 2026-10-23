@@ -264,10 +264,13 @@ def list_productions(
     *,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    status: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
 ) -> Tuple[List[OridDhallProductionListItem], int]:
     query = db.query(OridDhallProduction)
+    if status is not None:
+        query = query.filter(OridDhallProduction.status == status)
     if date_from is not None:
         query = query.filter(OridDhallProduction.production_date >= date_from)
     if date_to is not None:
@@ -295,6 +298,7 @@ def list_productions(
                 status=row.status,  # type: ignore[arg-type]
                 orid_raw_qty=summary["orid_raw_qty"],
                 orid_raw_pct=summary["orid_raw_pct"],
+                orid_raw_value=summary["orid_raw_value"],
                 orid_dhall_qty=summary["orid_dhall_qty"],
                 orid_dhall_pct=summary["orid_dhall_pct"],
                 orid_dhall_split_qty=summary["orid_dhall_split_qty"],

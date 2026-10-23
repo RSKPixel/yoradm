@@ -159,6 +159,7 @@ class OridDhallProductionListItem(BaseModel):
     status: Literal["Open", "Closed"] = "Open"
     orid_raw_qty: Optional[float] = None
     orid_raw_pct: Optional[float] = None
+    orid_raw_value: Optional[float] = None
     orid_dhall_qty: Optional[float] = None
     orid_dhall_pct: Optional[float] = None
     orid_dhall_split_qty: Optional[float] = None

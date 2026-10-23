@@ -18,7 +18,7 @@ import { PlaceholderPage } from './pages/PlaceholderPage'
 import { PostDatedChequePage } from './pages/PostDatedChequePage'
 import { PayablesAnalysisPage } from './pages/PayablesAnalysisPage'
 import { ReceivablesAnalysisPage } from './pages/ReceivablesAnalysisPage'
-import { OridStockAnalysisPage, StockAnalysisPage } from './pages/StockAnalysisPage'
+import { OridCostingPage, OridStockAnalysisPage, StockAnalysisPage } from './pages/StockAnalysisPage'
 import { MonthlySummaryPage } from './pages/MonthlySummaryPage'
 import { PurchasesPage } from './pages/PurchasesPage'
 import { TdsWorkingsPage } from './pages/TdsWorkingsPage'
@@ -54,6 +54,7 @@ export default function App() {
                     path="transactions/orid-dhall-production"
                     element={<OridDhallProductionPage />}
                   />
+                  <Route path="transactions/orid-costing" element={<OridCostingPage />} />
                   <Route
                     path="transactions/packing-material"
                     element={<PackingMaterialPage />}
