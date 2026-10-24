@@ -6,7 +6,7 @@ from math import ceil
 from typing import Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import cast, func, Integer
+from sqlalchemy import and_, case, cast, func, Integer, literal
 from sqlalchemy.orm import Session, joinedload
 
 from app.constants.orid_dhall_purchase import is_legacy_blocked_purchase_voucher
@@ -416,15 +416,20 @@ def _club_avg_purchase_totals(rows: list[OridDhallProduction]) -> dict:
     }
 
 
-def _month_trade_by_stock_group(
+def _month_trade_query(
     db: Session,
     *,
     model: type,
     date_from: date,
     date_to: date,
     include_discount: bool = False,
-) -> Dict[str, dict]:
-    """Sum Tally sales/purchases for the month by inventory stock_group (50kg bags)."""
+):
+    """Base query + per-line expressions for Tally sales/purchases in a date range.
+
+    With include_discount, the invoice-level discount (repeated on every line of the
+    voucher) is split across the invoice's lines in proportion to line amount, and
+    each line's share is added to its value (discounts are stored negative).
+    """
     start_dt = datetime.combine(date_from, datetime.min.time())
     end_dt = datetime.combine(date_to, datetime.max.time())
     item_key = func.lower(func.trim(model.stock_item))
@@ -440,9 +445,38 @@ def _month_trade_by_stock_group(
         quintal_expr = func.coalesce(model.weight, weight_from_qty) / 100.0
     else:
         quintal_expr = weight_from_qty / 100.0
-    value_expr = func.coalesce(model.amount, 0.0)
+    gross_expr = func.coalesce(model.amount, 0.0)
+    discount_expr = None
+    invoice = None
     if include_discount and hasattr(model, "discount"):
-        value_expr = value_expr + func.coalesce(model.discount, 0.0)
+        invoice_date = func.date(model.voucher_date)
+        invoice = (
+            db.query(
+                model.voucher_no.label("voucher_no"),
+                invoice_date.label("invoice_date"),
+                func.sum(func.coalesce(model.amount, 0.0)).label("total_amount"),
+                func.max(func.coalesce(model.discount, 0.0)).label("discount"),
+            )
+            .filter(
+                model.voucher_date >= start_dt,
+                model.voucher_date <= end_dt,
+            )
+            .group_by(model.voucher_no, invoice_date)
+            .subquery()
+        )
+        discount_expr = func.coalesce(
+            case(
+                (
+                    invoice.c.total_amount != 0,
+                    invoice.c.discount
+                    * func.coalesce(model.amount, 0.0)
+                    / invoice.c.total_amount,
+                ),
+                else_=0.0,
+            ),
+            0.0,
+        )
+    value_expr = gross_expr + discount_expr if discount_expr is not None else gross_expr
     if hasattr(model, "stock_group"):
         group_expr = func.coalesce(
             func.nullif(func.trim(model.stock_group), ""),
@@ -454,26 +488,65 @@ def _month_trade_by_stock_group(
             func.nullif(func.trim(TallySyncInventory.stock_group), ""),
             "Unmapped",
         )
-    rows = (
-        db.query(
-            group_expr.label("stock_group"),
-            func.coalesce(func.sum(bags_expr), 0.0).label("bags"),
-            func.coalesce(func.sum(quintal_expr), 0.0).label("quintal"),
-            func.coalesce(func.sum(value_expr), 0.0).label("value"),
-        )
-        .outerjoin(TallySyncInventory, item_key == inv_item)
-        .filter(
+
+    def query(*columns):
+        q = db.query(*columns).outerjoin(TallySyncInventory, item_key == inv_item)
+        if invoice is not None:
+            q = q.outerjoin(
+                invoice,
+                and_(
+                    invoice.c.voucher_no == model.voucher_no,
+                    invoice.c.invoice_date == func.date(model.voucher_date),
+                ),
+            )
+        return q.filter(
             model.voucher_date.isnot(None),
             model.voucher_date >= start_dt,
             model.voucher_date <= end_dt,
             model.stock_item.isnot(None),
             func.trim(model.stock_item) != "",
         )
-        .group_by(group_expr)
+
+    return {
+        "query": query,
+        "group": group_expr,
+        "bags": bags_expr,
+        "quintal": quintal_expr,
+        "gross": gross_expr,
+        "discount": discount_expr if discount_expr is not None else literal(0.0),
+        "value": value_expr,
+    }
+
+
+def _month_trade_by_stock_group(
+    db: Session,
+    *,
+    model: type,
+    date_from: date,
+    date_to: date,
+    include_discount: bool = False,
+) -> Dict[str, dict]:
+    """Sum Tally sales/purchases for the month by inventory stock_group (50kg bags)."""
+    t = _month_trade_query(
+        db,
+        model=model,
+        date_from=date_from,
+        date_to=date_to,
+        include_discount=include_discount,
+    )
+    rows = (
+        t["query"](
+            t["group"].label("stock_group"),
+            func.coalesce(func.sum(t["bags"]), 0.0).label("bags"),
+            func.coalesce(func.sum(t["quintal"]), 0.0).label("quintal"),
+            func.coalesce(func.sum(t["value"]), 0.0).label("value"),
+            func.coalesce(func.sum(t["gross"]), 0.0).label("gross"),
+        )
+        .group_by(t["group"])
         .all()
     )
     result: Dict[str, dict] = {}
-    for stock_group, bags, quintal, value in rows:
+    for stock_group, bags, quintal, value, gross in rows:
         name = (stock_group or "").strip() or "Unmapped"
         bags_n = float(bags or 0.0)
         quintal_n = float(quintal or 0.0)
@@ -484,8 +557,73 @@ def _month_trade_by_stock_group(
             "bags": round(bags_n, 2),
             "quintal": round(quintal_n, 2),
             "value": round(value_n, 2),
+            "gross_value": round(float(gross or 0.0), 2),
         }
     return result
+
+
+def month_trade_rate_groups(
+    db: Session,
+    *,
+    kind: str,
+    year: int,
+    month: int,
+    stock_groups: List[str],
+) -> List[dict]:
+    """Monthly Summary rate drill-down: lines grouped by Tally line rate (net of discount share)."""
+    model = TallySyncSale if kind == "sales" else TallySyncPurchase
+    last_day = monthrange(year, month)[1]
+    t = _month_trade_query(
+        db,
+        model=model,
+        date_from=date(year, month, 1),
+        date_to=date(year, month, last_day),
+        include_discount=kind == "sales",
+    )
+    # Tally rates ending in .40 (e.g. 129.40) are clubbed with their whole-rupee sibling (129).
+    rate_key = case(
+        (
+            func.round(model.rate - func.floor(model.rate), 2) == 0.4,
+            func.floor(model.rate),
+        ),
+        else_=model.rate,
+    )
+    rows = (
+        t["query"](
+            rate_key.label("line_rate"),
+            func.count().label("lines"),
+            func.count(func.distinct(model.voucher_no)).label("invoices"),
+            func.coalesce(func.sum(t["bags"]), 0.0).label("bags"),
+            func.coalesce(func.sum(t["quintal"]), 0.0).label("quintal"),
+            func.coalesce(func.sum(t["gross"]), 0.0).label("gross"),
+            func.coalesce(func.sum(t["discount"]), 0.0).label("discount"),
+            func.coalesce(func.sum(t["value"]), 0.0).label("value"),
+        )
+        .filter(t["group"].in_(stock_groups))
+        .group_by(rate_key)
+        .order_by(rate_key.desc())
+        .all()
+    )
+    items = []
+    for line_rate, lines, invoices, bags, quintal, gross, discount, value in rows:
+        quintal_n = round(float(quintal or 0.0), 2)
+        gross_n = round(float(gross or 0.0), 2)
+        value_n = round(float(value or 0.0), 2)
+        items.append(
+            {
+                "line_rate": None if line_rate is None else float(line_rate),
+                "lines": int(lines or 0),
+                "invoices": int(invoices or 0),
+                "bags": round(float(bags or 0.0), 2),
+                "quintal": quintal_n,
+                "gross_value": gross_n,
+                "gross_rate": _rate_from_value_quintal(gross_n, quintal_n),
+                "discount": round(float(discount or 0.0), 2),
+                "value": value_n,
+                "rate": _rate_from_value_quintal(value_n, quintal_n),
+            }
+        )
+    return items
 
 
 def _trade_fields_from_group(
@@ -493,12 +631,21 @@ def _trade_fields_from_group(
 ) -> dict:
     row = by_group.get(stock_group)
     if not row:
-        return {"qty": None, "rate": None, "value": None}
+        return {
+            "qty": None,
+            "rate": None,
+            "value": None,
+            "gross_rate": None,
+            "gross_value": None,
+        }
     value = row.get("value")
+    gross_value = row.get("gross_value")
     return {
         "qty": row.get("bags"),
         "rate": _rate_from_value_quintal(value, row.get("quintal")),
         "value": value,
+        "gross_rate": _rate_from_value_quintal(gross_value, row.get("quintal")),
+        "gross_value": gross_value,
     }
 
 
@@ -561,6 +708,7 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
         model=TallySyncSale,
         date_from=start,
         date_to=end,
+        include_discount=True,
     )
     sales_dhall = _trade_fields_from_group(sales_by_group, "Orid Dhall")
     sales_split = _trade_fields_from_group(sales_by_group, "Orid Dhall Split")
@@ -607,6 +755,12 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
         "sales_orid_rejection_qty": sales_rejection["qty"],
         "sales_orid_rejection_rate": sales_rejection["rate"],
         "sales_orid_rejection_value": sales_rejection["value"],
+        "sales_orid_dhall_gross_rate": sales_dhall["gross_rate"],
+        "sales_orid_dhall_gross_value": sales_dhall["gross_value"],
+        "sales_orid_dhall_split_gross_rate": sales_split["gross_rate"],
+        "sales_orid_dhall_split_gross_value": sales_split["gross_value"],
+        "sales_orid_rejection_gross_rate": sales_rejection["gross_rate"],
+        "sales_orid_rejection_gross_value": sales_rejection["gross_value"],
     }
 
 

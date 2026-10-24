@@ -5424,6 +5424,45 @@ body {
   border-top: 1px solid var(--form-line, var(--line));
 }
 
+.rate-groups-chart {
+  box-sizing: content-box;
+  height: 11rem;
+  padding-top: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.rate-groups-chart__tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.rate-groups-chart__tooltip span {
+  color: var(--muted);
+}
+
+.monthly-summary__rate-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.monthly-summary__rate-link:hover,
+.monthly-summary__rate-link:focus-visible {
+  color: var(--accent);
+}
+
 .monthly-summary__total-row td {
   font-weight: 600;
   border-top: 1px solid color-mix(in srgb, var(--muted) 75%, var(--text, #e8e4dc));

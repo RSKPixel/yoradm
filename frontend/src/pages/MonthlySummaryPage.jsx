@@ -3,6 +3,7 @@ import { fetchMonthlySummary } from '../api/reports'
 import { FormField, FormSelect } from '../components/form/FormPanel'
 import { useFormMessage } from '../components/form/FormMessage'
 import { PrimaryContentLayout } from '../components/layout/PrimaryContentLayout'
+import { RateGroupsModal } from '../components/monthly-summary/RateGroupsModal'
 import {
   FY_MONTHS,
   currentFinancialYearStart,
@@ -11,7 +12,7 @@ import {
 import { formatCommaNumber } from '../utils/formatNumber'
 import { getApiErrorMessage } from '../utils/formValidation'
 
-const COL_COUNT = 7
+const COL_COUNT = 5
 const BAG_TO_QUINTAL = 50 / 100
 
 function calendarYearFor(fyStart, month) {
@@ -43,14 +44,6 @@ function rateFromBagsValue(bags, value) {
   return Math.round((amount / (qty * BAG_TO_QUINTAL)) * 100) / 100
 }
 
-/** Diff % = (sales rate − cost price) / cost price × 100. */
-function diffPctFromRates(rate, costPrice) {
-  const selling = Number(rate)
-  const cost = Number(costPrice)
-  if (!Number.isFinite(selling) || !Number.isFinite(cost) || cost === 0) return null
-  return Math.round(((selling - cost) / cost) * 10000) / 100
-}
-
 function formatQty(qty) {
   if (qty == null || qty === '') return '—'
   return formatCommaNumber(qty, 2)
@@ -66,51 +59,32 @@ function formatMoney(value) {
   return formatCommaNumber(value, 2)
 }
 
-function MetricRow({
-  label,
-  qty,
-  pct,
-  costPrice,
-  rate,
-  diffPct,
-  value,
-  emphasis = false,
-}) {
+/** `grossRate` is before discount; rows without a discount show the same rate twice. */
+function MetricRow({ label, qty, pct, grossRate, rate, emphasis = false, onRateClick }) {
   return (
     <tr className={emphasis ? 'monthly-summary__total-row' : undefined}>
       <td>{label}</td>
       <td className="win-form__table-num">{formatQty(qty)}</td>
       <td className="win-form__table-num">{formatPct(pct)}</td>
-      <td className="win-form__table-num">{formatMoney(costPrice)}</td>
-      <td className="win-form__table-num">{formatMoney(rate)}</td>
-      <td
-        className={[
-          'win-form__table-num',
-          diffPct == null || diffPct === ''
-            ? ''
-            : Number(diffPct) >= 0
-              ? 'monthly-summary__diff--pos'
-              : 'monthly-summary__diff--neg',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-      >
-        {formatPct(diffPct)}
+      <td className="win-form__table-num">
+        {formatMoney(grossRate === undefined ? rate : grossRate)}
       </td>
-      <td className="win-form__table-num">{formatMoney(value)}</td>
+      <td className="win-form__table-num">
+        {onRateClick && rate != null && rate !== '' ? (
+          <button
+            type="button"
+            className="monthly-summary__rate-link"
+            title="Show rates"
+            onClick={onRateClick}
+          >
+            {formatMoney(rate)}
+          </button>
+        ) : (
+          formatMoney(rate)
+        )}
+      </td>
     </tr>
   )
-}
-
-/** Weighted cost rate from production + purchase qty/value (50kg bags). */
-function costPriceFromSources(...pairs) {
-  const qtys = []
-  const values = []
-  for (const [qty, value] of pairs) {
-    qtys.push(qty)
-    values.push(value)
-  }
-  return rateFromBagsValue(sumOptional(...qtys), sumOptional(...values))
 }
 
 function SectionRow({ label }) {
@@ -128,6 +102,7 @@ export function MonthlySummaryPage() {
   const [month, setMonth] = useState(() => new Date().getMonth() + 1)
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [rateGroups, setRateGroups] = useState(null)
 
   const calendarYear = calendarYearFor(financialYear, month)
   const orid = summary?.orid_production
@@ -151,10 +126,6 @@ export function MonthlySummaryPage() {
     orid?.purchase_orid_dhall_split_value,
   )
   const purchaseTotalRate = rateFromBagsValue(purchaseTotalQty, purchaseTotalValue)
-  const purchaseTotalDiffPct = diffPctFromRates(
-    orid?.overall_rate,
-    purchaseTotalRate,
-  )
   const salesTotalQty = sumOptional(
     orid?.sales_orid_dhall_qty,
     orid?.sales_orid_dhall_split_qty,
@@ -166,38 +137,14 @@ export function MonthlySummaryPage() {
     orid?.sales_orid_rejection_value,
   )
   const salesTotalRate = rateFromBagsValue(salesTotalQty, salesTotalValue)
-  const salesDhallCostPrice = costPriceFromSources(
-    [orid?.orid_dhall_qty, orid?.orid_dhall_value],
-    [orid?.purchase_orid_dhall_qty, orid?.purchase_orid_dhall_value],
+  const salesTotalGrossRate = rateFromBagsValue(
+    salesTotalQty,
+    sumOptional(
+      orid?.sales_orid_dhall_gross_value,
+      orid?.sales_orid_dhall_split_gross_value,
+      orid?.sales_orid_rejection_gross_value,
+    ),
   )
-  const salesSplitCostPrice = costPriceFromSources(
-    [orid?.orid_dhall_split_qty, orid?.orid_dhall_split_value],
-    [orid?.purchase_orid_dhall_split_qty, orid?.purchase_orid_dhall_split_value],
-  )
-  const salesRejectionCostPrice = costPriceFromSources([
-    orid?.orid_rejection_qty,
-    orid?.orid_rejection_value,
-  ])
-  const salesTotalCostPrice = costPriceFromSources(
-    [orid?.orid_dhall_qty, orid?.orid_dhall_value],
-    [orid?.purchase_orid_dhall_qty, orid?.purchase_orid_dhall_value],
-    [orid?.orid_dhall_split_qty, orid?.orid_dhall_split_value],
-    [orid?.purchase_orid_dhall_split_qty, orid?.purchase_orid_dhall_split_value],
-    [orid?.orid_rejection_qty, orid?.orid_rejection_value],
-  )
-  const salesDhallDiffPct = diffPctFromRates(
-    orid?.sales_orid_dhall_rate,
-    salesDhallCostPrice,
-  )
-  const salesSplitDiffPct = diffPctFromRates(
-    orid?.sales_orid_dhall_split_rate,
-    salesSplitCostPrice,
-  )
-  const salesRejectionDiffPct = diffPctFromRates(
-    orid?.sales_orid_rejection_rate,
-    salesRejectionCostPrice,
-  )
-  const salesTotalDiffPct = diffPctFromRates(salesTotalRate, salesTotalCostPrice)
 
   useEffect(() => {
     let cancelled = false
@@ -229,7 +176,6 @@ export function MonthlySummaryPage() {
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-2 lg:max-w-xl">
           <FormField label="Financial year">
             <FormSelect
-              value={String(financialYear)}
               onChange={(e) => setFinancialYear(Number(e.target.value))}
               disabled={loading}
             >
@@ -242,7 +188,6 @@ export function MonthlySummaryPage() {
           </FormField>
           <FormField label="Month">
             <FormSelect
-              value={String(month)}
               onChange={(e) => setMonth(Number(e.target.value))}
               disabled={loading}
             >
@@ -265,26 +210,14 @@ export function MonthlySummaryPage() {
               <col className="monthly-summary__col-pct" />
               <col />
               <col />
-              <col className="monthly-summary__col-pct" />
-              <col />
             </colgroup>
             <thead>
               <tr>
                 <th />
                 <th className="win-form__table-num">Qty</th>
                 <th className="win-form__table-num">%</th>
-                <th className="win-form__table-num">
-                  Cost
-                  <br />
-                  Price
-                </th>
                 <th className="win-form__table-num">Rate</th>
-                <th className="win-form__table-num">
-                  Diff
-                  <br />
-                  %
-                </th>
-                <th className="win-form__table-num">Value</th>
+                <th className="win-form__table-num">Nett Rate</th>
               </tr>
             </thead>
             <tbody>
@@ -306,34 +239,38 @@ export function MonthlySummaryPage() {
                   <MetricRow
                     label="Orid Dhall"
                     qty={orid.sales_orid_dhall_qty}
-                    costPrice={salesDhallCostPrice}
+                    grossRate={orid.sales_orid_dhall_gross_rate}
+                    onRateClick={() =>
+                      setRateGroups({ kind: 'sales', title: 'Sales · Orid Dhall', stockGroups: ['Orid Dhall'] })
+                    }
                     rate={orid.sales_orid_dhall_rate}
-                    diffPct={salesDhallDiffPct}
-                    value={orid.sales_orid_dhall_value}
                   />
                   <MetricRow
                     label="Orid Dhall Split"
                     qty={orid.sales_orid_dhall_split_qty}
-                    costPrice={salesSplitCostPrice}
+                    grossRate={orid.sales_orid_dhall_split_gross_rate}
+                    onRateClick={() =>
+                      setRateGroups({ kind: 'sales', title: 'Sales · Orid Dhall Split', stockGroups: ['Orid Dhall Split'] })
+                    }
                     rate={orid.sales_orid_dhall_split_rate}
-                    diffPct={salesSplitDiffPct}
-                    value={orid.sales_orid_dhall_split_value}
                   />
                   <MetricRow
                     label="Orid Dhall Rejection"
                     qty={orid.sales_orid_rejection_qty}
-                    costPrice={salesRejectionCostPrice}
+                    grossRate={orid.sales_orid_rejection_gross_rate}
+                    onRateClick={() =>
+                      setRateGroups({ kind: 'sales', title: 'Sales · Orid Dhall Rejection', stockGroups: ['Orid Dhall Rejection'] })
+                    }
                     rate={orid.sales_orid_rejection_rate}
-                    diffPct={salesRejectionDiffPct}
-                    value={orid.sales_orid_rejection_value}
                   />
                   <MetricRow
                     label="Sales Total"
                     qty={salesTotalQty}
-                    costPrice={salesTotalCostPrice}
+                    grossRate={salesTotalGrossRate}
+                    onRateClick={() =>
+                      setRateGroups({ kind: 'sales', title: 'Sales Total', stockGroups: ['Orid Dhall', 'Orid Dhall Split', 'Orid Dhall Rejection'] })
+                    }
                     rate={salesTotalRate}
-                    diffPct={salesTotalDiffPct}
-                    value={salesTotalValue}
                     emphasis
                   />
                   <SectionRow label="Production" />
@@ -342,56 +279,56 @@ export function MonthlySummaryPage() {
                     qty={orid.orid_raw_qty}
                     pct={orid.orid_raw_pct}
                     rate={orid.orid_raw_rate}
-                    value={orid.orid_raw_value}
                   />
                   <MetricRow
                     label="Orid Dhall"
                     qty={orid.orid_dhall_qty}
                     pct={orid.orid_dhall_pct}
                     rate={orid.orid_dhall_rate}
-                    value={orid.orid_dhall_value}
                   />
                   <MetricRow
                     label="Orid Dhall Split"
                     qty={orid.orid_dhall_split_qty}
                     pct={orid.orid_dhall_split_pct}
                     rate={orid.orid_dhall_split_rate}
-                    value={orid.orid_dhall_split_value}
                   />
                   <MetricRow
                     label="Orid Dhall Rejection"
                     qty={orid.orid_rejection_qty}
                     pct={orid.orid_rejection_pct}
                     rate={orid.orid_rejection_rate}
-                    value={orid.orid_rejection_value}
                   />
                   <MetricRow
                     label="Net Dhall Yield"
                     qty={orid.overall_qty}
                     pct={orid.overall_pct}
                     rate={orid.overall_rate}
-                    value={orid.overall_value}
                     emphasis
                   />
                   <SectionRow label="Purchases" />
                   <MetricRow
                     label="Orid Dhall Purchase"
                     qty={orid.purchase_orid_dhall_qty}
+                    onRateClick={() =>
+                      setRateGroups({ kind: 'purchases', title: 'Purchases · Orid Dhall', stockGroups: ['Orid Dhall'] })
+                    }
                     rate={orid.purchase_orid_dhall_rate}
-                    value={orid.purchase_orid_dhall_value}
                   />
                   <MetricRow
                     label="Orid Dhall Split Purchase"
                     qty={orid.purchase_orid_dhall_split_qty}
+                    onRateClick={() =>
+                      setRateGroups({ kind: 'purchases', title: 'Purchases · Orid Dhall Split', stockGroups: ['Orid Dhall Split'] })
+                    }
                     rate={orid.purchase_orid_dhall_split_rate}
-                    value={orid.purchase_orid_dhall_split_value}
                   />
                   <MetricRow
                     label="Purchase Total"
                     qty={purchaseTotalQty}
+                    onRateClick={() =>
+                      setRateGroups({ kind: 'purchases', title: 'Purchase Total', stockGroups: ['Orid Dhall', 'Orid Dhall Split'] })
+                    }
                     rate={purchaseTotalRate}
-                    diffPct={purchaseTotalDiffPct}
-                    value={purchaseTotalValue}
                     emphasis
                   />
                 </>
@@ -400,6 +337,16 @@ export function MonthlySummaryPage() {
           </table>
         </div>
       </section>
+      {rateGroups ? (
+        <RateGroupsModal
+          title={rateGroups.title}
+          kind={rateGroups.kind}
+          stockGroups={rateGroups.stockGroups}
+          year={calendarYear}
+          month={Number(month)}
+          onClose={() => setRateGroups(null)}
+        />
+      ) : null}
     </PrimaryContentLayout>
   )
 }
