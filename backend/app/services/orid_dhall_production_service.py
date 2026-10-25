@@ -365,57 +365,6 @@ def _add_optional(*values: Optional[float]) -> Optional[float]:
     return round(total, 2) if any_value else None
 
 
-def _avg_line_weight_kg(line: OridDhallProductionLine) -> float:
-    """Weight for Average purchase lines: stored weight, else qty × packing."""
-    if line.weight is not None:
-        try:
-            weight = float(line.weight)
-            if weight > 0:
-                return weight
-        except (TypeError, ValueError):
-            pass
-    try:
-        qty = float(line.qty or 0)
-    except (TypeError, ValueError):
-        qty = 0.0
-    try:
-        packing = float(line.packing) if line.packing is not None else None
-    except (TypeError, ValueError):
-        packing = None
-    if qty > 0 and packing is not None:
-        return qty * packing
-    return 0.0
-
-
-def _club_avg_purchase_totals(rows: list[OridDhallProduction]) -> dict:
-    """Sum Orid Dhall Average purchase lines from closed lots (50kg bags)."""
-    weight_kg = 0.0
-    value = 0.0
-    any_avg = False
-    for row in rows:
-        for line in row.lines:
-            if line.line_kind != "avg":
-                continue
-            any_avg = True
-            weight_kg += _avg_line_weight_kg(line)
-            try:
-                value += float(line.amount or 0)
-            except (TypeError, ValueError):
-                pass
-    if not any_avg:
-        return {"qty": None, "rate": None, "value": None}
-    quintal = weight_kg / 100.0 if weight_kg else 0.0
-    bags_50 = round(weight_kg / STANDARD_BAG_KG, 2) if weight_kg else None
-    value_n = round(value, 2) if value else None
-    return {
-        "qty": bags_50 if bags_50 else None,
-        "rate": _rate_from_value_quintal(
-            value_n, round(quintal, 2) if quintal else None
-        ),
-        "value": value_n,
-    }
-
-
 def _month_trade_query(
     db: Session,
     *,
@@ -679,28 +628,32 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
     dhall_value = _sum_optional(summaries, "orid_dhall_value")
     split_value = _sum_optional(summaries, "orid_dhall_split_value")
     rejection_value = _sum_optional(summaries, "orid_rejection_value")
+    husk_value = _sum_optional(summaries, "orid_husk_value")
     raw_quintal = _sum_optional(summaries, "orid_raw_quintal")
     dhall_quintal = _sum_optional(summaries, "orid_dhall_quintal")
     split_quintal = _sum_optional(summaries, "orid_dhall_split_quintal")
     rejection_quintal = _sum_optional(summaries, "orid_rejection_quintal")
+    husk_quintal = _sum_optional(summaries, "orid_husk_quintal")
     # Orid Raw qty in quintals; other qtys in 50kg bags.
     raw_qty = round(raw_quintal, 2) if raw_quintal is not None else None
     dhall_qty = _bags_50_from_quintal(dhall_quintal)
     split_qty = _bags_50_from_quintal(split_quintal)
     rejection_qty = _bags_50_from_quintal(rejection_quintal)
+    husk_qty = _bags_50_from_quintal(husk_quintal)
     overall_value = _add_optional(dhall_value, split_value, rejection_value)
     overall_quintal = _add_optional(dhall_quintal, split_quintal, rejection_quintal)
     dhall_pct = _weighted_pct(summaries, "orid_dhall_pct")
     split_pct = _weighted_pct(summaries, "orid_dhall_split_pct")
     rejection_pct = _weighted_pct(summaries, "orid_rejection_pct")
+    husk_pct = _weighted_pct(summaries, "orid_husk_pct")
 
-    purchase_dhall = _club_avg_purchase_totals(unique_rows)
     purchase_by_group = _month_trade_by_stock_group(
         db,
         model=TallySyncPurchase,
         date_from=start,
         date_to=end,
     )
+    purchase_dhall = _trade_fields_from_group(purchase_by_group, "Orid Dhall")
     purchase_split = _trade_fields_from_group(purchase_by_group, "Orid Dhall Split")
 
     sales_by_group = _month_trade_by_stock_group(
@@ -736,6 +689,11 @@ def club_closed_productions_for_month(db: Session, *, year: int, month: int) -> 
         "orid_rejection_rate": _rate_from_value_quintal(
             rejection_value, rejection_quintal
         ),
+        # By-product: not part of the Net Dhall Yield totals.
+        "orid_husk_qty": husk_qty,
+        "orid_husk_pct": husk_pct,
+        "orid_husk_value": husk_value,
+        "orid_husk_rate": _rate_from_value_quintal(husk_value, husk_quintal),
         "overall_qty": _bags_50_from_quintal(overall_quintal),
         "overall_pct": _add_optional(dhall_pct, split_pct, rejection_pct),
         "overall_value": overall_value,

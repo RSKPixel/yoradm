@@ -804,7 +804,7 @@ export function OridDhallProductionPage() {
       <PrimaryContentLayout
         title="Orid Dhall Production"
         breadcrumb={[
-          { label: 'Transactions' },
+          { label: 'Orid Processing' },
           { label: 'Orid Dhall Production' },
         ]}
         onSubmit={onSave}

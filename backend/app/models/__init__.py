@@ -5,6 +5,7 @@ from app.models.company import Company
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
 from app.models.goods_receipt import GoodsReceipt
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
+from app.models.orid_monthly_opening import OridMonthlyOpening
 from app.models.orid_stock_costing import OridStockCosting
 from app.models.orid_stock_pending import OridStockPending
 from app.models.orid_stock_workings import OridStockWorkings
@@ -51,6 +52,7 @@ __all__ = [
     "GoodsReceipt",
     "OridDhallProduction",
     "OridDhallProductionLine",
+    "OridMonthlyOpening",
     "OridStockCosting",
     "OridStockPending",
     "OridStockWorkings",

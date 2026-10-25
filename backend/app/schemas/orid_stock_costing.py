@@ -26,6 +26,9 @@ class OridStockCostingOut(BaseModel):
     split_rate: Optional[float] = None
     rejection_rate: Optional[float] = None
     husk_rate: Optional[float] = None
+    dhall_cost_rate: Optional[float] = None
+    dhall_overheads_pct: Optional[float] = None
+    dhall_discount_pct: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 
@@ -45,3 +48,6 @@ class OridStockCostingSaveIn(BaseModel):
     split_rate: Optional[float] = Field(default=None)
     rejection_rate: Optional[float] = Field(default=None)
     husk_rate: Optional[float] = Field(default=None)
+    dhall_cost_rate: Optional[float] = Field(default=None)
+    dhall_overheads_pct: Optional[float] = Field(default=None)
+    dhall_discount_pct: Optional[float] = Field(default=None)

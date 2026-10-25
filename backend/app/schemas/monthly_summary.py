@@ -23,6 +23,10 @@ class MonthlyOridProductionOut(BaseModel):
     orid_rejection_pct: Optional[float] = None
     orid_rejection_value: Optional[float] = None
     orid_rejection_rate: Optional[float] = None
+    orid_husk_qty: Optional[float] = None
+    orid_husk_pct: Optional[float] = None
+    orid_husk_value: Optional[float] = None
+    orid_husk_rate: Optional[float] = None
     overall_qty: Optional[float] = None
     overall_pct: Optional[float] = None
     overall_value: Optional[float] = None
@@ -51,10 +55,27 @@ class MonthlyOridProductionOut(BaseModel):
     sales_orid_rejection_gross_value: Optional[float] = None
 
 
+class MonthlyOpeningOut(BaseModel):
+    """Manual Orid Dhall opening stock: 50kg bags, rate per quintal."""
+
+    year: int
+    month: int = Field(ge=1, le=12)
+    opening_qty: Optional[float] = None
+    opening_rate: Optional[float] = None
+
+
+class MonthlyOpeningSaveIn(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    opening_qty: Optional[float] = None
+    opening_rate: Optional[float] = None
+
+
 class MonthlySummaryOut(BaseModel):
     year: int
     month: int = Field(ge=1, le=12)
     orid_production: MonthlyOridProductionOut
+    opening: MonthlyOpeningOut
 
 
 class MonthlyRateGroupOut(BaseModel):

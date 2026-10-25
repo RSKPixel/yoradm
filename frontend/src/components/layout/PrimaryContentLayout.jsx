@@ -7,6 +7,7 @@ import { PageBreadcrumb } from './PageBreadcrumb'
  * breadcrumb + flat form body + bottom action bar (aligned with sidebar pin).
  * Footer left hosts inline form messages; pass action buttons as `footer`.
  * `headingActions` renders on the right of the breadcrumb row.
+ * `hideFooter` drops the bar for read-only pages (messages fall back to toasts).
  */
 export function PrimaryContentLayout({
   breadcrumb = [],
@@ -16,6 +17,7 @@ export function PrimaryContentLayout({
   headingActions,
   onSubmit,
   onKeyDown,
+  hideFooter = false,
   className = '',
 }) {
   return (
@@ -38,10 +40,12 @@ export function PrimaryContentLayout({
         onSubmit={onSubmit}
         onKeyDown={onKeyDown}
         footer={
-          <div className="win-form__footer-bar">
-            <FormMessageInline className="win-form__footer-left" />
-            {footer ? <div className="win-form__footer-right">{footer}</div> : null}
-          </div>
+          hideFooter ? null : (
+            <div className="win-form__footer-bar">
+              <FormMessageInline className="win-form__footer-left" />
+              {footer ? <div className="win-form__footer-right">{footer}</div> : null}
+            </div>
+          )
         }
       >
         {children}

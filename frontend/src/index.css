@@ -5376,6 +5376,7 @@ body {
   border-bottom: none;
 }
 
+/* Tabs + table share one frame, like the Stock Analysis Orid panel. */
 .monthly-summary__block {
   flex: 1 1 auto;
   min-height: 0;
@@ -5384,15 +5385,15 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border: 1px solid var(--form-line, var(--line));
+  border-radius: 0.5rem;
+  background: var(--panel, var(--surface));
 }
 
 .monthly-summary__table-wrap {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  border: 1px solid var(--form-line, var(--line));
-  border-radius: 0.5rem;
-  background: var(--panel, var(--surface));
 }
 
 .monthly-summary__table {
@@ -5417,11 +5418,21 @@ body {
   width: 5rem;
 }
 
-.monthly-summary__section-row td {
-  font-weight: 600;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--surface) 55%, var(--panel));
-  border-top: 1px solid var(--form-line, var(--line));
+/* Fixed row height so rows with rate inputs match plain rows. */
+.monthly-summary__table tbody td {
+  height: 2.25rem;
+}
+
+.monthly-summary__table tbody td.monthly-summary__input-cell {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.monthly-summary__input-cell .win-form__control {
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0 0.4rem;
+  font-size: 0.8125rem;
 }
 
 .rate-groups-chart {

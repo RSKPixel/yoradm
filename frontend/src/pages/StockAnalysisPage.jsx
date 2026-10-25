@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { PlusIcon } from '@heroicons/react/24/outline'
-import { searchOridDhallProductions } from '../api/oridDhallProduction'
 import {
   fetchOridStockCosting,
   saveOridStockCosting,
@@ -33,7 +32,7 @@ import {
   DEFAULT_ORID_YIELD_PCTS,
   ORID_RAW_STOCK_GROUP,
 } from '../constants/oridRawYield'
-import { formatDate, todayIsoDate } from '../utils/formatDate'
+import { todayIsoDate } from '../utils/formatDate'
 import {
   formatCommaNumber,
   formatQty,
@@ -173,7 +172,7 @@ function applyCostingApiToDrafts(row) {
   let rawQtySource = 'both'
   let manualRaw = { qty: '', rate: '' }
   let manualExpenses = { mfg: '', overheads: '' }
-  let manualLotId = ''
+  let dhallCosting = { rate: '', overheads: '', discount: '' }
   if (!row) {
     return {
       pctDrafts,
@@ -182,7 +181,7 @@ function applyCostingApiToDrafts(row) {
       rawQtySource,
       manualRaw,
       manualExpenses,
-      manualLotId,
+      dhallCosting,
     }
   }
   pctDrafts[ORID_COSTING_DHALL] = draftFromNumber(row.orid_dhall_pct)
@@ -208,7 +207,11 @@ function applyCostingApiToDrafts(row) {
     mfg: draftFromNumber(row.manual_mfg_expenses_pct),
     overheads: draftFromNumber(row.manual_overheads_pct),
   }
-  manualLotId = row.manual_lot_id == null ? '' : String(row.manual_lot_id)
+  dhallCosting = {
+    rate: draftFromNumber(row.dhall_cost_rate),
+    overheads: draftFromNumber(row.dhall_overheads_pct),
+    discount: draftFromNumber(row.dhall_discount_pct),
+  }
   return {
     pctDrafts,
     rateDrafts,
@@ -216,24 +219,7 @@ function applyCostingApiToDrafts(row) {
     rawQtySource,
     manualRaw,
     manualExpenses,
-    manualLotId,
-  }
-}
-
-/** Orid Raw qty/rate + yield % pct drafts from a closed Orid Dhall Production lot. */
-function costingFromLot(lot, pctDrafts) {
-  const qty = lot.orid_raw_qty
-  const value = lot.orid_raw_value
-  const rate = qty && value != null ? roundMoney(value / qty) : null
-  return {
-    manualRaw: { qty: draftFromNumber(qty), rate: draftFromNumber(rate) },
-    pctDrafts: {
-      ...pctDrafts,
-      [ORID_COSTING_DHALL]: draftFromNumber(lot.orid_dhall_pct),
-      'Orid Dhall Split': draftFromNumber(lot.orid_dhall_split_pct),
-      'Orid Dhall Rejection': draftFromNumber(lot.orid_rejection_pct),
-      'Orid Husk': draftFromNumber(lot.orid_husk_pct),
-    },
+    dhallCosting,
   }
 }
 
@@ -244,7 +230,7 @@ function costingSavePayload(
   rawQtySource,
   manualRaw,
   manualExpenses,
-  manualLotId,
+  dhallCosting,
 ) {
   return {
     raw_qty_source: normalizeCostingRawQtySource(rawQtySource),
@@ -252,7 +238,8 @@ function costingSavePayload(
     manual_raw_rate: parsePendingNumber(manualRaw?.rate),
     manual_mfg_expenses_pct: parsePendingNumber(manualExpenses?.mfg),
     manual_overheads_pct: parsePendingNumber(manualExpenses?.overheads),
-    manual_lot_id: manualLotId ? Number(manualLotId) : null,
+    // Orid Costing is manual only; clear any lot saved by the old Lot No picker.
+    manual_lot_id: null,
     orid_dhall_pct: parsePendingNumber(pctDrafts[ORID_COSTING_DHALL]),
     orid_dhall_split_pct: parsePendingNumber(pctDrafts['Orid Dhall Split']),
     orid_rejection_pct: parsePendingNumber(pctDrafts['Orid Dhall Rejection']),
@@ -261,6 +248,9 @@ function costingSavePayload(
     split_rate: parsePendingNumber(rateDrafts['Orid Dhall Split']),
     rejection_rate: parsePendingNumber(rateDrafts['Orid Dhall Rejection']),
     husk_rate: parsePendingNumber(rateDrafts['Orid Husk']),
+    dhall_cost_rate: parsePendingNumber(dhallCosting?.rate),
+    dhall_overheads_pct: parsePendingNumber(dhallCosting?.overheads),
+    dhall_discount_pct: parsePendingNumber(dhallCosting?.discount),
   }
 }
 
@@ -964,6 +954,97 @@ function OridPendingGroupTable({
   )
 }
 
+const ORID_COSTING_TABS = [
+  { id: 'orid', label: 'Orid Costing' },
+  { id: 'dhall', label: 'Orid Dhall Costing' },
+]
+
+/**
+ * Orid Dhall Costing (manual): cost per quintal − discount % + overheads % → cost for sale.
+ * Each % is applied on the running cost above it; Per Bag is the 50kg bag rate.
+ */
+function OridDhallCostingTable({ drafts, onChange }) {
+  const costRate = parsePendingNumber(drafts?.rate)
+  const overheadsPct = parsePendingNumber(drafts?.overheads)
+  const discountPct = parsePendingNumber(drafts?.discount)
+  const discountRate =
+    costRate != null && discountPct != null ? roundMoney((costRate * discountPct) / 100) : null
+  const afterDiscount = costRate == null ? null : roundMoney(costRate - (discountRate ?? 0))
+  const overheadsRate =
+    afterDiscount != null && overheadsPct != null
+      ? roundMoney((afterDiscount * overheadsPct) / 100)
+      : null
+  const costForSale = afterDiscount == null ? null : roundMoney(afterDiscount + (overheadsRate ?? 0))
+  const perBag = (rate) => (rate == null ? null : roundMoney(rate / 2))
+  const numCell = (value) => (
+    <span className="win-form__table-readonly">
+      {value == null ? '—' : formatCommaNumber(value, 2)}
+    </span>
+  )
+  const input = (field, label) => (
+    <FormattedNumberInput
+      value={drafts?.[field] ?? ''}
+      fractionDigits={2}
+      selectOnFocus
+      aria-label={label}
+      onChange={(value) => onChange?.(field, value)}
+    />
+  )
+
+  return (
+    <div className="stock-analysis__costing">
+      <table className={oridCostingTableClass}>
+        <colgroup>
+          <col className="stock-analysis__costing-col-item" />
+          <col className="stock-analysis__costing-col-pct" />
+          <col className="stock-analysis__costing-col-num" />
+          <col className="stock-analysis__costing-col-num" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Particulars</th>
+            <th className="win-form__table-num">Percentage</th>
+            <th className="win-form__table-num">Rate (per qtl)</th>
+            <th className="win-form__table-num">Per Bag (50kg)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="stock-analysis__costing-raw">
+            <td>Orid Dhall Cost</td>
+            <td />
+            <td className="win-form__table-num">{input('rate', 'Orid Dhall cost rate')}</td>
+            <td className="win-form__table-num">{numCell(perBag(costRate))}</td>
+          </tr>
+          <tr>
+            <td>Less: Discount</td>
+            <td className="win-form__table-num">{input('discount', 'Discount %')}</td>
+            <td className="win-form__table-num">{numCell(discountRate)}</td>
+            <td className="win-form__table-num">{numCell(perBag(discountRate))}</td>
+          </tr>
+          <tr className="stock-analysis__costing-total">
+            <td>Cost after Discount</td>
+            <td />
+            <td className="win-form__table-num">{numCell(afterDiscount)}</td>
+            <td className="win-form__table-num">{numCell(perBag(afterDiscount))}</td>
+          </tr>
+          <tr>
+            <td>Add: Overheads</td>
+            <td className="win-form__table-num">{input('overheads', 'Overheads %')}</td>
+            <td className="win-form__table-num">{numCell(overheadsRate)}</td>
+            <td className="win-form__table-num">{numCell(perBag(overheadsRate))}</td>
+          </tr>
+          <tr className="stock-analysis__costing-yield-total">
+            <td>Cost for Sale</td>
+            <td />
+            <td className="win-form__table-num">{numCell(costForSale)}</td>
+            <td className="win-form__table-num">{numCell(perBag(costForSale))}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function OridCostingTable({
   rawOrid,
   rawQtySource = 'both',
@@ -972,7 +1053,6 @@ function OridCostingTable({
   onManualRawChange,
   manualExpenses,
   onManualExpenseChange,
-  lotLocked = false,
   pctDrafts,
   rateDrafts,
   expensesPctDraft,
@@ -1078,7 +1158,7 @@ function OridCostingTable({
                 <td className="win-form__table-num">
                   {row.kind === 'raw' || row.kind === 'total' ? (
                     <span className="win-form__table-readonly">—</span>
-                  ) : row.kind === 'yield_total' || (lotLocked && row.kind !== 'expense') ? (
+                  ) : row.kind === 'yield_total' ? (
                     <span className="win-form__table-readonly">
                       {row.pct == null ? '—' : formatCommaNumber(row.pct, 2)}
                     </span>
@@ -1116,7 +1196,7 @@ function OridCostingTable({
                   </td>
                 )}
                 <td className="win-form__table-num">
-                  {row.kind === 'raw' && manualMode && !lotLocked ? (
+                  {row.kind === 'raw' && manualMode ? (
                     <FormattedNumberInput
                       value={manualRaw?.qty ?? ''}
                       fractionDigits={2}
@@ -1131,7 +1211,7 @@ function OridCostingTable({
                   )}
                 </td>
                 <td className="win-form__table-num">
-                  {row.kind === 'raw' && manualMode && !lotLocked ? (
+                  {row.kind === 'raw' && manualMode ? (
                     <FormattedNumberInput
                       value={manualRaw?.rate ?? ''}
                       fractionDigits={2}
@@ -1192,15 +1272,17 @@ function OridReportTabs({
   onCostingManualRawChange,
   costingManualExpenses,
   onCostingManualExpenseChange,
-  costingLotId = '',
   costingPctDrafts,
   costingRateDrafts,
   costingExpensesPctDraft,
   onCostingPctChange,
   onCostingRateChange,
   onCostingExpensesPctChange,
+  costingDhall,
+  onCostingDhallChange,
   costingOnly = false,
 }) {
+  const [costingTab, setCostingTab] = useState('orid')
   const costingTable = (
     <OridCostingTable
       rawOrid={costingRawOrid}
@@ -1210,7 +1292,6 @@ function OridReportTabs({
       onManualRawChange={onCostingManualRawChange}
       manualExpenses={costingManualExpenses}
       onManualExpenseChange={onCostingManualExpenseChange}
-      lotLocked={costingOnly && Boolean(costingLotId)}
       pctDrafts={costingPctDrafts}
       rateDrafts={costingRateDrafts}
       expensesPctDraft={costingExpensesPctDraft}
@@ -1221,7 +1302,41 @@ function OridReportTabs({
   )
 
   if (costingOnly) {
-    return <div className="stock-analysis__orid">{costingTable}</div>
+    return (
+      <div className="stock-analysis__orid">
+        <div className="stock-analysis__tabs" role="tablist" aria-label="Costing sections">
+          {ORID_COSTING_TABS.map((tab) => {
+            const active = costingTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`stock-analysis-costing-tab-${tab.id}`}
+                aria-selected={active}
+                aria-controls="stock-analysis-costing-panel"
+                className={`stock-analysis__tab${active ? ' stock-analysis__tab--active' : ''}`}
+                onClick={() => setCostingTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+        <div
+          className="stock-analysis__tab-panel"
+          role="tabpanel"
+          id="stock-analysis-costing-panel"
+          aria-labelledby={`stock-analysis-costing-tab-${costingTab}`}
+        >
+          {costingTab === 'dhall' ? (
+            <OridDhallCostingTable drafts={costingDhall} onChange={onCostingDhallChange} />
+          ) : (
+            costingTable
+          )}
+        </div>
+      </div>
+    )
   }
 
   const pendingTab = ORID_PENDING_TABS.find((tab) => tab.id === activeTab)
@@ -1419,8 +1534,7 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
   const [costingRawQtySource, setCostingRawQtySource] = useState('both')
   const [costingManualRaw, setCostingManualRaw] = useState({ qty: '', rate: '' })
   const [costingManualExpenses, setCostingManualExpenses] = useState({ mfg: '', overheads: '' })
-  const [costingLotId, setCostingLotId] = useState('')
-  const [costingLots, setCostingLots] = useState([])
+  const [costingDhall, setCostingDhall] = useState({ rate: '', overheads: '', discount: '' })
   const [costingHydrated, setCostingHydrated] = useState(false)
   const [estimatedSalesMode, setEstimatedSalesMode] = useState('manual')
   const [estimatedSales50kg, setEstimatedSales50kg] = useState('')
@@ -1440,7 +1554,7 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
   const costingRawQtySourceRef = useRef(costingRawQtySource)
   const costingManualRawRef = useRef(costingManualRaw)
   const costingManualExpensesRef = useRef(costingManualExpenses)
-  const costingLotIdRef = useRef(costingLotId)
+  const costingDhallRef = useRef(costingDhall)
   const workingsSaveTimer = useRef(null)
   const estimatedSalesModeRef = useRef(estimatedSalesMode)
   const estimatedSalesRef = useRef(estimatedSales50kg)
@@ -1460,7 +1574,6 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
     costingRawQtySourceRef.current = costingRawQtySource
     costingManualRawRef.current = costingManualRaw
     costingManualExpensesRef.current = costingManualExpenses
-    costingLotIdRef.current = costingLotId
   }, [
     costingPctDrafts,
     costingRateDrafts,
@@ -1468,7 +1581,6 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
     costingRawQtySource,
     costingManualRaw,
     costingManualExpenses,
-    costingLotId,
   ])
 
   useEffect(() => {
@@ -1559,7 +1671,7 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
           costingRawQtySourceRef.current,
           costingManualRawRef.current,
           costingManualExpensesRef.current,
-          costingLotIdRef.current,
+          costingDhallRef.current,
         ),
       ).catch((err) => {
         showError(getApiErrorMessage(err, 'Unable to save costing'))
@@ -1607,9 +1719,12 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
     scheduleCostingSave()
   }
 
-  function changeCostingLot(value) {
-    costingLotIdRef.current = value
-    setCostingLotId(value)
+  function changeCostingDhall(field, value) {
+    setCostingDhall((current) => {
+      const next = { ...current, [field]: value }
+      costingDhallRef.current = next
+      return next
+    })
     scheduleCostingSave()
   }
 
@@ -1668,31 +1783,6 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
     [oridWorkings, pendingLines],
   )
 
-  // Closed production lots for the Orid Costing page.
-  useEffect(() => {
-    if (!costingOnly) return undefined
-    let cancelled = false
-    void searchOridDhallProductions({ status: 'Closed', pageSize: 100 })
-      .then((data) => {
-        if (!cancelled) setCostingLots(data?.items ?? [])
-      })
-      .catch((err) => {
-        if (!cancelled) showError(getApiErrorMessage(err, 'Unable to load production lots'))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [costingOnly])
-
-  const selectedLot = costingOnly
-    ? costingLots.find((lot) => String(lot.id) === costingLotId) ?? null
-    : null
-  const lotCosting = useMemo(
-    () => (selectedLot ? costingFromLot(selectedLot, costingPctDrafts) : null),
-    [selectedLot, costingPctDrafts],
-  )
-  const costingTablePctDrafts = lotCosting?.pctDrafts ?? costingPctDrafts
-
   // Orid Costing page is always manual; the report never uses manual.
   const effectiveRawQtySource = costingOnly
     ? 'manual'
@@ -1705,9 +1795,9 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
       resolveCostingRawOrid(
         baseWorkingsRows,
         effectiveRawQtySource,
-        lotCosting?.manualRaw ?? costingManualRaw,
+        costingManualRaw,
       ),
-    [baseWorkingsRows, effectiveRawQtySource, lotCosting, costingManualRaw],
+    [baseWorkingsRows, effectiveRawQtySource, costingManualRaw],
   )
 
   // Workings (saved from both pages) always follow the report's raw source.
@@ -1816,8 +1906,8 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
         setCostingManualRaw(drafts.manualRaw)
         costingManualExpensesRef.current = drafts.manualExpenses
         setCostingManualExpenses(drafts.manualExpenses)
-        costingLotIdRef.current = drafts.manualLotId
-        setCostingLotId(drafts.manualLotId)
+        costingDhallRef.current = drafts.dhallCosting
+        setCostingDhall(drafts.dhallCosting)
         setCostingHydrated(true)
         const savedMode = normalizeEstimatedSalesMode(
           savedWorkings?.estimated_sales_mode,
@@ -1908,26 +1998,7 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
 
   return (
     <PrimaryContentLayout
-      breadcrumb={[{ label: costingOnly ? 'Transactions' : 'Reports' }, { label: pageTitle }]}
-      headingActions={
-        costingOnly ? (
-          <label className="heading-picker">
-            <span className="heading-picker__label">Lot No</span>
-            <select
-              className="heading-picker__select"
-              value={costingLotId}
-              onChange={(e) => changeCostingLot(e.target.value)}
-            >
-              <option value="">Manual entry</option>
-              {costingLots.map((lot) => (
-                <option key={lot.id} value={String(lot.id)}>
-                  {`Lot ${lot.lot_no ?? lot.id} · ${formatDate(lot.production_date)}`}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null
-      }
+      breadcrumb={[{ label: oridOnly ? 'Orid Processing' : 'Reports' }, { label: pageTitle }]}
       title={pageTitle}
     >
       {oridOnly ? null : (
@@ -1978,13 +2049,14 @@ export function StockAnalysisPage({ oridOnly = false, costingOnly = false }) {
           onCostingManualRawChange={changeCostingManualRaw}
           costingManualExpenses={costingManualExpenses}
           onCostingManualExpenseChange={changeCostingManualExpense}
-          costingLotId={costingLotId}
-          costingPctDrafts={costingTablePctDrafts}
+          costingPctDrafts={costingPctDrafts}
           costingRateDrafts={costingRateDrafts}
           costingExpensesPctDraft={costingExpensesPctDraft}
           onCostingPctChange={changeCostingPct}
           onCostingRateChange={changeCostingRate}
           onCostingExpensesPctChange={changeCostingExpensesPct}
+          costingDhall={costingDhall}
+          onCostingDhallChange={changeCostingDhall}
           costingOnly={costingOnly}
         />
       ) : (

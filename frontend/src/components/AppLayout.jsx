@@ -16,6 +16,7 @@ import {
   CalendarDaysIcon,
   ClipboardDocumentListIcon,
   CalculatorIcon,
+  CogIcon,
   CubeTransparentIcon,
   InboxArrowDownIcon,
   RectangleStackIcon,
@@ -57,8 +58,6 @@ const navSections = [
         label: 'Post Dated Cheque',
         icon: DocumentCheckIcon,
       },
-      { to: '/transactions/orid-dhall-production', label: 'Orid Dhall Production', icon: CubeTransparentIcon },
-      { to: '/transactions/orid-costing', label: 'Orid Costing', icon: CalculatorIcon },
       {
         to: '/transactions/packing-material',
         label: 'Packing Material',
@@ -66,6 +65,21 @@ const navSections = [
       },
       { to: '/transactions/brokerage', label: 'Brokerage', icon: BanknotesIcon },
       { to: '/transactions/fixed-asset-register', label: 'Fixed Asset Register', icon: ArchiveBoxIcon },
+    ],
+  },
+  {
+    id: 'orid-processing',
+    label: 'Orid Processing',
+    icon: CogIcon,
+    items: [
+      { to: '/transactions/orid-costing', label: 'Orid Costing', icon: CalculatorIcon },
+      { to: '/transactions/orid-dhall-production', label: 'Orid Dhall Production', icon: CubeTransparentIcon },
+      {
+        to: '/reports/orid-stock-analysis',
+        label: 'Orid Stock Analysis',
+        icon: ArchiveBoxIcon,
+      },
+      { to: '/reports/monthly-summary', label: 'Monthly Summary', icon: ChartBarSquareIcon },
     ],
   },
   {
@@ -88,13 +102,7 @@ const navSections = [
       { to: '/reports/collection-analysis', label: 'Collection Analysis', icon: ClockIcon },
       { to: '/reports/tds-workings', label: 'TDS Workings', icon: ReceiptPercentIcon },
       { to: '/reports/stock-analysis', label: 'Stock Analysis', icon: CubeTransparentIcon },
-      {
-        to: '/reports/orid-stock-analysis',
-        label: 'Orid Stock Analysis',
-        icon: ArchiveBoxIcon,
-      },
       { to: '/reports/purchases', label: 'Purchases', icon: ShoppingCartIcon },
-      { to: '/reports/monthly-summary', label: 'Monthly Summary', icon: ChartBarSquareIcon },
     ],
   },
 ]

@@ -13,3 +13,13 @@ export async function fetchMonthlyRateGroups({ year, month, kind, stockGroups })
   const { data } = await api.get(`/reports/monthly-summary/rate-groups?${params}`)
   return data
 }
+
+export async function saveMonthlyOpening({ year, month, openingQty, openingRate }) {
+  const { data } = await api.put('/reports/monthly-summary/opening', {
+    year,
+    month,
+    opening_qty: openingQty,
+    opening_rate: openingRate,
+  })
+  return data
+}

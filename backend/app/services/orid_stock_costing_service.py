@@ -22,6 +22,9 @@ _COSTING_FIELDS = (
     "split_rate",
     "rejection_rate",
     "husk_rate",
+    "dhall_cost_rate",
+    "dhall_overheads_pct",
+    "dhall_discount_pct",
 )
 
 

@@ -33,6 +33,10 @@ class OridStockCosting(Base):
     split_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     rejection_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     husk_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Orid Dhall Costing tab: cost per quintal − discount % + overheads % → cost for sale.
+    dhall_cost_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    dhall_overheads_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    dhall_discount_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_by: Mapped[Optional[int]] = mapped_column(
         ForeignKey("yoradm_users.id", ondelete="SET NULL"),
         nullable=True,
