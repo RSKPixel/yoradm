@@ -51,6 +51,19 @@ def create_refresh_token(subject: str) -> Tuple[str, str, datetime]:
     return token, jti, expires_at
 
 
+def create_mobile_access_token(device_id: int) -> str:
+    """Access token for an authorised phone. Its type keeps it out of every web endpoint."""
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(device_id),
+        "type": "mobile",
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.jwt_access_expire_minutes),
+    }
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
 def decode_token(token: str) -> dict:
     settings = get_settings()
     return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])

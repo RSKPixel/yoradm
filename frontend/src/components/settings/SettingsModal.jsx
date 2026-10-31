@@ -3,6 +3,7 @@ import {
   BuildingOffice2Icon,
   BanknotesIcon,
   Cog6ToothIcon,
+  DevicePhoneMobileIcon,
   KeyIcon,
   UserCircleIcon,
   UsersIcon,
@@ -11,6 +12,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { Modal } from '../common/Modal'
 import { CompanyProfileTab } from './CompanyProfileTab'
 import { GeneralTab } from './GeneralTab'
+import { MobileAccessTab } from './MobileAccessTab'
 import { PasswordTab } from './PasswordTab'
 import { ProfileTab } from './ProfileTab'
 import { TdsTab } from './TdsTab'
@@ -28,6 +30,7 @@ export function SettingsModal({ onClose, initialTab = 'general' }) {
             { id: 'tds', label: 'TDS', icon: BanknotesIcon },
             { id: 'company', label: 'Company Profile', icon: BuildingOffice2Icon },
             { id: 'users', label: 'Users', icon: UsersIcon },
+            { id: 'mobile', label: 'Mobile Access', icon: DevicePhoneMobileIcon },
           ]
         : []),
     ],
@@ -82,6 +85,7 @@ export function SettingsModal({ onClose, initialTab = 'general' }) {
             {activeTab === 'tds' && isAdmin && <TdsTab />}
             {activeTab === 'company' && isAdmin && <CompanyProfileTab />}
             {activeTab === 'users' && isAdmin && <UsersTab />}
+            {activeTab === 'mobile' && isAdmin && <MobileAccessTab />}
           </div>
         </div>
       </div>

@@ -15,6 +15,7 @@ yoradm/
 ├── backend/          # FastAPI API
 ├── frontend/         # React SPA
 ├── docker/           # Docker Compose + Dockerfiles
+├── mobile/           # Expo app for salesmen (receivables)
 └── README.md
 ```
 
@@ -98,3 +99,36 @@ App: http://localhost:8001 (or `YORADM_PORT` from `.env`)
 
 - Never commit `backend/.env`, `frontend/.env`, or `docker/.env`
 - Alembic only manages `yoradm_*` tables; Tally tables are never migrated by this app
+
+## Mobile app (salesmen)
+
+Expo app in `mobile/` for salesmen to see receivables for their own Tally representatives only. There is no salesman login: each phone is authorised in person and the phone itself is the credential.
+
+**Authorising a phone (web → Settings → Mobile Access):**
+
+1. Enter the salesman's name, tick their Tally representatives, and click *Get activation code*.
+2. On the salesman's phone, open YORA DM and enter the 8-character code. It works once and expires after 15 minutes (*New code* re-issues it).
+3. To change what a phone sees, *Edit* its representatives; it applies on the phone's next request.
+
+**Security model:**
+
+- On activation the phone generates a random device ID + secret, kept in the hardware keystore; the server stores only a hash. A session (15-minute token) needs that secret, so the app's data can't be reached from any other phone.
+- The phone must have a screen lock; the app asks for PIN/fingerprint on every open and after 60 s in the background.
+- Rep scope comes only from the server-side mapping; a phone with no reps sees nothing.
+- Mobile tokens (`/api/v1/m/*`) and web tokens are not interchangeable.
+- *Revoke* signs the phone out immediately and the app wipes its credentials.
+- Screenshots blocked, no data stored offline, HTTPS only in release builds. Activation and sessions are rate-limited per IP.
+- Every mobile request is logged (Mobile Access → Recent mobile activity).
+
+**Build:**
+
+```bash
+cd mobile
+npm install
+npx expo start -c                       # development / Expo Go (set EXPO_PUBLIC_API_URL in .env.local)
+npx eas-cli@latest init                 # first time only: links the app to an Expo project
+npx eas-cli@latest build -p android --profile preview      # APK
+./scripts/build-apk.sh                  # or build on the home server, as with yorapet3
+```
+
+Release builds talk to `https://dm.yoratech.com/api/v1` and refuse plain HTTP.

@@ -4,6 +4,7 @@ from app.models.brokerage_setting import BrokerageSetting
 from app.models.company import Company
 from app.models.delivery_challan import DeliveryChallan, DeliveryChallanDetail
 from app.models.goods_receipt import GoodsReceipt
+from app.models.mobile import MobileAudit, MobileDevice, MobileDeviceRep
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
 from app.models.orid_monthly_opening import OridMonthlyOpening
 from app.models.orid_stock_costing import OridStockCosting
@@ -50,6 +51,9 @@ __all__ = [
     "DeliveryChallan",
     "DeliveryChallanDetail",
     "GoodsReceipt",
+    "MobileAudit",
+    "MobileDevice",
+    "MobileDeviceRep",
     "OridDhallProduction",
     "OridDhallProductionLine",
     "OridMonthlyOpening",

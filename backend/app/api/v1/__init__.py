@@ -6,6 +6,8 @@ from app.api.v1 import (
     company,
     delivery_challans,
     goods_receipts,
+    mobile,
+    mobile_admin,
     orid_dhall_productions,
     orid_stock_costing,
     orid_stock_pendings,
@@ -36,6 +38,8 @@ api_router.include_router(payroll_attendance.router)
 api_router.include_router(post_dated_cheques.router)
 api_router.include_router(brokerage.router)
 api_router.include_router(reports.router)
+api_router.include_router(mobile.router)
+api_router.include_router(mobile_admin.router)
 
 
 @api_router.get("/health", tags=["health"])

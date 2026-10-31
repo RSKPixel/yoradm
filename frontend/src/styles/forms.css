@@ -1202,3 +1202,42 @@
 }
 
 
+
+/* Mobile Access: selected representatives */
+.rep-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.rep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--form-accent) 35%, var(--form-line));
+  border-radius: 0.4rem;
+  background: var(--form-accent-soft);
+  color: var(--form-ink);
+  padding: 0.18rem 0.25rem 0.18rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.rep-chip__remove {
+  display: inline-flex;
+  border-radius: 0.25rem;
+  padding: 0.1rem;
+  color: var(--form-muted);
+}
+
+.rep-chip__remove:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--form-ink);
+}
+
+.rep-chip__remove svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}

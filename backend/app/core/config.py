@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     admin_full_name: str = "System Admin"
     profile_photo_max_bytes: int = 1 * 1024 * 1024
 
+    mobile_activation_minutes: int = 15
+    # Proxies in front of the API (Apache + nginx in production); used to find the client IP.
+    trusted_proxy_hops: int = 2
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origins(self) -> List[str]:
