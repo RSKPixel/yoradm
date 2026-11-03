@@ -5977,3 +5977,66 @@ body {
   text-align: right;
   color: var(--muted);
 }
+
+/* Orid Dhall Production — delivery bags by date, expandable to invoices */
+.odp-delivery-modal .dc-search-panel {
+  padding: 0;
+}
+.odp-delivery-modal .dc-search-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+.odp-delivery-dates-table col.col-date {
+  width: 38%;
+}
+.odp-delivery-dates-table col.col-item {
+  width: 24%;
+}
+.odp-delivery-dates-table col.col-qty {
+  width: 7%;
+}
+.odp-delivery-dates-table col.col-bags {
+  width: 10%;
+}
+.odp-delivery-dates-table col.col-rate {
+  width: 15%;
+}
+
+.odp-delivery-date-row td {
+  font-weight: 600;
+}
+
+.odp-delivery-muted {
+  color: var(--muted);
+  font-weight: 400 !important;
+}
+
+.odp-delivery-invoice-row td {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
+.odp-delivery-invoice-row td:first-child {
+  padding-left: 2.1rem;
+}
+
+.odp-delivery-vno {
+  font-family: var(--font-tabular);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  margin-right: 0.5rem;
+}
+
+.odp-delivery-party {
+  color: var(--muted);
+}
+
+.odp-delivery-dates-table tbody tr td {
+  transition: background-color 120ms ease;
+}
+
+.odp-delivery-dates-table tbody tr.odp-delivery-date-row:hover td,
+.odp-delivery-dates-table tbody tr.odp-delivery-invoice-row:hover td {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}

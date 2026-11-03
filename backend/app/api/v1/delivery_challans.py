@@ -88,15 +88,13 @@ def qty_by_batch_dates(
         batch_no=batch,
         stock_group=group,
     )
-    items = [
-        DeliveryQtyByDateItem(challan_date=row["challan_date"], total_qty=row["total_qty"])
-        for row in rows
-    ]
+    items = [DeliveryQtyByDateItem(**row) for row in rows]
     return DeliveryQtyByBatchDatesOut(
         batch_no=batch,
         stock_group=group,
         items=items,
         total_qty=sum(item.total_qty for item in items),
+        total_amount=sum(item.total_amount for item in items),
     )
 
 

@@ -112,9 +112,27 @@ class DeliveryQtyByBatchOut(BaseModel):
     total_amount: float = 0
 
 
+class DeliveryQtyLineItem(BaseModel):
+    stock_item: Optional[str] = None
+    packing: float
+    qty: float
+    total_qty: float = 0
+    total_amount: float = 0
+
+
+class DeliveryQtyInvoiceItem(BaseModel):
+    voucher_no: str
+    ledger_name: Optional[str] = None
+    lines: List[DeliveryQtyLineItem] = []
+    total_qty: float = 0
+    total_amount: float = 0
+
+
 class DeliveryQtyByDateItem(BaseModel):
     challan_date: date
     total_qty: float
+    total_amount: float = 0
+    invoices: List[DeliveryQtyInvoiceItem] = []
 
 
 class DeliveryQtyByBatchDatesOut(BaseModel):
@@ -122,6 +140,7 @@ class DeliveryQtyByBatchDatesOut(BaseModel):
     stock_group: str
     items: List[DeliveryQtyByDateItem] = []
     total_qty: float = 0
+    total_amount: float = 0
 
 
 class PendingDeliveryLineOut(BaseModel):

@@ -619,12 +619,12 @@ def sum_qty_by_batch(
     batch_no: str,
     stock_group: str = "Orid Dhall",
 ) -> Tuple[float, float]:
-    """Sum 50kg-bag qty and net line value for DC lines on batch + stock_group.
+    """Sum 50kg-bag qty and gross line value for DC lines on batch + stock_group.
 
     Bags per line: (qty × packing) / 50.
     Packing resolves detail.packing → tally sale → tally inventory master.
     Raises if any matching line lacks Tally packing.
-    Value: sum(amount) + sum(discount). Discount is stored negative from sales.
+    Value: sum(amount), before discount.
     Returns (total_qty_50kg_bags, total_amount).
     """
     batch = (batch_no or "").strip()
@@ -646,14 +646,14 @@ def sum_qty_by_batch(
     inv_packing = _inventory_packing_subquery(db)
     packing_kg = _packing_kg_expr(inv_packing)
     bag_expr = _bags_50_expr(packing_kg)
-    net_amount_expr = func.coalesce(DeliveryChallanDetail.amount, 0.0) + func.coalesce(
-        DeliveryChallanDetail.discount, 0.0
-    )
+    # Gross only: Tally repeats the invoice-level discount on every line of an
+    # invoice, so summing it per line over-deducts on mixed-item bills.
+    gross_amount_expr = func.coalesce(DeliveryChallanDetail.amount, 0.0)
 
     row = (
         db.query(
             func.coalesce(func.sum(bag_expr), 0.0),
-            func.coalesce(func.sum(net_amount_expr), 0.0),
+            func.coalesce(func.sum(gross_amount_expr), 0.0),
         )
         .join(DeliveryChallan, DeliveryChallanDetail.challan_id == DeliveryChallan.id)
         .outerjoin(
@@ -673,7 +673,9 @@ def list_qty_by_batch_date(
     batch_no: str,
     stock_group: str = "Orid Dhall",
 ) -> list:
-    """Per challan_date: sum of 50kg-bag qty for batch + stock_group."""
+    """Per challan_date: 50kg-bag qty and gross amount for batch + stock_group,
+    with the invoices delivered that day (lines grouped by voucher_no).
+    Amount is before discount, matching sum_qty_by_batch."""
     batch = (batch_no or "").strip()
     group = (stock_group or "").strip()
     if not batch or not group:
@@ -692,7 +694,13 @@ def list_qty_by_batch_date(
     rows = (
         db.query(
             DeliveryChallan.challan_date,
+            DeliveryChallanDetail.voucher_no,
+            DeliveryChallanDetail.ledger_name,
+            DeliveryChallanDetail.stock_item,
+            packing_kg,
+            func.coalesce(func.sum(DeliveryChallanDetail.qty), 0.0),
             func.coalesce(func.sum(bag_expr), 0.0),
+            func.coalesce(func.sum(DeliveryChallanDetail.amount), 0.0),
         )
         .join(DeliveryChallanDetail, DeliveryChallanDetail.challan_id == DeliveryChallan.id)
         .outerjoin(
@@ -703,13 +711,54 @@ def list_qty_by_batch_date(
             func.trim(DeliveryChallan.batch_no) == batch,
             DeliveryChallanDetail.stock_item.in_(stock_items),
         )
-        .group_by(DeliveryChallan.challan_date)
-        .order_by(DeliveryChallan.challan_date.asc())
+        .group_by(
+            DeliveryChallan.challan_date,
+            DeliveryChallanDetail.voucher_no,
+            DeliveryChallanDetail.ledger_name,
+            DeliveryChallanDetail.stock_item,
+            packing_kg,
+        )
+        .order_by(
+            DeliveryChallan.challan_date.asc(),
+            DeliveryChallanDetail.voucher_no.asc(),
+            packing_kg.desc(),
+        )
         .all()
     )
+
+    days: dict = {}
+    for challan_date, voucher_no, ledger_name, stock_item, packing, qty, bags, amount in rows:
+        day = days.setdefault(
+            challan_date,
+            {"challan_date": challan_date, "total_qty": 0.0, "total_amount": 0.0, "invoices": {}},
+        )
+        invoice = day["invoices"].setdefault(
+            voucher_no,
+            {
+                "voucher_no": voucher_no,
+                "ledger_name": ledger_name,
+                "lines": [],
+                "total_qty": 0.0,
+                "total_amount": 0.0,
+            },
+        )
+        invoice["lines"].append(
+            {
+                "stock_item": stock_item,
+                "packing": float(packing or 0.0),
+                "qty": float(qty or 0.0),
+                "total_qty": float(bags or 0.0),
+                "total_amount": float(amount or 0.0),
+            }
+        )
+        invoice["total_qty"] += float(bags or 0.0)
+        invoice["total_amount"] += float(amount or 0.0)
+        day["total_qty"] += float(bags or 0.0)
+        day["total_amount"] += float(amount or 0.0)
+
     return [
-        {"challan_date": row[0], "total_qty": float(row[1] or 0.0)}
-        for row in rows
+        {**day, "invoices": list(day["invoices"].values())}
+        for day in days.values()
     ]
 
 
