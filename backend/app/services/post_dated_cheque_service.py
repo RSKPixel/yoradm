@@ -253,12 +253,17 @@ def sum_cheque_received_by_invoice(
     name = (party or "").strip()
     if not name:
         return {}
+    # Returned cheques never brought money in, so they don't count as received.
     query = (
         db.query(
             PostDatedChequeAllocation.invoice_no,
             func.coalesce(func.sum(PostDatedChequeAllocation.allocated_amount), 0.0),
         )
-        .filter(func.lower(PostDatedChequeAllocation.party) == name.lower())
+        .join(PostDatedCheque, PostDatedCheque.id == PostDatedChequeAllocation.cheque_id)
+        .filter(
+            func.lower(PostDatedChequeAllocation.party) == name.lower(),
+            PostDatedCheque.status != "Returned",
+        )
     )
     if exclude_cheque_id is not None:
         query = query.filter(PostDatedChequeAllocation.cheque_id != int(exclude_cheque_id))

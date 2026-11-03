@@ -207,10 +207,15 @@ export function PostDatedChequePage() {
     [selectedBillIds, thisChequeAlloc],
   )
 
-  const diffTotal = useMemo(
-    () => pendingTotal - chequeReceivedTotal - thisChequeTotal,
-    [pendingTotal, chequeReceivedTotal, thisChequeTotal],
-  )
+  const diffTotal = useMemo(() => {
+    // Settled bills (no longer pending in Tally) have no amount; keep them out of Diff.
+    const pendingAllocated = pendingBills.reduce((sum, row) => {
+      if (row.settled || !selectedBillIds.has(row.id)) return sum
+      const amount = parseNum(thisChequeAlloc[row.id])
+      return amount != null ? sum + amount : sum
+    }, 0)
+    return pendingTotal - chequeReceivedTotal - pendingAllocated
+  }, [pendingBills, selectedBillIds, thisChequeAlloc, pendingTotal, chequeReceivedTotal])
 
   const chequeAmountNum = parseNum(form.chequeAmount)
   const allocationMatchesCheque =
@@ -259,40 +264,71 @@ export function PostDatedChequePage() {
         .then((data) => {
           if (cancelled) return
           const bills = Array.isArray(data) ? data : []
-          setPendingBills(bills)
 
           const pendingRestore = restoreAllocationsRef.current
           restoreAllocationsRef.current = null
           if (pendingRestore) {
+            // Tally sync rebuilds receivables (new ids) and drops paid bills, so match
+            // by invoice no. first and keep allocations whose bill is no longer pending
+            // as "settled" rows — otherwise an existing cheque can never be re-saved.
+            const merged = [...bills]
             const nextIds = new Set()
             const nextAlloc = {}
+            let settledId = -1
             for (const item of pendingRestore) {
-              const bill = bills.find(
-                (row) =>
-                  (item.receivable_id != null && row.id === item.receivable_id) ||
-                  ((item.invoice_no || '').trim() &&
-                    (row.invoice_no || '').trim() === String(item.invoice_no).trim()),
-              )
-              if (!bill) continue
+              const invoiceNo = String(item.invoice_no ?? '').trim()
+              let bill =
+                (invoiceNo &&
+                  merged.find((row) => (row.invoice_no || '').trim() === invoiceNo)) ||
+                (item.receivable_id != null &&
+                  merged.find((row) => row.id === item.receivable_id)) ||
+                null
+              if (!bill) {
+                bill = {
+                  id: settledId,
+                  invoice_no: invoiceNo || null,
+                  invoice_date: null,
+                  amount: null,
+                  cheque_received: 0,
+                  settled: true,
+                }
+                settledId -= 1
+                merged.push(bill)
+              }
               nextIds.add(bill.id)
-              nextAlloc[bill.id] = numToForm(item.allocated_amount)
+              const prior = parseNum(nextAlloc[bill.id]) ?? 0
+              nextAlloc[bill.id] = numToForm(prior + Number(item.allocated_amount || 0))
             }
+            setPendingBills(merged)
             setSelectedBillIds(nextIds)
             setThisChequeAlloc(nextAlloc)
             if (snapshotFormRef.current) {
               setSavedSnapshot(snapshotState(snapshotFormRef.current, nextAlloc))
               snapshotFormRef.current = null
             }
-          } else if (!savedChequeId) {
-            setSelectedBillIds(new Set())
-            setThisChequeAlloc({})
+          } else {
+            // Drop selections that don't belong to the freshly loaded bills
+            // (e.g. party changed), so totals and payload stay in sync.
+            setPendingBills(bills)
+            const validIds = new Set(bills.map((row) => row.id))
+            setSelectedBillIds(
+              (prev) => new Set([...prev].filter((id) => validIds.has(id))),
+            )
+            setThisChequeAlloc((prev) =>
+              Object.fromEntries(
+                Object.entries(prev).filter(([id]) => validIds.has(Number(id))),
+              ),
+            )
           }
         })
-        .catch(() => {
+        .catch((error) => {
           if (!cancelled) {
+            restoreAllocationsRef.current = null
+            snapshotFormRef.current = null
             setPendingBills([])
             setSelectedBillIds(new Set())
             setThisChequeAlloc({})
+            showError(getApiErrorMessage(error, 'Could not load pending bills'))
           }
         })
         .finally(() => {
@@ -304,7 +340,7 @@ export function PostDatedChequePage() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [form.party, savedChequeId, billsReloadToken])
+  }, [form.party, savedChequeId, billsReloadToken, showError])
 
   function setField(key, value) {
     setForm((prev) => {
@@ -366,7 +402,7 @@ export function PostDatedChequePage() {
       const amount = parseNum(thisChequeAlloc[billId])
       if (amount == null || amount <= 0) continue
       items.push({
-        receivable_id: bill.id,
+        receivable_id: bill.settled ? null : bill.id,
         invoice_no: (bill.invoice_no || '').trim() || String(bill.id),
         allocated_amount: amount,
       })
@@ -376,7 +412,13 @@ export function PostDatedChequePage() {
 
   async function onSave(event) {
     event.preventDefault()
-    const errors = validatePostDatedChequeForm(form)
+    // Blank cheque amount → take it from the bills allocated below.
+    let effectiveForm = form
+    if (!String(form.chequeAmount ?? '').trim() && thisChequeTotal > 0) {
+      effectiveForm = { ...form, chequeAmount: numToForm(Math.round(thisChequeTotal * 100) / 100) }
+      setForm(effectiveForm)
+    }
+    const errors = validatePostDatedChequeForm(effectiveForm)
     const allocations = buildAllocationsPayload()
     for (const billId of selectedBillIds) {
       const amount = parseNum(thisChequeAlloc[billId])
@@ -385,7 +427,7 @@ export function PostDatedChequePage() {
         break
       }
     }
-    const chequeAmount = parseNum(form.chequeAmount)
+    const chequeAmount = parseNum(effectiveForm.chequeAmount)
     if (!allocations.length) {
       errors.push('Allocate this cheque to at least one bill.')
     } else if (
@@ -406,7 +448,7 @@ export function PostDatedChequePage() {
       cheque_no: form.chequeNo.trim(),
       cheque_date: form.chequeDate,
       cheque_present_date: form.chequePresentDate || null,
-      cheque_amount: parseNum(form.chequeAmount),
+      cheque_amount: chequeAmount,
       status: form.status,
       allocations,
     }
@@ -597,9 +639,9 @@ export function PostDatedChequePage() {
               </FormField>
               <FormField label="Cheque Amount">
                 <FormattedNumberInput
-                  required
                   value={form.chequeAmount}
                   onChange={(value) => setField('chequeAmount', value)}
+                  placeholder={thisChequeTotal > 0 ? formatValue(thisChequeTotal) : ''}
                   fractionDigits={2}
                   disabled={busy}
                 />
@@ -692,7 +734,18 @@ export function PostDatedChequePage() {
                             className={`pdc-pending__row${selected ? ' is-selected' : ''}`}
                             onClick={() => toggleBillSelection(row.id)}
                           >
-                            <td>{row.invoice_no || '—'}</td>
+                            <td>
+                              {row.invoice_no || '—'}
+                              {row.settled ? (
+                                <span
+                                  className="pdc-pending__settled"
+                                  title="No longer pending in Tally (bill settled)"
+                                >
+                                  {' '}
+                                  · settled
+                                </span>
+                              ) : null}
+                            </td>
                             <td className="pdc-pending__date">
                               {row.invoice_date ? formatDate(row.invoice_date) : '—'}
                             </td>
@@ -720,10 +773,10 @@ export function PostDatedChequePage() {
                               />
                             </td>
                             <td className="win-form__table-num">
-                              {formatValue(diff)}
+                              {row.settled ? '—' : formatValue(diff)}
                             </td>
                             <td className="win-form__table-num">
-                              {formatDiffPct(diff, row.amount)}
+                              {row.settled ? '—' : formatDiffPct(diff, row.amount)}
                             </td>
                           </tr>
                         )

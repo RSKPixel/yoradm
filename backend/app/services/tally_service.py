@@ -14,7 +14,6 @@ from app.constants.orid_raw_yield import (
 )
 from app.models.orid_dhall_production import OridDhallProduction, OridDhallProductionLine
 from app.models.party_collection_performance import PartyCollectionPerformance
-from app.models.post_dated_cheque import PostDatedChequeAllocation
 from app.models.tally import (
     TallySyncAccount,
     TallySyncCostCentre,
@@ -66,6 +65,7 @@ from app.schemas.tally import (
     VendorOptionOut,
     VendorTdsStatusOut,
 )
+from app.services import post_dated_cheque_service
 
 VENDOR_PRIMARY_GROUPS = ("Sundry Creditors", "Sundry Debtors")
 
@@ -227,22 +227,11 @@ def list_party_pending_bills(
         .all()
     )
 
-    received_query = (
-        db.query(
-            PostDatedChequeAllocation.invoice_no,
-            func.coalesce(func.sum(PostDatedChequeAllocation.allocated_amount), 0.0),
-        )
-        .filter(func.lower(PostDatedChequeAllocation.party) == name.lower())
+    received_by_invoice = post_dated_cheque_service.sum_cheque_received_by_invoice(
+        db,
+        party=name,
+        exclude_cheque_id=exclude_cheque_id,
     )
-    if exclude_cheque_id is not None:
-        received_query = received_query.filter(
-            PostDatedChequeAllocation.cheque_id != int(exclude_cheque_id)
-        )
-    received_by_invoice = {
-        (invoice or "").strip(): float(total or 0.0)
-        for invoice, total in received_query.group_by(PostDatedChequeAllocation.invoice_no).all()
-        if (invoice or "").strip()
-    }
 
     bills: List[PendingBillOut] = []
     for row in rows:

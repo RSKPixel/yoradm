@@ -4737,6 +4737,12 @@ body {
   color: color-mix(in srgb, #c92a2a 80%, var(--ink));
 }
 
+.pdc-pending__settled {
+  font-size: 0.85em;
+  opacity: 0.65;
+  font-style: italic;
+}
+
 .pdc-pending__table-foot td {
   border-bottom: none;
   background: var(--surface);

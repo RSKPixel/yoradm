@@ -7,7 +7,7 @@ import {
 import { Modal } from '../common/Modal'
 import { FormDropdown } from '../form/FormDropdown'
 import { FormField, FormInput } from '../form/FormPanel'
-import { formatDate, todayIsoDate } from '../../utils/formatDate'
+import { formatDate } from '../../utils/formatDate'
 import { formatValue } from '../../utils/formatNumber'
 import { getApiErrorMessage } from '../../utils/formValidation'
 
@@ -25,7 +25,8 @@ function monthStartIsoDate() {
 
 export function PostDatedChequeSearchModal({ onClose, onSelect, onStatusChange }) {
   const [dateFrom, setDateFrom] = useState(monthStartIsoDate)
-  const [dateTo, setDateTo] = useState(todayIsoDate)
+  // No upper bound by default: post dated cheques carry future cheque dates.
+  const [dateTo, setDateTo] = useState('')
   const [party, setParty] = useState('')
   const [chequeNo, setChequeNo] = useState('')
   const [items, setItems] = useState([])

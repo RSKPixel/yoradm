@@ -37,7 +37,7 @@ class PostDatedChequeCreate(BaseModel):
     cheque_no: str = Field(min_length=1, max_length=64)
     cheque_date: date
     cheque_present_date: Optional[date] = None
-    cheque_amount: float
+    cheque_amount: float = Field(gt=0)
     status: ChequeStatus = "Postdated"
     allocations: List[PostDatedChequeAllocationIn] = []
 
