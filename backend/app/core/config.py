@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
-    cors_origins_raw: str = Field(default="http://localhost:5175", validation_alias="CORS_ORIGINS")
+    cors_origins_raw: str = Field(default="http://localhost:3000", validation_alias="CORS_ORIGINS")
 
     mysql_host: str
     mysql_port: int = 3306

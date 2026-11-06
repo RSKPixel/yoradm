@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { getCreds } from './device';
 
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8003/api/v1';
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
 export class ApiError extends Error {
   constructor(

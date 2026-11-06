@@ -29,10 +29,10 @@ pip install -r requirements.txt
 cp .env.example .env   # then fill MySQL + JWT values
 alembic upgrade head
 python scripts/seed_admin.py
-uvicorn app.main:app --reload --port 8003
+uvicorn app.main:app --reload --port 4000
 ```
 
-API docs: http://localhost:8003/docs
+API docs: http://localhost:4000/docs
 
 ### Default admin (from `.env`)
 
@@ -50,7 +50,7 @@ cp .env.example .env
 npm run dev
 ```
 
-App: http://localhost:5175
+App: http://localhost:3000 (or http://homeserver:3000 over Tailscale; `/api` is proxied to the backend on :4000)
 
 ## Docker (production)
 
